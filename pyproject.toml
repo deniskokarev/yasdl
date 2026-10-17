@@ -1,0 +1,8 @@
+[project]
+name = "yasdl"
+version = "0.0.1"
+description = "Yet another schematic definition language: rectangular-block layouts for readable KiCad schematics"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

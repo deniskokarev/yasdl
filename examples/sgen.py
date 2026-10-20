@@ -47,9 +47,9 @@ SGEN = Block("SGen", """
 """, RA=R("300k"), RB=R("47k"), RC=R("4.7k"), REUP=R("68"), REDN=R("910"), CE=C("100u"),
     Q1=NPN("2N3904"), CK=C("1u"), RBUF=R("10k"), RBIN=R("6.8k"), Q2=NPN("2N3904"),
     RE2=R("680"), COUT=C("22u"), ROUT=R("10"), RBLD=R("10k"),
-    # <in> on the right: the ladder runs from the collector (right) to the base (left).
-    # The label leaves two fits, a 180 deg turn and a left/right mirror; the mirror flips one
-    # axis instead of two, so it wins and the shunt legs keep hanging down (spec 3.2).
-    PS=PHASE_SHIFT)
+    # The ladder runs from the collector (right) to the base (left): mirrored left/right so its
+    # shunt legs keep hanging down. The <in> pin label on the drawing documents that and is
+    # checked against the explicit orientation (a contradiction fails the binding).
+    PS=PHASE_SHIFT.mirrored("y"))
 
 ALL = {"PHASE_SHIFT": PHASE_SHIFT, "SGEN": SGEN}

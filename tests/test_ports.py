@@ -137,6 +137,14 @@ def test_label_orientation_prefers_mirror_over_rotation():
     assert host.to_dict()["components"]["PS"]["binding"]["mirror"] == "y"
 
 
+def test_explicit_orientation_checked_against_labels():
+    from examples.sgen import PHASE_SHIFT, SGEN
+    assert (SGEN.bound["PS"].rot, SGEN.bound["PS"].mirror) == (180, "x")  # .mirrored("y")
+    Block("H", "──PS<in>──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
+    with pytest.raises(YasdlError, match="does not fit"):
+        Block("H", "──PS<out>──", PS=PHASE_SHIFT.mirrored("y"))  # label contradicts
+
+
 def test_rotated_mirrored_api():
     from examples.sgen import PHASE_SHIFT
     assert (R().mirrored("y").rot, R().mirrored("y").mirror) == (180, "x")

@@ -239,7 +239,9 @@ top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
    `.oriented(rot, mirror)`. The result must fit the drawing, or binding fails.
    `"y"` mirrors left/right and `"x"` top/bottom, as in KiCad. Internally `"y"` is stored as
    180° plus `"x"`; the JSON view shows it as `"y"`.
-2. **Pin labels** (2.5): only orientations consistent with every label stay candidates. For
+2. **Pin labels** (2.5): only orientations consistent with every label stay candidates. With
+   an explicit orientation, labels are checked against it and a contradiction is an error, so
+   a label is also a cheap assertion that documents the intent on the drawing. For
    atoms, labels match pin names or numbers; for sub-blocks, port names. If several
    remain, rule 3 chooses among them.
 3. **Forced by the drawing**: the candidate must have exactly the drawn number of pins on
@@ -408,9 +410,10 @@ from the flattened design:
 
 **Example: `examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
 emitter-follower buffer) drawn in yasdl. Grounds are `<GND>` labels. The 3-section RC ladder
-is a sub-block drawn as `PS<in>`: the pin label puts its input on the right. Of the two fits,
-180° and a left/right mirror, the mirror flips fewer axes (3.2), so the shunt legs keep
-hanging down without any explicit orientation. The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
+is a sub-block, bound as `PHASE_SHIFT.mirrored("y")` and drawn as `PS<in>`. The pin label
+documents the orientation on the drawing and is checked against it: `PS<out>` with the same
+binding fails. (The label alone would pick the same mirror, 3.2, but saying it in code is
+clearer.) The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
 netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic
 oscillate at 1967 Hz, the same as the oracle.
 

@@ -24,6 +24,7 @@ class Atom:
     mirror: str | None = None
     symmetric: bool = False  # all pins interchangeable (R, C, L)
     aliases: dict = field(default_factory=dict)  # pin label -> pin number, e.g. {"+": "1"}
+    spice: object = None  # spice.SpiceModel override (default by lib_id)
 
     def oriented(self, rot: int = 0, mirror: str | None = None) -> Atom:
         return replace(self, rot=rot, mirror=mirror)

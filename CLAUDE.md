@@ -16,6 +16,9 @@ changes.
 - The schematic and the netlist come from the same Block. A renderer change is only done when
   the round-trip check passes for every example: KiCad's exported netlist equals
   `yasdl.netlist()`.
+- Exported schematics must pass KiCad ERC (errors and warnings) with no help from the drawing;
+  add export-time helpers instead of changing the ASCII spec.
+- For simulatable examples, kicad-cli's SPICE export must equal `spice_netlist()`.
 - Don't use SKiDL or its pin/net model.
 
 ## Code
@@ -23,7 +26,7 @@ changes.
 - Python 3.12, stdlib only (no runtime dependencies).
 - Modules: `canvas.py` (parsing), `block.py` (binding, netlist), `layout.py` (grid-bag),
   `kicad_lib.py` (library symbols, orientation), `kicad_sch.py` (file writer, kicad-cli),
-  `kicad_export.py` (block → schematic, round trip).
+  `kicad_export.py` (block → schematic, ERC helpers, round trips), `spice.py` (SPICE export).
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
 - `examples/blocks.py` is the fixture for tests. Each new feature gets an example and a test.
 - Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m examples.render`,

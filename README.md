@@ -369,7 +369,35 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   rendering only counts if it passes.
 - `kicad-cli sch export svg`, cropped to the drawing.
 
-## 7. Examples
+## 7. SPICE export
+
+`spice_netlist(block, subckt="name", port_order=None, includes=())` writes an ngspice netlist
+from the flattened design:
+- **Ports**: with `subckt`, the netlist is wrapped in `.subckt name <ports>`, ports in DIP
+  order (2.7) unless `port_order` lists port names. Without it, a flat netlist is written.
+- **Nodes**: global nets keep their names, and `GND` becomes node `0`. Ports use their
+  aliases; other nets are `n1`, `n2`, ...
+- **Elements**: each atom becomes one element named `<letter>_<path>` (`C_PS_C1`), through a
+  `SpiceModel(prefix, pins, model, sim_pins)`. Defaults exist for `Device:R/C/L/D/Q_NPN/Q_PNP`.
+  Model-based parts take the model name from the value (`NPN("2N3904")`). Other symbols
+  need `Atom(..., spice=SpiceModel(...))`, or export fails with an error. Power symbols are
+  global nets, not elements.
+- **KiCad simulation fields**: `to_kicad(..., spice_libs=(paths,))` adds `Sim.Library`,
+  `Sim.Name` and `Sim.Pins` to model-based parts whose model is defined in one of the libraries.
+  `kicad-cli sch export netlist --format spice` then works on the schematic. ERC helpers are
+  excluded from simulation.
+- **SPICE round trip**: `render(..., spice=True)` checks that KiCad's SPICE export of the
+  schematic equals yasdl's own netlist, element by element.
+
+**Example: `examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
+emitter-follower buffer) drawn in yasdl. The 3-section RC ladder is a sub-block, mirrored at
+binding. The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
+netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic
+oscillate at 1967 Hz, the same as the oracle.
+
+![sine generator](docs/examples/SGen.png)
+
+## 8. Examples
 
 `examples/blocks.py` (rendered by `python -m examples.render`, images in `docs/examples/`):
 
@@ -379,8 +407,9 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 | Darlington pair (same drawn signature as an NPN) | ![](docs/examples/Darlington.png) |
 | Inverting op-amp, series input and parallel feedback bound as sub-blocks | ![](docs/examples/InvAmp.png) |
 | PARALLEL bound into a vertical slot (oriented at binding) | ![](docs/examples/Shunt.png) |
+| 2 kHz sine generator (section 7) | ![](docs/examples/SGen.png) |
 
-## 8. Status
+## 9. Status
 
 | Part | State |
 |---|---|
@@ -390,9 +419,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 | KiCad 9 export, round-trip check, SVG | done |
 | ERC-clean export (project files, test points, power flags), ERC in tests | done |
 | Buses | specified, not implemented |
-| Hierarchical sheets, SPICE export | not started |
+| SPICE export (subckt, DIP port order), KiCad Sim fields, SPICE round trip | done |
+| Hierarchical sheets | not started |
 
-## 9. Open questions
+## 10. Open questions
 
 - Bus crossings: should "which bus is on top" carry meaning (like PCB layers), or is it
   only how it's drawn?
@@ -403,3 +433,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   the expected consequence; confirm when buses are implemented.
 - Flat output vs one hierarchical KiCad sheet per sub-block.
 - Label text width is estimated (1.27 mm per character), not measured.
+- Component names with a repeating period collapse by design (`CC` → `C`, `RR` → `R`). That's
+  surprising in practice; a warning when a multi-character row reduces to one character
+  might help.
+- SPICE for op-amps: ngspice has no ideal op-amp; a behavioural subcircuit mapping is needed.

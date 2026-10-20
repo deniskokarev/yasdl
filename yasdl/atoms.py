@@ -23,6 +23,14 @@ def NPN(value: str = "") -> Atom:
     return Atom("Device:Q_NPN", value)
 
 
+def PNP(value: str = "") -> Atom:
+    return Atom("Device:Q_PNP", value)
+
+
+def D(value: str = "") -> Atom:
+    return Atom("Device:D", value)
+
+
 def OPAMP(value: str = "") -> Atom:
     """Ideal op-amp (Simulation_SPICE:OPAMP): + and - on the left, out right, V+ top, V- bottom."""
     return Atom("Simulation_SPICE:OPAMP", value)

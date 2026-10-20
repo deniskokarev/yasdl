@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import re
 import shutil
+import subprocess
+import tempfile
 from collections import Counter
 from pathlib import Path
 
 from .block import Block, netlist, partition
-from .kicad_lib import KICAD_ROOT, SYMBOL_DIR, to_screen
+from .kicad_lib import KICAD_CLI, KICAD_ROOT, SYMBOL_DIR, to_screen
 from .kicad_sch import Schematic, export_netlist, export_svg, run_erc, snap
 from .layout import layout
+from .spice import model_library, parse_spice, spice_model, spice_netlist, spice_partition
 
 MARGIN = 25.4
 
@@ -21,7 +24,8 @@ def _ref_prefix(lib_id: str, sym) -> str:
     return str(prop[2]) if prop else "X"
 
 
-def to_kicad(block: Block, path, erc_helpers: bool = True) -> tuple[Path, dict[str, str]]:
+def to_kicad(block: Block, path, erc_helpers: bool = True,
+             spice_libs: tuple = ()) -> tuple[Path, dict[str, str]]:
     """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
@@ -41,9 +45,9 @@ def to_kicad(block: Block, path, erc_helpers: bool = True) -> tuple[Path, dict[s
             counters[prefix] += 1
             ref = f"{prefix}{counters[prefix]}"
             sch.add_symbol(atom.lib_id, ref, atom.value, *t((x, y)), rot, mirror,
-                           fields={"yasdl_path": ypath})
+                           fields={"yasdl_path": ypath, **_sim_fields(atom, spice_libs)})
         refmap[ref] = ypath
-        placed.append((sym, t((x, y)), rot, mirror))
+        placed.append((sym, t((x, y)), rot, mirror, atom.value or atom.lib_id.split(":")[1]))
     wires = [(t(a), t(b)) for a, b in res.wires]
     ends = Counter()
     for a, b in wires:
@@ -79,6 +83,24 @@ def to_kicad(block: Block, path, erc_helpers: bool = True) -> tuple[Path, dict[s
     return path, refmap
 
 
+def _sim_fields(atom, spice_libs) -> dict:
+    """KiCad simulator fields for model-based parts (transistors, diodes): library, model, pins.
+    Plain R/C/L need none: KiCad reads their value."""
+    try:
+        m = spice_model(atom)
+    except Exception:  # no SPICE mapping: the schematic is still valid, just not simulatable
+        return {}
+    if m is None or not m.model or atom.spice is None and not m.sim_pins:
+        return {}
+    lib = model_library(m.model, spice_libs)
+    if lib is None:
+        return {}
+    fields = {"Sim.Library": lib, "Sim.Name": m.model}
+    if m.sim_pins:
+        fields["Sim.Pins"] = m.sim_pins
+    return fields
+
+
 # TestPoint body points away from the drawing (library body is above its pin).
 _OUTWARD = {"W": 90, "E": 270, "N": 0, "S": 180}
 
@@ -87,7 +109,7 @@ def _power_flags(placed, wires, labels):
     """One PWR_FLAG per net that has power-input pins but no power-output pin (ERC rule).
 
     Nets are rebuilt from geometry, as KiCad does: coincident wire ends and pin points, and
-    same-text labels. The flag sits on a power symbol pin, else a global label, else any
+    same-text labels, and same-name power symbols. The flag sits on a power symbol pin, else a global label, else any
     point of the net, turned across the wire there so it doesn't overlap it.
     """
     parent = {}
@@ -105,12 +127,14 @@ def _power_flags(placed, wires, labels):
     for a, b in wires:
         union(a, b)
     pins = []  # (point, etype, power symbol?)
-    for sym, (x, y), rot, mirror in placed:
+    for sym, (x, y), rot, mirror, value in placed:
         for p in sym.pins:
             sx, sy = to_screen(p.x, p.y, rot, mirror)
             pt = (snap(x + sx), snap(y + sy))
             find(pt)
             pins.append((pt, p.etype, sym.is_power))
+            if sym.is_power:  # power symbols with one name are one net, wherever they are
+                union(pt, ("label", value))
     for text, pt, _ in labels:
         union(pt, ("label", text))
     nets = {}
@@ -188,13 +212,37 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     return got == want, want - got, got - want
 
 
-def render(block: Block, out_dir, svg: bool = True) -> dict:
+def export_kicad_spice(sch_path) -> str:
+    """kicad-cli's own SPICE export of a schematic."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "net.cir"
+        subprocess.run([str(KICAD_CLI), "sch", "export", "netlist", "--format", "spice",
+                        "-o", str(out), str(sch_path)], check=True, capture_output=True, text=True)
+        return out.read_text()
+
+
+def spice_roundtrip(block: Block, sch_path, refmap) -> tuple[bool, str]:
+    """Compare kicad-cli's SPICE export of the schematic with yasdl's own SPICE netlist."""
+    kicad = parse_spice(export_kicad_spice(sch_path))
+    ours = parse_spice(spice_netlist(block))
+    k_part, k_vals = spice_partition(kicad, lambda n: refmap.get(n))
+    o_part, o_vals = spice_partition(ours, lambda n: n.split("_", 1)[1])
+    norm = lambda s: {frozenset((e.replace(".", "_"), i) for e, i in net) for net in s}  # noqa: E731
+    vals = lambda s: {(e.replace(".", "_"), v) for e, v in s}  # noqa: E731
+    ok = norm(k_part) == norm(o_part) and vals(k_vals) == vals(o_vals)
+    return ok, "" if ok else f"kicad {sorted(map(sorted, norm(k_part) ^ norm(o_part)))[:4]}"
+
+
+def render(block: Block, out_dir, svg: bool = True, spice_libs: tuple = (),
+           spice: bool = False) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    sch_path, refmap = to_kicad(block, out_dir / f"{block.name}.kicad_sch")
+    sch_path, refmap = to_kicad(block, out_dir / f"{block.name}.kicad_sch", spice_libs=spice_libs)
     ok, missing, extra = roundtrip(block, sch_path, refmap)
     info = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra,
             "erc": erc(sch_path)}
+    if spice:
+        info["spice_ok"], info["spice_diff"] = spice_roundtrip(block, sch_path, refmap)
     if svg:
         info["svg"] = export_svg(sch_path, out_dir)
         _crop_svg(info["svg"], _BBOX[str(sch_path)])

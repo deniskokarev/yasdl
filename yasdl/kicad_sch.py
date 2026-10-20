@@ -7,7 +7,7 @@ import tempfile
 import uuid as _uuid
 from pathlib import Path
 
-from .kicad_lib import KICAD_CLI, load, screen_bbox
+from .kicad_lib import KICAD_CLI, load, orient_vec, screen_bbox
 from .sexp import Sym, dumps, find, find_all, parse
 
 GRID = 1.27  # KiCad's default schematic grid (50 mil)
@@ -73,9 +73,15 @@ class Schematic:
         if helper:
             spots = {}
         field_angle = rot % 180  # cancels the symbol rotation: text stays horizontal
+        # KiCad keeps text readable: if the symbol transform turns the text direction to point
+        # left, it swaps left/right justification. Pre-swap so the text lands where intended.
+        tx, _ = orient_vec(1.0 if field_angle == 0 else 0.0, 0.0 if field_angle == 0 else -1.0,
+                           rot, mirror)
+        swap = {"left": "right", "right": "left"} if tx < -0.5 else {}
         for k, v in props.items():
             hide = k not in spots
             fx, fy, just = spots.get(k, (x, y, "center"))
+            just = swap.get(just, just)
             node.append([Sym("property"), k, str(v),
                          [Sym("at"), _num(snap(fx)), _num(snap(fy)), _num(field_angle)],
                          _effects(hide=hide, justify=None if just == "center" else just)])

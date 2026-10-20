@@ -283,7 +283,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
         "N": [{"pos": 13, "net": "VEE", "pin": "4"}],
         "E": [{"pos": 5, "net": "E0", "pin": "5"}],
         "S": [{"pos": 13, "net": "VCC", "pin": "3"}],
-        "W": [{"pos": 4, "net": "N2", "pin": "2"},
+        "W": [{"pos": 4, "net": "N1", "pin": "2"},
               {"pos": 6, "net": "GND", "label": "+", "pin": "1"}]
       }
     },
@@ -291,14 +291,14 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
       "rect": {"row": 0, "col": 13, "rows": 1, "cols": 2},
       "binding": {"block": "Parallel", "rot": 0, "mirror": null},
       "attachments": {"E": [{"pos": 0, "net": "E0", "pin": "E0"}],
-                      "W": [{"pos": 0, "net": "N2", "pin": "W0"}]}
+                      "W": [{"pos": 0, "net": "N1", "pin": "W0"}]}
     }
   },
   "unbound": [],
   "ports": [{"side": "E", "index": 0, "name": null, "net": "E0"},
             {"side": "W", "index": 0, "name": null, "net": "W0"}],
   "nets": {
-    "N2":  {"pins": ["FB.W0", "IN.E0", "U1.2"], "ports": [], "labels": []},
+    "N1":  {"pins": ["FB.W0", "IN.E0", "U1.2"], "ports": [], "labels": []},
     "VEE": {"pins": ["U1.4"], "ports": [], "labels": [{"text": "VEE", "row": 2, "col": 11}]}
   },
   "blocks": {"Series": {"...": "..."}, "Parallel": {"...": "..."}}

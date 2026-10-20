@@ -55,7 +55,9 @@ Worked examples are in `~/work/yasdl/examples/` (`blocks.py`, `sgen.py`).
 
 ```bash
 export PYTHONPATH=~/work/yasdl:$PYTHONPATH   # stdlib-only package, no install needed
-python -c "import yasdl"                      # KiCad 9 at ~/KiCad9 (YASDL_KICAD), ngspice on PATH
+# Prefix install: ~/KiCad9. macOS also accepts the directory containing KiCad.app.
+export YASDL_KICAD=/Applications/KiCad         # omit when KiCad is at ~/KiCad9
+python -c "import yasdl"                      # ngspice on PATH
 ```
 
 If yasdl isn't reachable (for example inside a task container), copy the `yasdl/` package
@@ -84,7 +86,9 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
    - `erc == []`: KiCad ERC clean, errors and warnings;
    - `spice_ok`: KiCad's SPICE export equals yasdl's.
    
-   Then look at the picture: convert the SVG to PNG and view it. Fix ugliness in the canvas.
+   The exporter selects the smallest fitting landscape ISO page and keeps port labels inside
+   the cropped SVG. Then look at the picture: convert the SVG to PNG and view it. Fix ugliness
+   in the canvas.
 8. **Deliver**: the SPICE file the task asks for, plus `.kicad_sch`, `.svg`/`.png` and the
    yasdl source.
 
@@ -165,6 +169,8 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 
 - Atom values are SPICE values (`"4.7k"`, `"100n"`). Transistors and diodes take the model
   name as their value (`NPN("2N3904")`, `D("1N4148")`). Models come from `includes`/`spice_libs`.
+- A `{GND}` port stays the formal node `GND` in wrapped subcircuit output; flat export uses
+  SPICE node `0`. This lets task pin orders expose ground without hard-wiring the subcircuit.
 - Parts without a default SPICE mapping (the op-amp) need `Atom(..., spice=SpiceModel(...))`,
   e.g. a behavioural subcircuit `SpiceModel("X", pins=(...), model="myopamp")`.
 

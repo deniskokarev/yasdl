@@ -36,8 +36,9 @@ def _effects(hide: bool = False, justify: str | None = None):
 
 
 class Schematic:
-    def __init__(self, title: str = "yasdl"):
+    def __init__(self, title: str = "yasdl", paper: str = "A4"):
         self.title = title
+        self.paper = paper
         self.uuid = _uid()
         self.symbols, self.items, self.lib_ids = [], [], []
         self._pwr = 0
@@ -118,7 +119,7 @@ class Schematic:
             d[1] = lib_id  # embedded copies are named with the full lib_id
             libs.append(d)
         return [Sym("kicad_sch"), [Sym("version"), Sym("20250114")], [Sym("generator"), "yasdl"],
-                [Sym("generator_version"), "9.0"], [Sym("uuid"), self.uuid], [Sym("paper"), "A4"],
+                [Sym("generator_version"), "9.0"], [Sym("uuid"), self.uuid], [Sym("paper"), self.paper],
                 libs, *self.items, *self.symbols,
                 [Sym("sheet_instances"), [Sym("path"), "/", [Sym("page"), "1"]]],
                 [Sym("embedded_fonts"), Sym("no")]]

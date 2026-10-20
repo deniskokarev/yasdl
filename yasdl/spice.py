@@ -86,7 +86,14 @@ def spice_netlist(block: Block, subckt: str | None = None, port_order: list[str]
     for port in ports:
         edge = cv.edge_ports[block.ports.index(port)]
         root = uf.find(("", cv.uf.find(edge.node)))
-        node = names.setdefault(root, _node_name(port.name or port.default))
+        port_name = port.name or port.default
+        node_name = _node_name(port_name)
+        if subckt and port_name.upper() == "GND":
+            # A subcircuit ground pin is a formal node, not the caller's global
+            # node 0. Keep that one connected net named GND throughout the body.
+            node_name = re.sub(r"[^A-Za-z0-9_]", "_", port_name)
+            names[root] = node_name
+        node = names.setdefault(root, node_name)
         port_nodes.append(node)
     auto = {}
 

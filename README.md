@@ -365,9 +365,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 
 ## 6. KiCad output
 
-- One flat sheet. Symbols are copied from KiCad 9's libraries into `lib_symbols`. References
-  are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a `yasdl_path` field with its
-  hierarchical name (`FB.R1`).
+- One flat sheet on the smallest landscape ISO page from A4 through A0 that contains the
+  complete drawing and port-label margin. Symbols are copied from KiCad 9's libraries into
+  `lib_symbols`. References are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a
+  `yasdl_path` field with its hierarchical name (`FB.R1`).
 - Wires, junction dots, net labels, and labels for the top block's ports.
 - **ERC-clean by construction.** Every exported schematic passes `kicad-cli sch erc` with no
   errors and no warnings. Nothing is required in the drawing; the export adds:
@@ -388,14 +389,19 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   rendering only counts if it passes.
 - `kicad-cli sch export svg`, cropped to the drawing.
 
+Set `YASDL_KICAD` to a KiCad installation root. Prefix installations use
+`bin/kicad-cli` and `share/kicad`; macOS installations may point at either the directory
+containing `KiCad.app` (for example `/Applications/KiCad`) or the app bundle itself.
+
 ## 7. SPICE export
 
 `spice_netlist(block, subckt="name", port_order=None, includes=())` writes an ngspice netlist
 from the flattened design:
 - **Ports**: with `subckt`, the netlist is wrapped in `.subckt name <ports>`, ports in DIP
   order (2.7) unless `port_order` lists port names. Without it, a flat netlist is written.
-- **Nodes**: global nets keep their names, and `GND` becomes node `0`. Ports use their
-  aliases; other nets are `n1`, `n2`, ...
+- **Nodes**: global nets keep their names, and `GND` becomes node `0`. A `GND` port on a
+  wrapped subcircuit remains the formal node `GND` throughout that subcircuit; the same design
+  exported flat still uses node `0`. Ports use their aliases; other nets are `n1`, `n2`, ...
 - **Elements**: each atom becomes one element named `<letter>_<path>` (`C_PS_C1`), through a
   `SpiceModel(prefix, pins, model, sim_pins)`. Defaults exist for `Device:R/C/L/D/Q_NPN/Q_PNP`.
   Model-based parts take the model name from the value (`NPN("2N3904")`). Other symbols

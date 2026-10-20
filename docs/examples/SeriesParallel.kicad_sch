@@ -1,0 +1,669 @@
+(kicad_sch
+	(version 20250114)
+	(generator "yasdl")
+	(generator_version "9.0")
+	(uuid "0d38e008-b929-4ab5-8af0-e4d701610d47")
+	(paper "A4")
+	(lib_symbols
+		(symbol "Device:R"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "R res resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(wire
+		(pts
+			(xy 40.64 29.21)
+			(xy 41.91 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "02bf2829-aa29-4702-aa3b-22f07512c0fb")
+	)
+	(wire
+		(pts
+			(xy 41.91 29.21)
+			(xy 43.18 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "88527cfc-86c9-4832-b394-973e93de85a5")
+	)
+	(wire
+		(pts
+			(xy 43.18 29.21)
+			(xy 44.45 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "73ce1065-8cc8-42a9-b0bb-4c09d3c64ecc")
+	)
+	(wire
+		(pts
+			(xy 43.18 29.21)
+			(xy 43.18 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2b874552-bcf7-40d0-864a-eb9732228e23")
+	)
+	(wire
+		(pts
+			(xy 44.45 29.21)
+			(xy 45.72 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "83f96a48-dfb0-427b-92c8-aa887e26638f")
+	)
+	(wire
+		(pts
+			(xy 57.15 29.21)
+			(xy 58.42 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fc7d153e-3f69-4d15-97ec-9742e19da1ca")
+	)
+	(wire
+		(pts
+			(xy 58.42 29.21)
+			(xy 59.69 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2f081fb2-d212-4cd7-a839-fdd57848e603")
+	)
+	(wire
+		(pts
+			(xy 59.69 29.21)
+			(xy 60.96 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "32ff4163-060c-4035-8424-018ded51225e")
+	)
+	(wire
+		(pts
+			(xy 59.69 29.21)
+			(xy 59.69 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1ee0adf4-8930-4a38-8a2b-a20c988fea1f")
+	)
+	(wire
+		(pts
+			(xy 60.96 29.21)
+			(xy 62.23 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "21c111f0-cd48-42aa-a555-ec5100372a23")
+	)
+	(wire
+		(pts
+			(xy 43.18 30.48)
+			(xy 43.18 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f4a9340f-c814-4bd8-b362-ec2da22b73a4")
+	)
+	(wire
+		(pts
+			(xy 59.69 30.48)
+			(xy 59.69 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "442415ee-93c0-4fe6-a2dc-502b55fb3afd")
+	)
+	(wire
+		(pts
+			(xy 43.18 40.64)
+			(xy 44.45 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f56fee24-834e-49df-a3c3-c77a60d077ba")
+	)
+	(wire
+		(pts
+			(xy 44.45 40.64)
+			(xy 45.72 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9b82efd4-e4ef-4902-82f2-47383a0e945d")
+	)
+	(wire
+		(pts
+			(xy 57.15 40.64)
+			(xy 58.42 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f462bf00-c599-4075-84a0-a3ed44818006")
+	)
+	(wire
+		(pts
+			(xy 58.42 40.64)
+			(xy 59.69 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bf5371a1-4025-473e-9765-5c989e8ab232")
+	)
+	(wire
+		(pts
+			(xy 57.15 29.21)
+			(xy 54.61 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "73df4ebc-17c8-4cc3-8c3f-696066a7dd6e")
+	)
+	(wire
+		(pts
+			(xy 45.72 29.21)
+			(xy 46.99 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "24d3c362-39e2-4eca-b35f-e0c4a99e097a")
+	)
+	(wire
+		(pts
+			(xy 57.15 40.64)
+			(xy 54.61 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "07515c6d-1271-41e8-9a6c-44d0ca25c5b2")
+	)
+	(wire
+		(pts
+			(xy 45.72 40.64)
+			(xy 46.99 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a85bbd9f-a5a7-40fe-bbf5-f2b691f0520a")
+	)
+	(wire
+		(pts
+			(xy 25.4 29.21)
+			(xy 26.67 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8e219f2b-585e-47b4-bbb1-3049decc14cc")
+	)
+	(wire
+		(pts
+			(xy 38.1 29.21)
+			(xy 39.37 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "86ad56a9-f0c9-4d66-9508-dcea18172e80")
+	)
+	(wire
+		(pts
+			(xy 63.5 29.21)
+			(xy 64.77 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f3cf2988-4363-4a2f-8b6e-843e6fcd2062")
+	)
+	(wire
+		(pts
+			(xy 38.1 29.21)
+			(xy 35.56 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "312d3d3e-a1ac-46e1-8644-322e6b1651cb")
+	)
+	(wire
+		(pts
+			(xy 26.67 29.21)
+			(xy 27.94 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fb5991fb-ea7e-467d-974a-9f039bc4d724")
+	)
+	(wire
+		(pts
+			(xy 63.5 29.21)
+			(xy 62.23 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b17ff75d-881c-425a-923c-681f6d49915c")
+	)
+	(wire
+		(pts
+			(xy 39.37 29.21)
+			(xy 40.64 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3616edd0-8559-4aa7-a5f1-f1e6eb719b01")
+	)
+	(junction
+		(at 43.18 29.21)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "fc31bb0f-3b21-49ba-bdcb-8c87729e980d")
+	)
+	(junction
+		(at 59.69 29.21)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "5beaa4a7-6e66-4981-a2db-7ea521fa9948")
+	)
+	(label "E0"
+		(at 64.77 29.21 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "28de953f-2114-499c-b291-67b25166a0cd")
+	)
+	(label "W0"
+		(at 25.4 29.21 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "af1e11df-bf51-4d33-b669-d655f9d6a7a7")
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 31.75 29.21 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "0dffd439-f1b9-48dd-931a-feb457697a55")
+		(property "Reference" "R1"
+			(at 31.75 26.67 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1k"
+			(at 31.75 33.02 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 31.75 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 31.75 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "yasdl_path" "R1"
+			(at 31.75 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "95b582ab-5632-4f9c-bf08-1be195a48ee1")
+		)
+		(pin "2"
+			(uuid "29d0b2c6-5fc1-4cea-987c-88c308574d53")
+		)
+		(instances
+			(project "SeriesParallel"
+				(path "/0d38e008-b929-4ab5-8af0-e4d701610d47"
+					(reference "R1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 50.8 29.21 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "4ffd7596-f54a-468d-8a6b-c42a0bfa8a95")
+		(property "Reference" "R2"
+			(at 50.8 26.67 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 50.8 33.02 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 50.8 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 50.8 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "yasdl_path" "P.R1"
+			(at 50.8 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a81ea73e-513a-4da9-a6c1-da485a4a55a5")
+		)
+		(pin "2"
+			(uuid "fc9303f3-72e7-4ef8-9c51-df8dfe340605")
+		)
+		(instances
+			(project "SeriesParallel"
+				(path "/0d38e008-b929-4ab5-8af0-e4d701610d47"
+					(reference "R2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 50.8 40.64 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "27b9b206-13c9-42dd-85d0-be840643b8dc")
+		(property "Reference" "R3"
+			(at 50.8 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 50.8 44.45 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 50.8 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 50.8 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "yasdl_path" "P.R2"
+			(at 50.8 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "cb9807c2-fff4-4953-b5a1-b051df938a0c")
+		)
+		(pin "2"
+			(uuid "cc3f77bc-d953-4d3d-ac14-aee0fe449b23")
+		)
+		(instances
+			(project "SeriesParallel"
+				(path "/0d38e008-b929-4ab5-8af0-e4d701610d47"
+					(reference "R3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

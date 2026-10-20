@@ -1,38 +1,40 @@
-"""Atomic elements backed by KiCad 9 library symbols.
+"""Atom factories for common KiCad 9 library symbols."""
 
-Ports are given in the symbol's library orientation (pin positions from the .kicad_sym files):
-Device:R/C/L have pin 1 on top and pin 2 at the bottom; Device:Q_NPN has B left, C top,
-E bottom; Simulation_SPICE:OPAMP has + (pin 1) upper-left, - (pin 2) lower-left and the
-output (pin 5) right, so it spans 3 rows. Its supply pins (3, 4) are not grid ports yet.
-"""
-
-from .core import Atom
+from .block import Atom
 
 
 def R(value: str = "") -> Atom:
-    return Atom("R", "Device:R", (("N", 0, "1"), ("S", 0, "2")), value=value)
+    return Atom("Device:R", value, symmetric=True)
 
 
 def C(value: str = "") -> Atom:
-    return Atom("C", "Device:C", (("N", 0, "1"), ("S", 0, "2")), value=value)
+    return Atom("Device:C", value, symmetric=True)
 
 
 def L(value: str = "") -> Atom:
-    return Atom("L", "Device:L", (("N", 0, "1"), ("S", 0, "2")), value=value)
+    return Atom("Device:L", value, symmetric=True)
+
+
+def C_POL(value: str = "") -> Atom:
+    return Atom("Device:C_Polarized", value, aliases={"+": "1"})
 
 
 def NPN(value: str = "") -> Atom:
-    return Atom("NPN", "Device:Q_NPN", (("W", 0, "B"), ("N", 0, "C"), ("S", 0, "E")), value=value)
+    return Atom("Device:Q_NPN", value)
 
 
 def OPAMP(value: str = "") -> Atom:
-    return Atom("OPAMP", "Simulation_SPICE:OPAMP",
-                (("W", 0, "1"), ("W", 2, "2"), ("E", 1, "5")), h=3, value=value)
+    """Ideal op-amp (Simulation_SPICE:OPAMP): + and - on the left, out right, V+ top, V- bottom."""
+    return Atom("Simulation_SPICE:OPAMP", value)
 
 
 def GND() -> Atom:
-    return Atom("GND", "power:GND", (("N", 0, "1"),), global_net="GND")
+    return Atom("power:GND", "GND")
 
 
 def VCC() -> Atom:
-    return Atom("VCC", "power:VCC", (("S", 0, "1"),), global_net="VCC")
+    return Atom("power:VCC", "VCC")
+
+
+def VEE() -> Atom:
+    return Atom("power:VEE", "VEE")

@@ -1,0 +1,525 @@
+(kicad_sch
+	(version 20250114)
+	(generator "yasdl")
+	(generator_version "9.0")
+	(uuid "23b829ef-2363-422e-a184-0168ea4bf886")
+	(paper "A4")
+	(lib_symbols
+		(symbol "Device:R"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "R res resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(wire
+		(pts
+			(xy 25.4 29.21)
+			(xy 26.67 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5668e1ab-3b66-49ba-a191-66d55cd3c265")
+	)
+	(wire
+		(pts
+			(xy 26.67 29.21)
+			(xy 27.94 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "35ca1379-688c-4b9c-9368-2a2a651a7e1c")
+	)
+	(wire
+		(pts
+			(xy 27.94 29.21)
+			(xy 29.21 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8f28fb1a-17e3-415f-867c-ba97d6908f23")
+	)
+	(wire
+		(pts
+			(xy 27.94 29.21)
+			(xy 27.94 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c54c451e-94e2-44c4-9740-d3393454f770")
+	)
+	(wire
+		(pts
+			(xy 29.21 29.21)
+			(xy 30.48 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1492330e-bea3-48d2-871b-03b9c4939d77")
+	)
+	(wire
+		(pts
+			(xy 41.91 29.21)
+			(xy 43.18 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2367c3b7-3cc4-4396-9c68-89f32821cd96")
+	)
+	(wire
+		(pts
+			(xy 43.18 29.21)
+			(xy 44.45 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "aac6ced7-76cf-4e7c-bd6b-9e31051bf30c")
+	)
+	(wire
+		(pts
+			(xy 44.45 29.21)
+			(xy 45.72 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fe2ca7ad-5b9f-4248-a67f-a66058438c29")
+	)
+	(wire
+		(pts
+			(xy 44.45 29.21)
+			(xy 44.45 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4abde522-7fed-41b1-ac2e-6b950bc85e67")
+	)
+	(wire
+		(pts
+			(xy 45.72 29.21)
+			(xy 46.99 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "baac54b0-6d2c-4a7a-9aaf-c1beca521eed")
+	)
+	(wire
+		(pts
+			(xy 27.94 30.48)
+			(xy 27.94 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a61b55a5-5e8f-44af-9f11-de5141c75227")
+	)
+	(wire
+		(pts
+			(xy 44.45 30.48)
+			(xy 44.45 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cb6ee59a-522c-4a38-afd3-7d29cd1c5287")
+	)
+	(wire
+		(pts
+			(xy 27.94 40.64)
+			(xy 29.21 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f56c86a8-2ad9-4559-82f6-a25ce33fd627")
+	)
+	(wire
+		(pts
+			(xy 29.21 40.64)
+			(xy 30.48 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "eaac7f27-1d23-4eca-aef1-97024db9b670")
+	)
+	(wire
+		(pts
+			(xy 41.91 40.64)
+			(xy 43.18 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b6357ba1-1c61-4000-9d93-4dbba464aa68")
+	)
+	(wire
+		(pts
+			(xy 43.18 40.64)
+			(xy 44.45 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cc7145fd-93ba-4b77-ba51-4e7c4bde7003")
+	)
+	(wire
+		(pts
+			(xy 41.91 29.21)
+			(xy 39.37 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dc08a1d8-10aa-4ef9-8989-f7b1fd04ea20")
+	)
+	(wire
+		(pts
+			(xy 30.48 29.21)
+			(xy 31.75 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "92e0754f-ed39-49db-b865-37352618da98")
+	)
+	(wire
+		(pts
+			(xy 41.91 40.64)
+			(xy 39.37 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "29e39ca4-abe8-4ea7-b1e3-1a5c857fd6fc")
+	)
+	(wire
+		(pts
+			(xy 30.48 40.64)
+			(xy 31.75 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e9b10388-0dc5-4fea-a3fd-c103a6c73841")
+	)
+	(junction
+		(at 27.94 29.21)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "da1b47ac-80db-47aa-a0e3-b53a8af072c7")
+	)
+	(junction
+		(at 44.45 29.21)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "de2b8d90-3f1c-4aef-bfca-47998220f88d")
+	)
+	(label "E0"
+		(at 46.99 29.21 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "3a10eca6-37b2-4cec-9ca3-6da4d4c31574")
+	)
+	(label "W0"
+		(at 25.4 29.21 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "2845234c-17c3-4319-b0d7-78ba5050e15d")
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 35.56 29.21 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "f65d8118-8b49-4893-9e8c-a3ed264b18f7")
+		(property "Reference" "R1"
+			(at 35.56 26.67 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 35.56 33.02 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 35.56 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 35.56 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "yasdl_path" "R1"
+			(at 35.56 29.21 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "0fea6c84-2a62-44d2-b927-f4bfd759f671")
+		)
+		(pin "2"
+			(uuid "b0599355-6609-41ec-9a11-9744f066b41a")
+		)
+		(instances
+			(project "Parallel"
+				(path "/23b829ef-2363-422e-a184-0168ea4bf886"
+					(reference "R1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 35.56 40.64 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "182d031e-2463-4be9-8c38-48c2b658e231")
+		(property "Reference" "R2"
+			(at 35.56 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 35.56 44.45 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 35.56 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 35.56 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "yasdl_path" "R2"
+			(at 35.56 40.64 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ef020493-fd6f-4fea-96a6-4eb0208341a3")
+		)
+		(pin "2"
+			(uuid "f188d349-aa4c-4939-9227-37299d472f41")
+		)
+		(instances
+			(project "Parallel"
+				(path "/23b829ef-2363-422e-a184-0168ea4bf886"
+					(reference "R2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

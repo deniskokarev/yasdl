@@ -1,68 +1,61 @@
-"""Example composite blocks. Run `python -m examples.blocks` to print their netlists."""
+"""Example blocks. `python -m examples.blocks` prints netlists; see examples/render.py for KiCad."""
 
-from yasdl import (C, GND, NPN, OPAMP, R, VCC, Block, Hole, Parallel, Series, netlist)
+from yasdl import GND, NPN, OPAMP, R, Block, netlist
 
-# Series and parallel resistors. Atoms rotate themselves to match their neighbours:
-# R's library orientation is vertical, here it becomes horizontal.
-SERIES2 = Block("Series2", "R1 R2", R1=R("1k"), R2=R("2k"))
+SERIES = Block("Series", """
+    ──R1──R2──
+""", R1=R("1k"), R2=R("2k"))
 
-PARALLEL2 = Block("Parallel2", """
-    ┬ R1 ┬
-    └ R2 ┘
-""", R1=R("1k"), R2=R("1k"))
+PARALLEL = Block("Parallel", """
+    ──┬──R1──┬──
+      │      │
+      └──R2──┘
+""", R1=R("10k"), R2=R("10k"))
 
-# A 2-row sub-block in one cell of a 1-row block: R1's row stretches to the
-# sub-block's height and the sub-block's port row aligns with R1.
-SERIES_PARALLEL = Block("SeriesParallel", "R1 P", R1=R("1k"), P=PARALLEL2)
+# A resistor sub-circuit bound into a component: R1 in series with the PARALLEL block.
+SERIES_PARALLEL = Block("SeriesParallel", """
+    ──R1──P──
+""", R1=R("1k"), P=PARALLEL)
 
-# Darlington pair. Outer ports: B on W, C on N, E on S: the same signature as a single
-# NPN, so it can fill any hole an NPN fits.
+# Darlington pair. Ports: C on top, B on the left, E at the bottom: the same drawn signature
+# as a single NPN, so it can be bound wherever an NPN is drawn.
 DARLINGTON = Block("Darlington", """
-    ┌  ┤
-    Q1 │
-    └  Q2
+            │
+        ┌───┴───┐
+        │       │
+        Q1      Q2
+    ────Q1   ┌──Q2
+        Q1   │  Q2
+        │    │  │
+        └────┘  │
 """, Q1=NPN(), Q2=NPN())
 
-# Common-emitter amplifier with collector-to-base negative feedback (RF).
-# The transistor is a 3-port hole: fill it with an NPN or a Darlington.
-CE_AMP = Block("CEAmp", """
-    .   .  .   VCC .
-    .   .  .   RC  .
-    .   ┌  RF  ┼   ─
-    CIN ┴  ─   Q   .
-    .   .  .   GND .
-""", VCC=VCC(), RC=R("4.7k"), RF=R("100k"), CIN=C("1u"), Q=Hole("Q", 3), GND=GND())
-
-# Inverting op-amp amplifier with input and feedback holes. The op-amp spans 3 rows
-# (- , out, +) and is mirrored so the inverting input is on top, under the feedback path.
+# Inverting amplifier: IN and FB are unbound here, so they are the block's open interface.
+# The '+' pin shortcut fixes the op-amp orientation (non-inverting input at the bottom),
+# which mirrors the symbol and puts V- on top.
 INV_AMP = Block("InvAmp", """
-    .   ┌  FB  ┐  .
-    IN  ┴  U1  │  .
-    .   .  U1  ┴  ─
-    .   ┌  U1  .  .
-    .   GND .  .  .
-""", IN=Hole("IN", 2), FB=Hole("FB", 2), U1=OPAMP().flip(), GND=GND())
+          ┌──────FB───────┐
+          │               │
+          │    <VEE>      │
+          │      │        │
+    ──IN──┴──────U1U1U1   │
+                 U1U1U1───┴──
+          ┌─────+U1U1U1
+          │      │
+         GND   <VCC>
+""", U1=OPAMP(), GND=GND())
 
-# Fills.
-CE_NPN = CE_AMP.fill(Q=NPN())
-CE_DARLINGTON = CE_AMP.fill(Q=DARLINGTON)
-INV_GAIN10 = INV_AMP.fill(IN=R("10k"), FB=R("100k"))
-LOSSY_INTEGRATOR = INV_AMP.fill(IN=R("10k"), FB=Parallel(R("100k"), C("10n")))
+# Resistor sub-circuits bound into the amplifier's IN and FB components.
+INV_AMP_RESISTORS = INV_AMP.bind(IN=SERIES, FB=PARALLEL)
 
-# Two inverting stages in a row; the second stage's holes are re-exported.
-TWO_STAGE = Block("TwoStage", "A1 A2", export=["A2.IN", "A2.FB"],
-                  A1=INV_GAIN10, A2=INV_AMP)
-TWO_STAGE_FILLED = TWO_STAGE.fill({"A2.IN": R("10k"), "A2.FB": Series(R("47k"), R("53k"))})
-
-ALL = {
-    "SERIES2": SERIES2, "PARALLEL2": PARALLEL2, "SERIES_PARALLEL": SERIES_PARALLEL,
-    "DARLINGTON": DARLINGTON, "CE_NPN": CE_NPN, "CE_DARLINGTON": CE_DARLINGTON,
-    "INV_GAIN10": INV_GAIN10, "LOSSY_INTEGRATOR": LOSSY_INTEGRATOR,
-    "TWO_STAGE_FILLED": TWO_STAGE_FILLED,
-}
+ALL = {"SERIES": SERIES, "PARALLEL": PARALLEL, "SERIES_PARALLEL": SERIES_PARALLEL,
+       "DARLINGTON": DARLINGTON, "INV_AMP_RESISTORS": INV_AMP_RESISTORS}
 
 if __name__ == "__main__":
     for title, blk in ALL.items():
         print(f"== {title}: {blk}")
+        for b in blk.bound.values():
+            if b.rot or b.mirror:
+                print(f"   {b.name}: rot={b.rot} mirror={b.mirror}")
         for net, pins in netlist(blk).items():
-            print(f"   {net:22s} {' '.join(pins)}")
+            print(f"   {net:12s} {' '.join(pins)}")

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
 from .canvas import Canvas, CanvasError, _UF
+from .nets import DEFAULT_PORT_NAME, GROUND, reserved
 from .kicad_lib import ORIENTATIONS, compose, load, orient_side, orient_vec, pin_side, to_screen
 
 
@@ -80,7 +81,7 @@ def display_orientation(rot: int, mirror: str | None) -> tuple[int, str | None]:
         return (rot - 180) % 360, "y"
     return rot, mirror
 
-RESERVED_NAME = re.compile(r"^[NESWD]\d+$", re.IGNORECASE)  # default port names W0, D3, ...
+RESERVED_NAME = DEFAULT_PORT_NAME  # default port names W0, D3, ...
 PORT_ATTRS = {"aliases"}  # programmatic port attributes supported so far
 
 
@@ -184,6 +185,9 @@ class Block:
                 if RESERVED_NAME.match(n):
                     raise YasdlError(f"{self.name}: port alias {n!r} looks like a default port "
                                      "name (W0, D3, ...); pick another")
+                if reserved(n):
+                    raise YasdlError(f"{self.name}: port alias {n!r} is reserved for a global net "
+                                     "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'")
                 if n.casefold() in seen and seen[n.casefold()] != k:
                     raise YasdlError(f"{self.name}: port alias {n!r} is used by two ports "
                                      f"({defaults[seen[n.casefold()]]} and {defaults[k]})")
@@ -198,11 +202,26 @@ class Block:
             aliases = list(dict.fromkeys(explicit[k]))
             r = reexport[k]
             if (r and counts[r.casefold()] == 1 and r.casefold() not in seen
-                    and not RESERVED_NAME.match(r) and not aliases):
+                    and not RESERVED_NAME.match(r) and not reserved(r) and not aliases):
                 aliases.append(r)
             ports.append(Port(p.side, index[k], aliases[0] if aliases else None, dip[k],
                               tuple(aliases)))
+        self._check_label_names(ports)
         return ports
+
+    def _check_label_names(self, ports):
+        """User net names must not clash (spec 2.8): labels must not look like default port
+        names, and port aliases must differ from this block's labels (case-insensitive)."""
+        aliases = {a.casefold(): a for p in ports for a in p.aliases}
+        for lab in self.canvas.labels:
+            if lab.kind not in ("local", "global"):
+                continue
+            if DEFAULT_PORT_NAME.match(lab.text):
+                raise YasdlError(f"{self.name}: label <{lab.text}> looks like a default port "
+                                 "name (W0, N1, ...); pick another")
+            if lab.text.casefold() in aliases:
+                raise YasdlError(f"{self.name}: label <{lab.text}> clashes with port "
+                                 f"{{{aliases[lab.text.casefold()]}}}")
 
     def _reexport_candidate(self, edge_port) -> str | None:
         """The one pin name (atom pin name or sub-block port name) on the port's net, if any."""
@@ -326,22 +345,17 @@ class Block:
 
     # --- JSON view -------------------------------------------------------------
     def local_nets(self) -> dict:
-        """This block's own nets (one level, sub-blocks opaque): {name: node roots}."""
+        """This block's own nets (one level, sub-blocks opaque): {canvas root: name}."""
         cv = self.canvas
-        names, auto = {}, {}
-        for root, text in cv.net_names.items():
-            names[root] = text
+        namer = _Namer(self.name)
         for b in self.bound.values():  # power symbols name their nets (GND, VCC, ...)
             if isinstance(b.obj, Atom) and b.obj.symbol.is_power:
                 for att, _ in b.pin_map:
-                    names.setdefault(cv.uf.find(att.node), b.obj.value or b.obj.lib_id.split(":")[1])
-        for p, port in zip(cv.edge_ports, self.ports):
-            names.setdefault(cv.uf.find(p.node), port.name or port.default)
-        roots = {cv.uf.find(n) for n in cv.uf.parent}
-        for r in sorted(roots, key=str):
-            if r not in names:
-                auto[r] = f"N{len(auto) + 1}"
-        return {**names, **auto}
+                    namer.user(cv.uf.find(att.node), _power_name(b.obj), "global net")
+        _name_block_level(self, namer, lambda n: cv.uf.find(n))
+        for r in sorted({cv.uf.find(n) for n in cv.uf.parent}, key=str):
+            namer.auto(r)
+        return namer.names
 
     def to_dict(self, _blocks: dict | None = None) -> dict:
         """Source (canvas + bindings) and the parsed view: components, attachments, nets, ports.
@@ -432,7 +446,7 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
             for att, pin in b.pin_map:
                 pins[(prefix + name, pin)] = key(att.node)
                 if power:
-                    uf.union(key(att.node), ("global", b.obj.value or b.obj.lib_id.split(":")[1]))
+                    uf.union(key(att.node), ("global", _power_name(b.obj)))
         else:
             child_ext = {idx: key(att.node) for att, idx in b.pin_map}
             _flatten(b.obj, f"{prefix}{name}.", uf, pins, child_ext)
@@ -440,24 +454,90 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
         uf.find(key(n))
 
 
-def netlist(block: Block) -> dict[str, list[str]]:
-    """{net name: sorted ["path.pin", ...]}; global power nets and named nets keep names."""
+class _Namer:
+    """Net naming, spec 2.8 rule 1: user-given names (global nets, port aliases, local labels)
+    must be unique case-insensitively across the design; derived names (default port names)
+    get a suffix on a clash; generated names never collide with anything."""
+
+    def __init__(self, where: str):
+        self.where, self.names, self.taken = where, {}, {}
+
+    def _set(self, root, name):
+        self.names[root] = name
+        self.taken[name.casefold()] = root
+
+    def user(self, root, name, what):
+        if root in self.names:
+            return
+        other = self.taken.get(name.casefold())
+        if other is not None and other != root:
+            raise YasdlError(f"{self.where}: {what} {name!r} names two different nets "
+                             f"(already used as {self.names[other]!r})")
+        self._set(root, name)
+
+    def derived(self, root, name):
+        if root in self.names:
+            return
+        cand, i = name, 2
+        while self.taken.get(cand.casefold(), root) != root:
+            cand, i = f"{name}_{i}", i + 1
+        self._set(root, cand)
+
+    def auto(self, root, prefix="N"):
+        if root not in self.names:
+            i = 1
+            while f"{prefix}{i}".casefold() in self.taken:
+                i += 1
+            self._set(root, f"{prefix}{i}")
+        return self.names[root]
+
+
+def _power_name(atom) -> str:
+    return atom.value or atom.lib_id.split(":")[1]
+
+
+def _name_block_level(block: Block, namer: _Namer, root_of):
+    """Claim this block's own names: global labels, port aliases, local labels, port defaults."""
+    cv = block.canvas
+    for i, lab in enumerate(cv.labels):
+        if lab.kind == "global":
+            namer.user(root_of(("l", i)), lab.text, "global net")
+    for edge, port in zip(cv.edge_ports, block.ports):
+        if port.name:
+            namer.user(root_of(edge.node), port.name, "port")
+    for i, lab in enumerate(cv.labels):
+        if lab.kind == "local":
+            namer.user(root_of(("l", i)), lab.text, "net label")
+    for edge, port in zip(cv.edge_ports, block.ports):
+        namer.derived(root_of(edge.node), port.default)
+
+
+def flat_names(block: Block):
+    """Flatten and name every net: (uf, pins {(path, pin): node}, names {root: name})."""
     uf, pins = _UF(), {}
     _flatten(block, "", uf, pins, {})
-    names = {}
-    for k in list(uf.parent):
-        if k[0] == "global":
-            names[uf.find(k)] = k[1]
+    namer = _Namer(block.name)
+    for k in sorted((k for k in uf.parent if k[0] == "global"), key=lambda k: k[1]):
+        namer.user(uf.find(k), k[1], "global net")
     cv = block.canvas
-    for root, text in cv.net_names.items():
-        names.setdefault(uf.find(("", root)), text)
-    for edge, port in zip(cv.edge_ports, block.ports):
-        names.setdefault(uf.find(("", cv.uf.find(edge.node))), port.name or port.default)
-    nets, auto = {}, {}
+    _name_block_level(block, namer, lambda n: uf.find(("", cv.uf.find(n))))
+    for _, node in sorted(pins.items()):
+        namer.auto(uf.find(node))
+    return uf, pins, namer.names
+
+
+def ground_root(uf):
+    """The flattened root of the global ground net, or None if the design has no ground."""
+    key = ("global", GROUND)
+    return uf.find(key) if key in uf.parent else None
+
+
+def netlist(block: Block) -> dict[str, list[str]]:
+    """{net name: sorted ["path.pin", ...]}. Names are unique (spec 2.8)."""
+    uf, pins, names = flat_names(block)
+    nets = {}
     for (ref, pin), node in sorted(pins.items()):
-        root = uf.find(node)
-        name = names.get(root) or auto.setdefault(root, f"N{len(auto) + 1}")
-        nets.setdefault(name, []).append(f"{ref}.{pin}")
+        nets.setdefault(names[uf.find(node)], []).append(f"{ref}.{pin}")
     return nets
 
 

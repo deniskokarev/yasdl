@@ -206,13 +206,39 @@ What an angle label `<name>` means depends on what it touches:
      The Darlington's ports become `B`, `C` and `E` this way, and a host can orient it with
      `<b>`/`<c>` labels. A re-exported name that collides with another port's name, or looks
      like a default name, is silently dropped.
-- **Uniqueness**: no two ports may share an alias (case-insensitive), and aliases may not look
-  like default names (`W0`, `D3`, ...). Both are errors, whether from the drawing or from code.
+- **Uniqueness**: no two ports may share an alias (case-insensitive). Aliases may not look like
+  default names (`W0`, `D3`, ...) or use a reserved global name (`GND`, `VCC`, `0`, ...; 2.8).
+  All are errors, whether from the drawing or from code.
 - **Programmatic attributes**: `Block(name, canvas, port_attrs={key: {"aliases": [...]}}, ...)`.
   A key is a default name (`W0`), a DIP number (`D2`) or an existing alias. Only `aliases` is
   supported for now; direction and class (`in`, `out`, `inout`, `pwr`) are planned. Unknown
   keys and attributes are errors.
 - `block.port(key)` looks a port up by any of its names.
+
+### 2.8 Net naming
+
+One rule: **every net name in a design is unambiguous, everywhere it ends up** (yasdl's
+netlist, KiCad, SPICE). KiCad matches names case-sensitively and ngspice ignores case, so names
+are compared case-insensitively.
+
+1. **User-given names** (global labels, port aliases, local labels) must be unique across the
+   design. Two different nets with one name are an error, never silently merged. That includes
+   a top-level port alias equal to a global net used inside a sub-block.
+2. **Global net names are reserved**: the power-net registry (`GND`, `VCC`, `VEE`, ...; 2.4) and
+   `0`. Global nets are design-wide, and a block can't know which parents will use it, so these
+   names are taken in every block:
+   - no port alias (`{GND}`, `{0}`, `{vcc}`, or `port_attrs`) may use them;
+   - labels must spell them exactly as registered (`<GND>`, not `<gnd>`); `<0>` is never
+     allowed;
+   - a label with a reserved name is always the global net, even inline (`──<GND>──`);
+   - pin names like `GND` are never re-exported as port aliases.
+3. Labels may not look like default port names (`W0`, `N1`, `D3`), and a block's labels may not
+   reuse its port aliases.
+4. **Derived names** (default port names `W0`, ...) get a `_2` suffix if they'd clash;
+   **generated names** (`N1`, `N2`, ... for unnamed nets) skip every name already taken.
+5. **SPICE**: the global `GND` net is node `0`. Every other net keeps its name, sanitised and kept
+   unique ignoring case. A port wired to ground can't be a `.subckt` pin (SPICE ground is
+   global), so `spice_netlist(subckt=...)` rejects it.
 
 ## 3. Binding
 

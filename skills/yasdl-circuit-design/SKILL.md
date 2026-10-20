@@ -104,7 +104,7 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 | port | `{name}` on the canvas edge, wire going inward | or a bare wire leaving the canvas (`W0`, ...) |
 | pin label | `<b>Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
-| global net | `<VCC>` with a wire on one side only | connects across all blocks; `<GND>`, `<VCC>`, `<VEE>`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0 |
+| global net | `<VCC>` with a wire on one side only | connects across all blocks; `<GND>`, `<VCC>`, `<VEE>`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
 | local net | `──<x>──` (wires on both sides) | block-scoped name |
 
 Hard rules, all enforced with precise errors:
@@ -195,4 +195,7 @@ print `s.render()` and read it before binding.
 | `does not fit its drawing` | drawn pins per side ≠ part's pins; add or remove wires, or orient |
 | `must cover a rectangle` / `identical` | the component touches another or is ragged; keep the gap |
 | `{x} must sit on the block edge` | brace labels only on the outer edge, opposite their wire |
+| `port alias 'GND' is reserved` | ground and supplies are global nets, not pins: wire to `<GND>`/`<VCC>` inside the block, and give a separate return pin another name (`{gnd_ret}`) |
+| `names two different nets` | one name was used for two nets (labels, port aliases, globals, ignoring case); rename one |
+| `port ... is on the global ground` (SPICE) | ground is implicit in SPICE; don't give the block a ground port |
 | ERC violations | shouldn't happen (helpers are automatic); report them as a yasdl bug |

@@ -8,6 +8,8 @@ from __future__ import annotations
 import textwrap
 from dataclasses import dataclass, field
 
+from .nets import global_spelling, reserved
+
 STEP = {"N": (-1, 0), "S": (1, 0), "E": (0, 1), "W": (0, -1)}
 OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
 ARMS = {
@@ -343,6 +345,11 @@ class Canvas:
                 lab.kind = "pin"
             elif lab.arms == 0:
                 self.err(f"<{lab.text}> is not connected to a wire", lab.row, lab.c0)
+            elif reserved(lab.text):  # reserved names always mean the global net (spec 2.8)
+                if global_spelling(lab.text) is None:
+                    self.err(f"<{lab.text}> is a reserved global net name; write it exactly as "
+                             "registered (e.g. <GND>; <0> is not allowed)", lab.row, lab.c0)
+                lab.kind = "global"
             else:  # wire on one side only: global net; wires on both sides: local net name
                 lab.kind = "global" if lab.arms == 1 else "local"
 

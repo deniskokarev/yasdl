@@ -1,16 +1,7 @@
 """Atom factories for common KiCad 9 library symbols, and the power-net registry."""
 
 from .block import Atom
-
-# Global nets drawn as power symbols: a dangling <NAME> label whose name is registered here is
-# rendered as that symbol (spec 2.4). Extend with register_power_net().
-POWER_NETS = {name: f"power:{name}" for name in
-              ("GND", "GNDA", "VCC", "VEE", "VDD", "VSS", "+5V", "+3V3", "+12V", "-12V")}
-
-
-def register_power_net(name: str, lib_id: str) -> None:
-    """Draw global net `name` as the power symbol `lib_id` (e.g. "power:+15V")."""
-    POWER_NETS[name] = lib_id
+from .nets import POWER_NETS, register_power_net  # noqa: F401  (re-exported)
 
 
 def R(value: str = "") -> Atom:

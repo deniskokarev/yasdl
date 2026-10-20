@@ -36,21 +36,6 @@ def test_spice_basics():
         spice_netlist(PHASE_SHIFT, subckt="ps", port_order=["in"])
 
 
-def test_aquacap_subcircuit_ground_port_stays_formal_but_flat_ground_is_zero():
-    circuit = Block("GroundPort", "{out}──R1──{GND}", R1=R("1k"))
-
-    wrapped = spice_netlist(
-        circuit,
-        subckt="ground_port",
-        port_order=["GND", "out"],
-    )
-    assert ".subckt ground_port GND out" in wrapped
-    assert re.search(r"^R_R1 out GND 1k$", wrapped, re.M)
-
-    flat = spice_netlist(circuit)
-    assert re.search(r"^R_R1 out 0 1k$", flat, re.M)
-
-
 def test_spice_errors():
     amp = Block("A", """
            <VEE>

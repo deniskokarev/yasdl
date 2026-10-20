@@ -169,8 +169,6 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 
 - Atom values are SPICE values (`"4.7k"`, `"100n"`). Transistors and diodes take the model
   name as their value (`NPN("2N3904")`, `D("1N4148")`). Models come from `includes`/`spice_libs`.
-- A `{GND}` port stays the formal node `GND` in wrapped subcircuit output; flat export uses
-  SPICE node `0`. This lets task pin orders expose ground without hard-wiring the subcircuit.
 - Parts without a default SPICE mapping (the op-amp) need `Atom(..., spice=SpiceModel(...))`,
   e.g. a behavioural subcircuit `SpiceModel("X", pins=(...), model="myopamp")`.
 

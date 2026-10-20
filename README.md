@@ -399,9 +399,8 @@ containing `KiCad.app` (for example `/Applications/KiCad`) or the app bundle its
 from the flattened design:
 - **Ports**: with `subckt`, the netlist is wrapped in `.subckt name <ports>`, ports in DIP
   order (2.7) unless `port_order` lists port names. Without it, a flat netlist is written.
-- **Nodes**: global nets keep their names, and `GND` becomes node `0`. A `GND` port on a
-  wrapped subcircuit remains the formal node `GND` throughout that subcircuit; the same design
-  exported flat still uses node `0`. Ports use their aliases; other nets are `n1`, `n2`, ...
+- **Nodes**: global nets keep their names, and `GND` becomes node `0`. Ports use their
+  aliases; other nets are `n1`, `n2`, ...
 - **Elements**: each atom becomes one element named `<letter>_<path>` (`C_PS_C1`), through a
   `SpiceModel(prefix, pins, model, sim_pins)`. Defaults exist for `Device:R/C/L/D/Q_NPN/Q_PNP`.
   Model-based parts take the model name from the value (`NPN("2N3904")`). Other symbols

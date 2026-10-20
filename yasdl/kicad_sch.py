@@ -43,7 +43,9 @@ class Schematic:
         self._pwr = 0
 
     def add_symbol(self, lib_id: str, ref: str, value: str, x: float, y: float,
-                   rot: int = 0, mirror: str | None = None, fields: dict | None = None):
+                   rot: int = 0, mirror: str | None = None, fields: dict | None = None,
+                   helper: bool = False):
+        """helper: an ERC helper (test point, power flag): hidden fields, not in BOM/simulation."""
         sym = load(lib_id)
         if lib_id not in self.lib_ids:
             self.lib_ids.append(lib_id)
@@ -53,8 +55,8 @@ class Schematic:
         node = [Sym("symbol"), [Sym("lib_id"), lib_id], [Sym("at"), _num(x), _num(y), _num(rot)]]
         if mirror:
             node.append([Sym("mirror"), Sym(mirror)])
-        node += [[Sym("unit"), _num(1)], [Sym("exclude_from_sim"), Sym("no")],
-                 [Sym("in_bom"), Sym("yes")], [Sym("on_board"), Sym("yes")],
+        node += [[Sym("unit"), _num(1)], [Sym("exclude_from_sim"), Sym("yes" if helper else "no")],
+                 [Sym("in_bom"), Sym("no" if helper else "yes")], [Sym("on_board"), Sym("yes")],
                  [Sym("dnp"), Sym("no")], [Sym("uuid"), _uid()]]
         props = {"Reference": ref, "Value": value or lib_id.split(":")[1],
                  "Footprint": "", "Datasheet": "", **(fields or {})}
@@ -68,6 +70,8 @@ class Schematic:
         else:  # tall: both to the right
             spots = {"Reference": (x + x1 + 1.27, y - 0.635, "left"),
                      "Value": (x + x1 + 1.27, y + 1.905, "left")}
+        if helper:
+            spots = {}
         field_angle = rot % 180  # cancels the symbol rotation: text stays horizontal
         for k, v in props.items():
             hide = k not in spots
@@ -143,6 +147,6 @@ def export_svg(sch_path, out_dir) -> Path:
 def run_erc(sch_path) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "erc.rpt"
-        subprocess.run([str(KICAD_CLI), "sch", "erc", "-o", str(out), str(sch_path)],
+        subprocess.run([str(KICAD_CLI), "sch", "erc", "--severity-all", "-o", str(out), str(sch_path)],
                        capture_output=True, text=True)
         return out.read_text() if out.exists() else ""

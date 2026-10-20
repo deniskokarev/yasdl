@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
+import shutil
 from collections import Counter
 from pathlib import Path
 
 from .block import Block, netlist, partition
-from .kicad_sch import Schematic, export_netlist, export_svg, snap
+from .kicad_lib import KICAD_ROOT, SYMBOL_DIR, to_screen
+from .kicad_sch import Schematic, export_netlist, export_svg, run_erc, snap
 from .layout import layout
-from .sexp import find
 
 MARGIN = 25.4
 
@@ -20,14 +21,17 @@ def _ref_prefix(lib_id: str, sym) -> str:
     return str(prop[2]) if prop else "X"
 
 
-def to_kicad(block: Block, path) -> tuple[Path, dict[str, str]]:
-    """Write `block` as a .kicad_sch; return (path, {kicad reference: yasdl path})."""
+def to_kicad(block: Block, path, erc_helpers: bool = True) -> tuple[Path, dict[str, str]]:
+    """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
+
+    refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
+    """
     res = layout(block)
     dx = MARGIN - res.bbox[0]
     dy = MARGIN - res.bbox[1]
     t = lambda p: (snap(p[0] + dx), snap(p[1] + dy))  # noqa: E731
     sch = Schematic(block.name)
-    counters, refmap = Counter(), {}
+    counters, refmap, placed = Counter(), {}, []
     for ypath, atom, x, y, rot, mirror in res.symbols:
         sym = atom.symbol
         prefix = _ref_prefix(atom.lib_id, sym)
@@ -39,24 +43,121 @@ def to_kicad(block: Block, path) -> tuple[Path, dict[str, str]]:
             sch.add_symbol(atom.lib_id, ref, atom.value, *t((x, y)), rot, mirror,
                            fields={"yasdl_path": ypath})
         refmap[ref] = ypath
+        placed.append((sym, t((x, y)), rot, mirror))
+    wires = [(t(a), t(b)) for a, b in res.wires]
     ends = Counter()
-    for a, b in res.wires:
-        a, b = t(a), t(b)
+    for a, b in wires:
         sch.add_wire(a, b)
         ends[a] += 1
         ends[b] += 1
     for p, n in ends.items():
         if n >= 3:
             sch.add_junction(p)
-    for text, p, _scoped in res.labels:
+    labels = []  # (text, point, global?)
+    for text, p, scoped in res.labels:
         sch.add_label(text, t(p))
+        labels.append((text, t(p), not scoped))
+    port_points = []
     for port, p in zip(block.ports, res.ports):
         sch.add_label(port.name or port.default, t(p),
                       {"W": 180, "E": 0, "N": 90, "S": 270}[port.side])
+        labels.append((port.name or port.default, t(p), False))
+        port_points.append((port.side, t(p)))
+    if erc_helpers:
+        for side, p in port_points:  # open interface: a test point gives the net a second pin
+            counters["TP"] += 1
+            ref = f"TP{counters['TP']}"
+            sch.add_symbol("Connector:TestPoint", ref, "", *p, _OUTWARD[side], helper=True)
+            refmap[ref] = None
+        for anchor, rot in _power_flags(placed, wires, labels):
+            ref = sch.add_symbol("power:PWR_FLAG", "#FLG", "", *anchor, rot, helper=True)
+            refmap[ref] = None
     path = sch.save(path)
+    _write_project(path)
     _BBOX[str(path)] = (MARGIN, MARGIN, MARGIN + res.bbox[2] - res.bbox[0],
                         MARGIN + res.bbox[3] - res.bbox[1])
     return path, refmap
+
+
+# TestPoint body points away from the drawing (library body is above its pin).
+_OUTWARD = {"W": 90, "E": 270, "N": 0, "S": 180}
+
+
+def _power_flags(placed, wires, labels):
+    """One PWR_FLAG per net that has power-input pins but no power-output pin (ERC rule).
+
+    Nets are rebuilt from geometry, as KiCad does: coincident wire ends and pin points, and
+    same-text labels. The flag sits on a power symbol pin, else a global label, else any
+    point of the net, turned across the wire there so it doesn't overlap it.
+    """
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        parent[find(a)] = find(b)
+
+    for a, b in wires:
+        union(a, b)
+    pins = []  # (point, etype, power symbol?)
+    for sym, (x, y), rot, mirror in placed:
+        for p in sym.pins:
+            sx, sy = to_screen(p.x, p.y, rot, mirror)
+            pt = (snap(x + sx), snap(y + sy))
+            find(pt)
+            pins.append((pt, p.etype, sym.is_power))
+    for text, pt, _ in labels:
+        union(pt, ("label", text))
+    nets = {}
+    for pt, etype, is_power in pins:
+        nets.setdefault(find(pt), []).append((pt, etype, is_power))
+    vertical = {p for a, b in wires if a[0] == b[0] for p in (a, b)}
+    horizontal = {p for a, b in wires if a[1] == b[1] for p in (a, b)}
+    flags = []
+    for root, members in nets.items():
+        types = {e for _, e, _ in members}
+        if "power_in" not in types or "power_out" in types:
+            continue
+        candidates = [pt for pt, _, is_power in members if is_power]
+        candidates += [pt for _, pt, glob in labels if glob and find(pt) == root]
+        candidates += [pt for pt, e, _ in members if e == "power_in"]
+        anchor = candidates[0]
+        rot = 90 if anchor in vertical else 180 if anchor in horizontal else 0
+        flags.append((anchor, rot))
+    return flags
+
+
+def _write_project(sch_path: Path):
+    """A .kicad_pro and a sym-lib-table so ERC finds the libraries the symbols came from."""
+    pro = sch_path.with_suffix(".kicad_pro")
+    if not pro.exists():
+        shutil.copy(KICAD_ROOT / "share" / "kicad" / "template" / "kicad.kicad_pro", pro)
+    table = sch_path.parent / "sym-lib-table"
+    if not table.exists():
+        libs = sorted(f.stem for f in SYMBOL_DIR.glob("*.kicad_sym"))
+        lines = ["(sym_lib_table", "  (version 7)"]
+        lines += [f'  (lib (name "{lib}")(type "KiCad")(uri "{SYMBOL_DIR / (lib + ".kicad_sym")}")'
+                  '(options "")(descr ""))' for lib in libs]
+        table.write_text("\n".join(lines + [")"]) + "\n")
+
+
+def erc(sch_path) -> list[str]:
+    """ERC violations (errors and warnings) reported by kicad-cli, as "[code] message @ where"."""
+    report = run_erc(sch_path)
+    out, current = [], None
+    for line in report.splitlines():
+        m = re.match(r"^\[(\w+)\]: (.*)", line)
+        if m:
+            current = f"[{m.group(1)}] {m.group(2)}"
+        elif current and line.strip().startswith("@"):
+            out.append(f"{current} {line.strip()}")
+            current = None
+    return out
 
 
 _BBOX: dict[str, tuple] = {}
@@ -77,7 +178,8 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     """Compare the KiCad netlist of `sch_path` with yasdl's netlist (power symbols excluded)."""
     kicad = export_netlist(sch_path)
     power_paths = {p for r, p in refmap.items() if r.startswith("#PWR")}
-    got = {frozenset(f"{refmap[r]}.{pin}" for r, pin in nodes if not r.startswith("#"))
+    got = {frozenset(f"{refmap[r]}.{pin}" for r, pin in nodes
+                     if not r.startswith("#") and refmap.get(r) is not None)
            for nodes in kicad.values()}
     got.discard(frozenset())
     want = {frozenset(x for x in net if x.rsplit(".", 1)[0] not in power_paths)
@@ -91,7 +193,8 @@ def render(block: Block, out_dir, svg: bool = True) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(block, out_dir / f"{block.name}.kicad_sch")
     ok, missing, extra = roundtrip(block, sch_path, refmap)
-    info = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra}
+    info = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra,
+            "erc": erc(sch_path)}
     if svg:
         info["svg"] = export_svg(sch_path, out_dir)
         _crop_svg(info["svg"], _BBOX[str(sch_path)])

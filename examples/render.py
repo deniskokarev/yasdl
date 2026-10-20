@@ -10,6 +10,9 @@ if __name__ == "__main__":
     for title, blk in ALL.items():
         info = render(blk, "out")
         status = "OK" if info["roundtrip_ok"] else f"MISMATCH missing={info['missing']} extra={info['extra']}"
-        print(f"{title:18s} {info['schematic']}  round-trip {status}")
-        failed |= not info["roundtrip_ok"]
+        erc = "clean" if not info["erc"] else f"{len(info['erc'])} violations"
+        print(f"{title:18s} {info['schematic']}  round-trip {status}  ERC {erc}")
+        for v in info["erc"]:
+            print(f"    {v}")
+        failed |= not info["roundtrip_ok"] or bool(info["erc"])
     sys.exit(1 if failed else 0)

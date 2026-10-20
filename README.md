@@ -350,6 +350,20 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a `yasdl_path` field with its
   hierarchical name (`FB.R1`).
 - Wires, junction dots, net labels, and labels for the top block's ports.
+- **ERC-clean by construction.** Every exported schematic passes `kicad-cli sch erc` with no
+  errors and no warnings. Nothing is required in the drawing; the export adds:
+  - a `.kicad_pro` and a `sym-lib-table` next to the schematic, so the symbol libraries are
+    found;
+  - a **test point** (`Connector:TestPoint`, hidden fields, excluded from BOM and
+    simulation) at each open port of the top block, so an interface net isn't a
+    "label on a single pin";
+  - a **power flag** (`power:PWR_FLAG`, hidden) on every net that has power-input pins but no
+    power output, e.g. GND, VCC, VEE. It goes on a power symbol, else a global label, else a
+    power pin, turned across the wire. Nets for this are rebuilt from the geometry, as KiCad
+    does.
+  
+  `to_kicad(..., erc_helpers=False)` leaves them out. Helpers never appear in the round-trip
+  comparison or in SPICE output.
 - **Round-trip check.** `kicad-cli sch export netlist` on the generated file must reproduce
   `yasdl.netlist()` exactly, compared as sets of pins per net with power symbols excluded. A
   rendering only counts if it passes.
@@ -374,6 +388,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 | Binding: signatures, orientation rules (atoms and sub-blocks), flat netlist, JSON view | done |
 | Grid-bag layout with greedy alignment and ladder adapters | done |
 | KiCad 9 export, round-trip check, SVG | done |
+| ERC-clean export (project files, test points, power flags), ERC in tests | done |
 | Buses | specified, not implemented |
 | Hierarchical sheets, SPICE export | not started |
 

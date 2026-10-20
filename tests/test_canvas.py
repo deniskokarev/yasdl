@@ -120,6 +120,7 @@ def test_kicad_roundtrip(name, tmp_path):
     from yasdl.kicad_export import render
     info = render(ex.ALL[name], tmp_path, svg=False)
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
+    assert info["erc"] == [], info["erc"]  # errors and warnings
 
 
 def test_block_orientation_at_binding():

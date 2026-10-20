@@ -33,6 +33,7 @@ class LibPin:
     x: float  # connection point, library coordinates (y up)
     y: float
     side: str  # N/E/S/W in library orientation
+    etype: str = "passive"  # electrical type: input, output, passive, power_in, power_out, ...
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,7 @@ def load(lib_id: str) -> LibSymbol:
                 x, y, ang = float(at[1]), float(at[2]), int(float(at[3])) % 360
                 length = float(find(item, "length")[1])
                 pins.append(LibPin(str(find(item, "number")[1]), str(find(item, "name")[1]),
-                                   x, y, _ANGLE_SIDE[ang]))
+                                   x, y, _ANGLE_SIDE[ang], str(item[1])))
                 dx, dy = round(math.cos(math.radians(ang))), round(math.sin(math.radians(ang)))
                 xs += [x, x + dx * length]
                 ys += [y, y + dy * length]

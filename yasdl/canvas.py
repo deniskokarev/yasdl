@@ -51,6 +51,7 @@ class Label:
     pin_of: str | None = None  # component name when this is a pin label
     vcol: int | None = None  # column where a vertical wire passes through
     arms: int = 0  # wire arms that end on this label
+    entries: list = field(default_factory=list)  # sides of the label its wires come from
     kind: str = ""  # "pin" | "global" | "local" | "port" (set after parsing)
 
 
@@ -265,6 +266,7 @@ class Canvas:
                             self.err("vertical wires through a label must share one column", r, c)
                         lab.vcol = nc
                     lab.arms += 1
+                    lab.entries.append(OPPOSITE[arm])
                     self.uf.union(node, ("l", i))
                 elif (nr, nc) in self.comp_at:
                     comp = self.comps[self.comp_at[(nr, nc)]]

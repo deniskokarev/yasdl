@@ -7,7 +7,7 @@ import tempfile
 import uuid as _uuid
 from pathlib import Path
 
-from .kicad_lib import KICAD_CLI, load, orient_vec, screen_bbox
+from .kicad_lib import KICAD_CLI, load, orient_vec, power_body_side, screen_bbox
 from .sexp import Sym, dumps, find, find_all, parse
 
 GRID = 1.27  # KiCad's default schematic grid (50 mil)
@@ -61,9 +61,10 @@ class Schematic:
         props = {"Reference": ref, "Value": value or lib_id.split(":")[1],
                  "Footprint": "", "Datasheet": "", **(fields or {})}
         x0, y0, x1, y1 = screen_bbox(sym, rot, mirror)
-        if sym.is_power:  # value text beyond the symbol, away from the pin
-            below = sym.pins and sym.pins[0].side == "N"
-            spots = {"Value": (x, y + (y1 + 1.27 if below else y0 - 1.27), "center")}
+        if sym.is_power:  # value text beyond the body, away from the pin
+            spots = {"Value": {"N": (x, y + y0 - 1.27, "center"), "S": (x, y + y1 + 1.905, "center"),
+                               "E": (x + x1 + 1.27, y, "left"), "W": (x + x0 - 1.27, y, "right")}
+                     [power_body_side(sym, rot, mirror)]}
         elif x1 - x0 > y1 - y0:  # wide: reference above, value below
             spots = {"Reference": (x + (x0 + x1) / 2, y + y0 - 1.27, "center"),
                      "Value": (x + (x0 + x1) / 2, y + y1 + 2.54, "center")}

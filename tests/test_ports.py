@@ -114,3 +114,34 @@ def test_pin_labels_match_subblock_port_names():
     b = host.bound["D"]
     assert {att.side: ex.DARLINGTON.ports[k].name for att, k in b.pin_map} == {
         "N": "C", "E": "B", "S": "E"}
+
+
+def test_power_net_labels_draw_power_symbols():
+    from yasdl.layout import layout
+    blk = Block("Pd", """
+        ──R1──┐
+              │
+            <GND>
+    """, R1=R())
+    res = layout(blk)
+    assert [a.lib_id for _, a, *_ in res.symbols if a.symbol.is_power] == ["power:GND"]
+    assert res.labels == []  # drawn as the symbol, not as a text label
+    assert "R1.2" in netlist(blk)["GND"] or "R1.1" in netlist(blk)["GND"]
+
+
+def test_label_orientation_prefers_mirror_over_rotation():
+    from examples.sgen import PHASE_SHIFT
+    host = Block("H", "──PS<in>──", PS=PHASE_SHIFT)  # 'in' on the right: 180 deg or mirror y
+    b = host.bound["PS"]
+    assert (b.rot, b.mirror) == (180, "x")  # mirror y: one axis flipped, legs stay down
+    assert host.to_dict()["components"]["PS"]["binding"]["mirror"] == "y"
+
+
+def test_rotated_mirrored_api():
+    from examples.sgen import PHASE_SHIFT
+    assert (R().mirrored("y").rot, R().mirrored("y").mirror) == (180, "x")
+    assert R().mirrored("y").mirrored("y").rot % 360 == 0 and R().mirrored("y").mirrored("y").mirror is None
+    assert PHASE_SHIFT.rotated(90).rot == 90
+    host = Block("H", "──PS──", PS=PHASE_SHIFT.mirrored("y"))
+    assert {att.side: PHASE_SHIFT.ports[k].name for att, k in host.bound["PS"].pin_map} == \
+        {"W": "out", "E": "in"}

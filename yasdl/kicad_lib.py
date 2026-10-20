@@ -144,6 +144,16 @@ def pin_side(pin: LibPin, rot: int, mirror: str | None) -> str:
     return _SCREEN_SIDE[(round(sx), round(sy))]
 
 
+def power_body_side(sym: LibSymbol, rot: int, mirror: str | None) -> str:
+    """Schematic side on which a one-pin (power) symbol's body sits: opposite its pin."""
+    return {"N": "S", "S": "N", "E": "W", "W": "E"}[pin_side(sym.pins[0], rot, mirror)]
+
+
+def rot_with_pin_on(sym: LibSymbol, side: str) -> int:
+    """Rotation (no mirror) that puts the symbol's first pin on `side`."""
+    return next(r for r in (0, 90, 180, 270) if pin_side(sym.pins[0], r, None) == side)
+
+
 def screen_bbox(sym: LibSymbol, rot: int, mirror: str | None):
     xmin, ymin, xmax, ymax = sym.bbox
     pts = [to_screen(x, y, rot, mirror) for x in (xmin, xmax) for y in (ymin, ymax)]

@@ -119,6 +119,16 @@ What an angle label `<name>` means depends on what it touches:
 
 - Horizontal wires enter a label only at its `<` or `>` end. Vertical wires pass through one
   column inside the label.
+- **Power nets**: a global label whose name is in the power-net registry (`GND`, `GNDA`, `VCC`,
+  `VEE`, `VDD`, `VSS`, `+5V`, `+3V3`, `+12V`, `-12V`; extend with
+  `register_power_net("+15V", "power:+15V")`) is drawn as that KiCad power symbol. The symbol's
+  pin faces the wire and its body points away; the layout reserves its real size. Electrically
+  nothing changes: the net is still the global net, and `GND` is SPICE node 0. So
+  ```
+     │
+   <GND>
+  ```
+  replaces placing `GND()` atoms one by one.
 - In the flat KiCad output, local names are prefixed with the instance path (`FB.x`); global
   names are not.
 
@@ -224,15 +234,22 @@ component is always drawn as it is. The same rules apply to atoms and sub-blocks
 candidate orientations are rotations by 0/90/180/270° counterclockwise, each with or without a
 top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
 
-1. **Explicit**: `R().oriented(90)`, `PARALLEL.oriented(270)`, `OPAMP().oriented(0, "x")`.
-   It must fit the drawing, or binding fails.
+1. **Explicit**: `R().rotated(90)`, `PARALLEL.rotated(270)`, `OPAMP().mirrored("x")`,
+   `LADDER.mirrored("y")`. These compose: `.rotated(90).mirrored("y")`. The low-level form is
+   `.oriented(rot, mirror)`. The result must fit the drawing, or binding fails.
+   `"y"` mirrors left/right and `"x"` top/bottom, as in KiCad. Internally `"y"` is stored as
+   180° plus `"x"`; the JSON view shows it as `"y"`.
 2. **Pin labels** (2.5): only orientations consistent with every label stay candidates. For
    atoms, labels match pin names or numbers; for sub-blocks, port names. If several
    remain, rule 3 chooses among them.
 3. **Forced by the drawing**: the candidate must have exactly the drawn number of pins on
-   every side (3.1). Among the candidates that fit, the one that best **keeps reading order**
-   wins: pins on a start side (N, W) stay on a start side, pins on an end side (S, E) stay on
-   an end side. Remaining ties go to the order above (unrotated first).
+   every side (3.1). Among the candidates that fit:
+   1. the one that best **keeps reading order** wins: pins on a start side (N, W) stay on a
+      start side, pins on an end side (S, E) stay on an end side;
+   2. then the one that **flips fewer axes**: a mirror flips one axis, a 180° turn or a
+      quarter turn changes both. A sub-block's insides keep their up/down (or left/right)
+      when only the other axis must change;
+   3. then the order above (unrotated first).
    - The unrotated orientation always keeps reading order, so it wins whenever it fits.
    - A resistor (library: vertical) between W and E wires lies down with pin 1 on the left.
    - The horizontal PARALLEL block in a vertical slot turns so that its left port is on top
@@ -390,8 +407,10 @@ from the flattened design:
   schematic equals yasdl's own netlist, element by element.
 
 **Example: `examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
-emitter-follower buffer) drawn in yasdl. The 3-section RC ladder is a sub-block, mirrored at
-binding. The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
+emitter-follower buffer) drawn in yasdl. Grounds are `<GND>` labels. The 3-section RC ladder
+is a sub-block drawn as `PS<in>`: the pin label puts its input on the right. Of the two fits,
+180° and a left/right mirror, the mirror flips fewer axes (3.2), so the shunt legs keep
+hanging down without any explicit orientation. The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
 netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic
 oscillate at 1967 Hz, the same as the oracle.
 

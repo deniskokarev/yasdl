@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "yasdl")
 	(generator_version "9.0")
-	(uuid "444b5957-c3d1-4989-9a68-03339a2a6ea1")
+	(uuid "99b36d40-1d0c-4775-b5ef-59e85b19cfa9")
 	(paper "A4")
 	(lib_symbols
 		(symbol "Device:R"
@@ -246,7 +246,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "9b0e26c1-906a-4c15-bc07-8ad0042cf061")
+		(uuid "4926c894-480c-4f1d-9536-92cf51af46fd")
 	)
 	(wire
 		(pts
@@ -257,7 +257,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "84724b1b-7ad7-4fea-9ed1-3476f2071856")
+		(uuid "71388f0b-e865-439f-b8ba-1d29f684c58b")
 	)
 	(wire
 		(pts
@@ -268,7 +268,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "7b26b875-81e9-45ae-8322-d5f91e3b37fd")
+		(uuid "f4ecb41c-4cc0-4e61-a5d7-3802ab18a9d9")
 	)
 	(wire
 		(pts
@@ -279,7 +279,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "1e5914c7-3799-4126-b067-b544228237e6")
+		(uuid "f1cd9b19-a2f1-4843-b686-52b4a1ae04b1")
 	)
 	(wire
 		(pts
@@ -290,7 +290,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "5333f62d-b5bf-407b-b636-077bc4d7fbcd")
+		(uuid "33a73813-ece2-4fb0-ac77-2204f7c44d0c")
 	)
 	(wire
 		(pts
@@ -301,7 +301,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "9ee4f1c0-317d-48dc-9dc8-c9e491f81f8f")
+		(uuid "b7aff62d-c548-4b96-9ca8-18f916cc1d29")
 	)
 	(wire
 		(pts
@@ -312,7 +312,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "8b6b2db0-dd3e-4804-b662-f0dbedd2f238")
+		(uuid "1d675527-cb35-4c03-876c-b17c50dd2016")
 	)
 	(label "E0"
 		(at 52.07 29.21 0)
@@ -322,7 +322,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "beee5d46-9ef5-47c2-9f28-d8ce618ca24d")
+		(uuid "798e57f8-2f6f-4480-8cf7-9703be12e15b")
 	)
 	(label "W0"
 		(at 25.4 29.21 180)
@@ -332,7 +332,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "4799a744-d3b4-4732-a403-7860b34db98e")
+		(uuid "6ec300e2-ea8d-4d18-be40-6b2244a12982")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -342,7 +342,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7a000edd-4f4f-4c44-b0ae-428a6986b29c")
+		(uuid "45307748-5ac9-4a15-a949-5e96d0afc0f7")
 		(property "Reference" "R1"
 			(at 31.75 26.67 90)
 			(effects
@@ -387,14 +387,14 @@
 			)
 		)
 		(pin "1"
-			(uuid "7a35ae0f-8c3e-4628-84fa-407cfd791695")
+			(uuid "4ad8fd60-d0d4-45e9-a6ad-378e839ef00d")
 		)
 		(pin "2"
-			(uuid "5c66f4a0-0528-4486-b30a-010c663320f8")
+			(uuid "c7baa211-3239-4179-b42f-deaa747e2723")
 		)
 		(instances
 			(project "Series"
-				(path "/444b5957-c3d1-4989-9a68-03339a2a6ea1"
+				(path "/99b36d40-1d0c-4775-b5ef-59e85b19cfa9"
 					(reference "R1")
 					(unit 1)
 				)
@@ -409,7 +409,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b646f189-48b9-4527-8da9-b68ebee537f3")
+		(uuid "fb9e208d-9f67-4b23-a169-5fa9707f657d")
 		(property "Reference" "R2"
 			(at 44.45 26.67 90)
 			(effects
@@ -454,14 +454,14 @@
 			)
 		)
 		(pin "1"
-			(uuid "d8f42c26-f1c4-47c5-b293-707c3df7451f")
+			(uuid "bb8092a1-bc8a-4fa7-899b-ed6ee2c63344")
 		)
 		(pin "2"
-			(uuid "7c5861d2-8659-48c6-bbc9-9150a9e15bcf")
+			(uuid "ec5ec176-13ee-4971-bdcf-01126256d2bd")
 		)
 		(instances
 			(project "Series"
-				(path "/444b5957-c3d1-4989-9a68-03339a2a6ea1"
+				(path "/99b36d40-1d0c-4775-b5ef-59e85b19cfa9"
 					(reference "R2")
 					(unit 1)
 				)
@@ -476,7 +476,7 @@
 		(in_bom no)
 		(on_board yes)
 		(dnp no)
-		(uuid "620c1e8c-233d-4aa2-b3e4-3af953493fde")
+		(uuid "cbc4c59d-0b9a-42c7-bb3e-3563b0517f59")
 		(property "Reference" "TP1"
 			(at 52.07 29.21 90)
 			(effects
@@ -514,11 +514,11 @@
 			)
 		)
 		(pin "1"
-			(uuid "f0b4caeb-881f-423d-8714-88f61d25b0c6")
+			(uuid "7ce6e261-90cb-4e65-acf4-eb2b19e2cce8")
 		)
 		(instances
 			(project "Series"
-				(path "/444b5957-c3d1-4989-9a68-03339a2a6ea1"
+				(path "/99b36d40-1d0c-4775-b5ef-59e85b19cfa9"
 					(reference "TP1")
 					(unit 1)
 				)
@@ -533,7 +533,7 @@
 		(in_bom no)
 		(on_board yes)
 		(dnp no)
-		(uuid "72524797-d114-4c1e-ba1d-850d6bbfbb8e")
+		(uuid "4f91440a-58a4-42e6-b959-a0e5678f4deb")
 		(property "Reference" "TP2"
 			(at 25.4 29.21 90)
 			(effects
@@ -571,11 +571,11 @@
 			)
 		)
 		(pin "1"
-			(uuid "9bf0f13a-06c3-4782-99c8-2bba64647e80")
+			(uuid "bd4e79c2-3593-4479-8512-32bfbb850f01")
 		)
 		(instances
 			(project "Series"
-				(path "/444b5957-c3d1-4989-9a68-03339a2a6ea1"
+				(path "/99b36d40-1d0c-4775-b5ef-59e85b19cfa9"
 					(reference "TP2")
 					(unit 1)
 				)

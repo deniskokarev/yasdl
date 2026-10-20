@@ -19,7 +19,8 @@ import math
 from dataclasses import dataclass, field
 
 from .block import Atom, Block
-from .kicad_lib import compose, orient_vec, screen_bbox, to_screen
+from .kicad_lib import (compose, orient_vec, power_body_side, rot_with_pin_on, screen_bbox,
+                        to_screen)
 
 GRID = 1.27
 PITCH = 2.54
@@ -85,29 +86,35 @@ class Result:
         )
 
 
-def _atom_shape(bound) -> Shape:
-    """Symbol extent plus room for its Reference/Value text (placed as in kicad_sch)."""
-    a: Atom = bound.obj
+def symbol_extent(a: Atom, rot: int, mirror: str | None, name: str) -> tuple:
+    """Symbol bbox (relative to its origin) plus room for its text, placed as in kicad_sch."""
     sym = a.symbol
-    x0, y0, x1, y1 = screen_bbox(sym, bound.rot, bound.mirror)
-    text = max(len(bound.name), len(a.value or sym.lib_id.split(":")[1])) * CHAR_W
+    x0, y0, x1, y1 = screen_bbox(sym, rot, mirror)
+    text = max(len(name), len(a.value or sym.lib_id.split(":")[1])) * CHAR_W
     if sym.is_power:
-        if sym.pins and sym.pins[0].side == "N":
-            y1 += PITCH
+        body = power_body_side(sym, rot, mirror)
+        if body in "NS":
+            y0, y1 = (y0 - PITCH, y1) if body == "N" else (y0, y1 + PITCH)
+            x0, x1 = min(x0, -text / 2), max(x1, text / 2)
         else:
-            y0 -= PITCH
-        x0, x1 = min(x0, -text / 2), max(x1, text / 2)
+            x0, x1 = (x0 - text - GRID, x1) if body == "W" else (x0, x1 + text + GRID)
     elif x1 - x0 > y1 - y0:  # reference above, value below
         y0, y1 = y0 - PITCH, y1 + PITCH + GRID
         x0, x1 = min(x0, (x0 + x1) / 2 - text / 2), max(x1, (x0 + x1) / 2 + text / 2)
     else:  # both to the right
         x1 += GRID + text
+    return (_down(x0), _down(y0), _up(x1), _up(y1))
+
+
+def _atom_shape(bound) -> Shape:
+    a: Atom = bound.obj
+    sym = a.symbol
     pins_by_no = {p.number: p for p in sym.pins}
     pins = {}
     for att, number in bound.pin_map:
         p = pins_by_no[number]
         pins[id(att)] = to_screen(p.x, p.y, bound.rot, bound.mirror)
-    return Shape((_down(x0), _down(y0), _up(x1), _up(y1)), pins)
+    return Shape(symbol_extent(a, bound.rot, bound.mirror, bound.name), pins)
 
 
 # --- difference-constraint solver ---------------------------------------------------
@@ -145,6 +152,14 @@ class Layout:
         self.cache = {} if cache is None else cache
         self.children: dict[str, Result] = {}
         self.shapes: dict[str, Shape] = {}
+        from .atoms import POWER_NETS  # registry of global nets drawn as power symbols
+        # label index -> (Atom, rot, extent): dangling global labels drawn as power symbols
+        self.power = {}
+        for i, lab in enumerate(self.cv.labels):
+            if lab.kind == "global" and lab.text in POWER_NETS and len(lab.entries) == 1:
+                atom = Atom(POWER_NETS[lab.text], lab.text)
+                rot = rot_with_pin_on(atom.symbol, lab.entries[0])
+                self.power[i] = (atom, rot, symbol_extent(atom, rot, None, ""))
         for name, b in block.bound.items():
             if isinstance(b.obj, Atom):
                 self.shapes[name] = _atom_shape(b)
@@ -201,6 +216,12 @@ class Layout:
             if kind == "wire":
                 r, c = key
                 return var[("line", c if horiz else r)], 0.0, 0.0
+            if kind == "label" and key in self.power:
+                lab = cv.labels[key]
+                x0, y0, x1, y1 = self.power[key][2]
+                if horiz:
+                    return var[("line", lab.vcol if lab.vcol is not None else lab.c0)], x0, x1
+                return var[("line", lab.row)], y0, y1
             if kind == "label":
                 lab = cv.labels[key]
                 if horiz:
@@ -400,7 +421,11 @@ class Layout:
             res.ports.append(edge)
         # Net labels (block-scoped: prefixed when the block is nested).
         for i, lab in enumerate(cv.labels):
-            if lab.kind in ("local", "global"):  # local names are block-scoped (prefixed)
+            if i in self.power:  # drawn as its power symbol, pin on the label's point
+                atom, rot, _ = self.power[i]
+                x, y = node_point((lab.row, lab.c0))
+                res.symbols.append((f"<{lab.text}>@{lab.row}.{lab.c0}", atom, x, y, rot, None))
+            elif lab.kind in ("local", "global"):  # local names are block-scoped (prefixed)
                 res.labels.append((lab.text, node_point((lab.row, lab.c0)), lab.kind == "local"))
         res.wires = [w for w in res.wires if w[0] != w[1]]
         res.bbox = (x0, y0, x1, y1)
@@ -414,6 +439,10 @@ class Layout:
 
     def _label_box(self, i, xs, ys):
         lab = self.cv.labels[i]
+        if i in self.power:
+            x0, y0, x1, y1 = self.power[i][2]
+            x, y = xs[lab.vcol if lab.vcol is not None else lab.c0], ys[lab.row]
+            return (x + x0, y + y0, x + x1, y + y1)
         return (xs[lab.c0], ys[lab.row] - PITCH, xs[lab.c0] + _up(len(lab.text) * CHAR_W) + GRID,
                 ys[lab.row])
 

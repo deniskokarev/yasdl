@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
 from .canvas import Canvas, CanvasError, _UF
-from .kicad_lib import ORIENTATIONS, load, orient_side, orient_vec, pin_side, to_screen
+from .kicad_lib import ORIENTATIONS, compose, load, orient_side, orient_vec, pin_side, to_screen
 
 
 class YasdlError(ValueError):
@@ -27,7 +27,18 @@ class Atom:
     spice: object = None  # spice.SpiceModel override (default by lib_id)
 
     def oriented(self, rot: int = 0, mirror: str | None = None) -> Atom:
+        """Fixed orientation: rotate `rot` degrees counterclockwise, then mirror ("x"/"y")."""
         return replace(self, rot=rot, mirror=mirror)
+
+    def rotated(self, deg: int) -> Atom:
+        """Rotate counterclockwise by `deg` (multiple of 90), on top of any orientation set."""
+        return replace(self, **dict(zip(("rot", "mirror"),
+                                        compose((deg % 360, None), (self.rot or 0, self.mirror)))))
+
+    def mirrored(self, axis: str) -> Atom:
+        """Mirror about an axis: "y" flips left/right, "x" flips top/bottom (KiCad's convention)."""
+        return replace(self, **dict(zip(("rot", "mirror"),
+                                        compose(_MIRROR[axis], (self.rot or 0, self.mirror)))))
 
     @property
     def symbol(self):
@@ -59,6 +70,15 @@ class Bound:
     mirror: str | None = None
     pin_map: list = field(default_factory=list)  # [(Attachment, pin number or port index)]
 
+
+_MIRROR = {"x": (0, "x"), "y": (180, "x")}  # "y" (left/right) = top/bottom flip + 180 deg
+
+
+def display_orientation(rot: int, mirror: str | None) -> tuple[int, str | None]:
+    """Readable form of an orientation: a left/right mirror shows as mirror "y", not 180 + "x"."""
+    if mirror == "x" and rot in (90, 180):
+        return (rot - 180) % 360, "y"
+    return rot, mirror
 
 RESERVED_NAME = re.compile(r"^[NESWD]\d+$", re.IGNORECASE)  # default port names W0, D3, ...
 PORT_ATTRS = {"aliases"}  # programmatic port attributes supported so far
@@ -102,6 +122,12 @@ class OrientedBlock:
     block: "Block"
     rot: int = 0
     mirror: str | None = None
+
+    def rotated(self, deg: int) -> "OrientedBlock":
+        return OrientedBlock(self.block, *compose((deg % 360, None), (self.rot, self.mirror)))
+
+    def mirrored(self, axis: str) -> "OrientedBlock":
+        return OrientedBlock(self.block, *compose(_MIRROR[axis], (self.rot, self.mirror)))
 
 
 class Block:
@@ -213,6 +239,13 @@ class Block:
         """This block with a binding-time orientation (same convention as atoms)."""
         return OrientedBlock(self, rot, mirror)
 
+    def rotated(self, deg: int) -> "OrientedBlock":
+        return OrientedBlock(self).rotated(deg)
+
+    def mirrored(self, axis: str) -> "OrientedBlock":
+        """"y" flips left/right, "x" flips top/bottom."""
+        return OrientedBlock(self).mirrored(axis)
+
     @property
     def symmetric(self) -> bool:
         return False
@@ -282,7 +315,12 @@ class Block:
             """Pins that stay on a start side (N/W) or an end side (S/E): higher is better."""
             return sum((orig in "NW") == (new in "NW") for _, (_, orig, _), new in fit[1])
 
-        best = max(fits, key=lambda f: (reading_order(f), -ORIENTATIONS.index(f[0])))
+        def axis_flips(fit):
+            """How many of the two axes the orientation changes (mirror: 1, 180 deg: 2)."""
+            rot, mirror = fit[0]
+            return (orient_side("E", rot, mirror) != "E") + (orient_side("S", rot, mirror) != "S")
+
+        best = max(fits, key=lambda f: (reading_order(f), -axis_flips(f), -ORIENTATIONS.index(f[0])))
         (rot, mirror), pairs = best
         return Bound(comp.name, target, rot, mirror, [(a, item[0]) for a, item, _ in pairs])
 
@@ -338,12 +376,14 @@ class Block:
             if b is None:
                 binding = None
             elif isinstance(b.obj, Atom):
-                binding = {"atom": b.obj.lib_id, "value": b.obj.value, "rot": b.rot, "mirror": b.mirror}
+                rot, mir = display_orientation(b.rot, b.mirror)
+                binding = {"atom": b.obj.lib_id, "value": b.obj.value, "rot": rot, "mirror": mir}
             else:
                 if b.obj.name not in blocks:
                     blocks[b.obj.name] = None  # reserve (recursion guard)
                     blocks[b.obj.name] = b.obj.to_dict(blocks)
-                binding = {"block": b.obj.name, "rot": b.rot, "mirror": b.mirror}
+                rot, mir = display_orientation(b.rot, b.mirror)
+                binding = {"block": b.obj.name, "rot": rot, "mirror": mir}
             comps[name] = {"rect": {"row": comp.r0, "col": comp.c0, "rows": comp.r1 - comp.r0 + 1,
                                     "cols": comp.c1 - comp.c0 + 1},
                            "binding": binding, "attachments": atts}

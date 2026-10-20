@@ -92,7 +92,7 @@ def test_explicit_orientation_and_signature():
               U1U1──
             ──U1U1
         """, U1=OPAMP())
-    with pytest.raises(YasdlError, match="ports"):  # 3-port block into a 2-wire component
+    with pytest.raises(YasdlError, match="does not fit"):  # 3-port block into a 2-wire component
         ex.INV_AMP.bind(IN=ex.DARLINGTON, FB=R())
 
 
@@ -120,3 +120,27 @@ def test_kicad_roundtrip(name, tmp_path):
     from yasdl.kicad_export import render
     info = render(ex.ALL[name], tmp_path, svg=False)
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
+
+
+def test_block_orientation_at_binding():
+    p = ex.SHUNT.bound["P"]
+    assert (p.rot, p.mirror) == (270, None)  # left port on top (reading order)
+    by_side = {att.side: idx for att, idx in p.pin_map}
+    assert ex.PARALLEL.ports[by_side["N"]][0] == "W"
+    flipped = ex.SHUNT.bind(P=ex.PARALLEL.oriented(90))
+    by_side = {att.side: idx for att, idx in flipped.bound["P"].pin_map}
+    assert ex.PARALLEL.ports[by_side["N"]][0] == "E"
+    with pytest.raises(YasdlError, match="does not fit"):
+        ex.SHUNT.bind(P=ex.PARALLEL.oriented(0))  # horizontal block, vertical slot
+
+
+def test_json_view():
+    import json
+    d = ex.INV_AMP_RESISTORS.to_dict()
+    json.dumps(d)  # serialisable
+    assert set(d["blocks"]) == {"Series", "Parallel"}
+    assert d["components"]["U1"]["binding"]["mirror"] == "x"
+    assert d["components"]["FB"]["binding"]["block"] == "Parallel"
+    assert set(d["nets"]["VEE"]["pins"]) == {"U1.4"}
+    minus = d["components"]["U1"]["attachments"]["W"][0]["net"]
+    assert {"U1.2", "IN.E0", "FB.W0"} <= set(d["nets"][minus]["pins"])

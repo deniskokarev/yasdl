@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "yasdl")
 	(generator_version "9.0")
-	(uuid "23b829ef-2363-422e-a184-0168ea4bf886")
+	(uuid "a18f1573-c029-4e74-8901-a6d9135d9307")
 	(paper "A4")
 	(lib_symbols
 		(symbol "Device:R"
@@ -139,7 +139,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "5668e1ab-3b66-49ba-a191-66d55cd3c265")
+		(uuid "a8e988f3-71cb-43c7-93fc-46493906b4b3")
 	)
 	(wire
 		(pts
@@ -150,7 +150,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "35ca1379-688c-4b9c-9368-2a2a651a7e1c")
+		(uuid "cf008461-f04b-4e64-85fc-4b4d24ece433")
 	)
 	(wire
 		(pts
@@ -161,7 +161,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "8f28fb1a-17e3-415f-867c-ba97d6908f23")
+		(uuid "fc7c647b-34f5-49a3-942c-653c7b098c4f")
 	)
 	(wire
 		(pts
@@ -172,7 +172,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "c54c451e-94e2-44c4-9740-d3393454f770")
+		(uuid "6dc3b4b0-8f44-435d-9590-1fb8811d33c4")
 	)
 	(wire
 		(pts
@@ -183,7 +183,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "1492330e-bea3-48d2-871b-03b9c4939d77")
+		(uuid "f56efb2f-a4ac-455a-b62a-1aa6fceae48b")
 	)
 	(wire
 		(pts
@@ -194,7 +194,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "2367c3b7-3cc4-4396-9c68-89f32821cd96")
+		(uuid "b76097d7-a0c3-40da-8395-45ebc5d5dfc3")
 	)
 	(wire
 		(pts
@@ -205,7 +205,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "aac6ced7-76cf-4e7c-bd6b-9e31051bf30c")
+		(uuid "02fc55d1-f77c-490a-98ce-6492dccd7b67")
 	)
 	(wire
 		(pts
@@ -216,7 +216,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "fe2ca7ad-5b9f-4248-a67f-a66058438c29")
+		(uuid "0c1f2a45-ffb4-47cb-a706-12f7f414896a")
 	)
 	(wire
 		(pts
@@ -227,7 +227,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "4abde522-7fed-41b1-ac2e-6b950bc85e67")
+		(uuid "2bcfeab7-69f3-448b-be88-63983a66f299")
 	)
 	(wire
 		(pts
@@ -238,7 +238,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "baac54b0-6d2c-4a7a-9aaf-c1beca521eed")
+		(uuid "cbf59c28-7312-4ebf-9983-86f49f6201cb")
 	)
 	(wire
 		(pts
@@ -249,7 +249,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "a61b55a5-5e8f-44af-9f11-de5141c75227")
+		(uuid "c368db68-39b4-4af4-95e8-70e511def047")
 	)
 	(wire
 		(pts
@@ -260,7 +260,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "cb6ee59a-522c-4a38-afd3-7d29cd1c5287")
+		(uuid "743cd784-f1e6-4460-b241-b821125eede1")
 	)
 	(wire
 		(pts
@@ -271,7 +271,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "f56c86a8-2ad9-4559-82f6-a25ce33fd627")
+		(uuid "cfd1a7cd-5951-4276-9074-caf11a50ef4b")
 	)
 	(wire
 		(pts
@@ -282,7 +282,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "eaac7f27-1d23-4eca-aef1-97024db9b670")
+		(uuid "46a67847-b72c-44af-8a2a-680d180b4974")
 	)
 	(wire
 		(pts
@@ -293,7 +293,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "b6357ba1-1c61-4000-9d93-4dbba464aa68")
+		(uuid "d5519ad8-0f71-466f-a7c0-4ecb51450afc")
 	)
 	(wire
 		(pts
@@ -304,7 +304,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "cc7145fd-93ba-4b77-ba51-4e7c4bde7003")
+		(uuid "136fb5db-6e7c-4676-a427-7f578fe05c93")
 	)
 	(wire
 		(pts
@@ -315,7 +315,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "dc08a1d8-10aa-4ef9-8989-f7b1fd04ea20")
+		(uuid "e55f46a9-be60-49cc-aac3-a533c4867272")
 	)
 	(wire
 		(pts
@@ -326,7 +326,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "92e0754f-ed39-49db-b865-37352618da98")
+		(uuid "f8abcca8-1807-40d1-ac3c-8e96a50f4acd")
 	)
 	(wire
 		(pts
@@ -337,7 +337,7 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "29e39ca4-abe8-4ea7-b1e3-1a5c857fd6fc")
+		(uuid "d40faf38-7984-4998-9f09-e892082befda")
 	)
 	(wire
 		(pts
@@ -348,19 +348,19 @@
 			(width 0)
 			(type default)
 		)
-		(uuid "e9b10388-0dc5-4fea-a3fd-c103a6c73841")
+		(uuid "3eb24f8e-2961-4f52-b07f-f7f383a78507")
 	)
 	(junction
 		(at 27.94 29.21)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "da1b47ac-80db-47aa-a0e3-b53a8af072c7")
+		(uuid "53ebb53f-ba7e-4382-b142-c9344cd34589")
 	)
 	(junction
 		(at 44.45 29.21)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "de2b8d90-3f1c-4aef-bfca-47998220f88d")
+		(uuid "1ae23338-dd6c-4acc-88b1-80fd84a94326")
 	)
 	(label "E0"
 		(at 46.99 29.21 0)
@@ -370,7 +370,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "3a10eca6-37b2-4cec-9ca3-6da4d4c31574")
+		(uuid "26064afc-c579-4337-89f3-bb4a1061b041")
 	)
 	(label "W0"
 		(at 25.4 29.21 180)
@@ -380,7 +380,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "2845234c-17c3-4319-b0d7-78ba5050e15d")
+		(uuid "3c812b10-6f14-4cf9-b7d2-2765b9a4fcbc")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -390,7 +390,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f65d8118-8b49-4893-9e8c-a3ed264b18f7")
+		(uuid "73466e6f-a076-4231-9319-a4cf59d70552")
 		(property "Reference" "R1"
 			(at 35.56 26.67 90)
 			(effects
@@ -435,14 +435,14 @@
 			)
 		)
 		(pin "1"
-			(uuid "0fea6c84-2a62-44d2-b927-f4bfd759f671")
+			(uuid "f81b83e2-2139-4048-943b-bc712fb5036c")
 		)
 		(pin "2"
-			(uuid "b0599355-6609-41ec-9a11-9744f066b41a")
+			(uuid "255b9c67-fb80-4e1f-8cee-1179c795606a")
 		)
 		(instances
 			(project "Parallel"
-				(path "/23b829ef-2363-422e-a184-0168ea4bf886"
+				(path "/a18f1573-c029-4e74-8901-a6d9135d9307"
 					(reference "R1")
 					(unit 1)
 				)
@@ -457,7 +457,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "182d031e-2463-4be9-8c38-48c2b658e231")
+		(uuid "45e903a7-294c-464b-8171-82dc18effef3")
 		(property "Reference" "R2"
 			(at 35.56 38.1 90)
 			(effects
@@ -502,14 +502,14 @@
 			)
 		)
 		(pin "1"
-			(uuid "ef020493-fd6f-4fea-96a6-4eb0208341a3")
+			(uuid "63a4b3ee-3fed-454d-9ba5-1e481bbdc676")
 		)
 		(pin "2"
-			(uuid "f188d349-aa4c-4939-9227-37299d472f41")
+			(uuid "49afe973-8c01-47c6-87d5-40e8bebc2049")
 		)
 		(instances
 			(project "Parallel"
-				(path "/23b829ef-2363-422e-a184-0168ea4bf886"
+				(path "/a18f1573-c029-4e74-8901-a6d9135d9307"
 					(reference "R2")
 					(unit 1)
 				)

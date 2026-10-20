@@ -48,8 +48,19 @@ INV_AMP = Block("InvAmp", """
 # Resistor sub-circuits bound into the amplifier's IN and FB components.
 INV_AMP_RESISTORS = INV_AMP.bind(IN=SERIES, FB=PARALLEL)
 
+# The horizontal PARALLEL block bound into a vertical slot. Orientation is resolved at binding:
+# the drawing forces a quarter turn, and reading order picks the one that keeps PARALLEL's
+# left port on top (spec 3.2). `P=PARALLEL.oriented(90)` would put it at the bottom instead.
+SHUNT = Block("Shunt", """
+    ──R1──┬──
+          │
+          P
+          │
+         GND
+""", R1=R("1k"), P=PARALLEL, GND=GND())
+
 ALL = {"SERIES": SERIES, "PARALLEL": PARALLEL, "SERIES_PARALLEL": SERIES_PARALLEL,
-       "DARLINGTON": DARLINGTON, "INV_AMP_RESISTORS": INV_AMP_RESISTORS}
+       "DARLINGTON": DARLINGTON, "INV_AMP_RESISTORS": INV_AMP_RESISTORS, "SHUNT": SHUNT}
 
 if __name__ == "__main__":
     for title, blk in ALL.items():

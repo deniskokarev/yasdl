@@ -112,7 +112,28 @@ def to_screen(x: float, y: float, rot: int, mirror: str | None) -> tuple[float, 
     return x, y
 
 
+def orient_vec(x: float, y: float, rot: int, mirror: str | None) -> tuple[float, float]:
+    """Apply an orientation to a schematic (y-down) vector: rotate, then mirror."""
+    return to_screen(x, -y, rot, mirror)
+
+
+def compose(outer: tuple[int, str | None], inner: tuple[int, str | None]) -> tuple[int, str | None]:
+    """The single orientation equal to applying `inner`, then `outer`."""
+    probes = [(1, 0), (0, 1)]
+    want = [orient_vec(*orient_vec(x, y, *inner), *outer) for x, y in probes]
+    for o in ORIENTATIONS:
+        if [orient_vec(x, y, *o) for x, y in probes] == want:
+            return o
+    raise AssertionError("orientations are closed under composition")
+
+
+SIDE_VEC = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}  # schematic, y down
 _SCREEN_SIDE = {(0, -1): "N", (0, 1): "S", (-1, 0): "W", (1, 0): "E"}
+
+
+def orient_side(side: str, rot: int, mirror: str | None) -> str:
+    x, y = orient_vec(*SIDE_VEC[side], rot, mirror)
+    return _SCREEN_SIDE[(round(x), round(y))]
 _SIDE_VEC = {"N": (0, 1), "S": (0, -1), "W": (-1, 0), "E": (1, 0)}  # library y-up
 
 

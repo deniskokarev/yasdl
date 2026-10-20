@@ -152,9 +152,16 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
 - **Taps**: only single-wire taps, `╟ ╢ ╤ ╧`, each followed by a label that selects the wire
   by name or 1-based number (`╟──<3>──`, `╟──<MISO>──`). Tapping a wire the bus doesn't carry
   is an error. Taps take wires out of a bus; they never add them.
-- **Crossings**: bus over bus at 90° only, drawn like single-wire crossings (2.3). There is
-  no bus-to-bus junction (`╬`) or bus tee (`╠`). Wire/bus crossings, junctions and other
-  shapes are forbidden.
+- **Crossings**: at 90° only, never connecting, drawn like single-wire crossings (2.3), with
+  the character on top shown in the middle. Allowed pairs: bus/bus and single wire/bus
+  (either on top):
+  ```
+    ║            │
+  ──║──   or   ═════      (bus over wire / wire over bus)
+    ║            │
+  ```
+  There is no bus-to-bus junction (`╬`) or bus tee (`╠`). Other junctions and shapes are
+  forbidden.
 - **Ports**: buses reaching the canvas edge are ports. Their wires appear in the side's pin
   list in order, named by the bus's net labels (`<a>═══` gives `a.pins`).
 - **KiCad**: drawn as individual parallel wires. (Open: use KiCad buses above some width.)
@@ -178,27 +185,42 @@ side**:
 
 Pins map to attachments **by position along each side**.
 
-### 3.2 Orientation of atoms
+### 3.2 Orientation
 
-Atoms are drawn in their KiCad library orientation unless one of these applies, in order:
-1. explicit `Atom(...).oriented(rot, mirror)` (rot in degrees counterclockwise, mirror
-   `"x"`: top/bottom, `"y"`: left/right);
-2. pin labels: the orientation must be the only one consistent with them, otherwise it's an
-   error ("label another pin");
-3. the library orientation, if it fits the drawing;
-4. symmetric parts (R, C, L): whichever rotation the drawn sides force, e.g. a resistor
-   between W and E wires lies down.
+Orientation is decided **only at binding**. A canvas never rotates anything it contains; a
+component is always drawn as it is. The same rules apply to atoms and sub-blocks. The 8
+candidate orientations are rotations by 0/90/180/270° counterclockwise, each with or without a
+top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
 
-Nothing else is rotated automatically. Inconsistent labels, like `<e>` where only C or B
-could go, are errors.
+1. **Explicit**: `R().oriented(90)`, `PARALLEL.oriented(270)`, `OPAMP().oriented(0, "x")`.
+   It must fit the drawing, or binding fails.
+2. **Pin labels** (2.5): only orientations consistent with every label are candidates. For
+   atoms, labels match pin names or numbers; for sub-blocks, port names. If the remaining
+   candidates connect pins differently, binding fails ("label another pin"). Symmetric atoms
+   (R, C, L) are exempt.
+3. **Forced by the drawing**: the candidate must have exactly the drawn number of pins on
+   every side (3.1). Among the candidates that fit, the one that best **keeps reading order**
+   wins: pins on a start side (N, W) stay on a start side, pins on an end side (S, E) stay on
+   an end side. Remaining ties go to the order above (unrotated first).
+   - The unrotated orientation always keeps reading order, so it wins whenever it fits.
+   - A resistor (library: vertical) between W and E wires lies down with pin 1 on the left.
+   - The horizontal PARALLEL block in a vertical slot turns so that its left port is on top
+     (example `SHUNT`). `PARALLEL.oriented(90)` puts it at the bottom.
+
+Inconsistent labels, like `<e>` where only C or B could go, are errors. When the electrical
+direction matters but nothing in the drawing pins it down, e.g. a non-symmetric 2-port in a
+vertical slot, rule 3 still decides, deterministically. Label a pin or orient explicitly if
+the default isn't what you want.
 
 *(Corner markers like `*` for pin 1 were considered and dropped: they break the KMP naming
 and `.` already means empty. Pin labels give the same information.)*
 
 ### 3.3 Sub-blocks
 
-A block bound into a component maps its ports, per side and in order, to the component's
-attachments. Sub-blocks aren't rotatable yet.
+A bound sub-block is oriented exactly like an atom (3.2). Its ports then map, per side and in
+drawing order, to the component's attachments. In the layout, the sub-block's finished drawing
+is rotated or mirrored as a whole, and the orientations of the symbols inside it are composed
+with the block's.
 
 ## 4. Layout
 
@@ -227,10 +249,70 @@ attachments. Sub-blocks aren't rotatable yet.
         | | | |
   +-----1-2-3-4------+
   ```
+- **Spilling shapes.** A bound shape is usually much larger than its few canvas characters.
+  It can reach under items in other rows and columns. Boxes (components with their text, and
+  net labels) that overlap are separated pairwise: in Y if their canvas rows are disjoint,
+  otherwise in X. The overlap test uses the other axis's current solution, and these
+  separations join the X/Y iteration.
 - **Text space**: reference and value fields are reserved in each atom's extent.
 - **Grid**: every coordinate is a multiple of 1.27 mm (KiCad's default grid).
 
-## 5. KiCad output
+## 5. Internal representation
+
+There are three layers, each derived from the one before:
+
+| Layer | What it holds | Where |
+|---|---|---|
+| Source | canvas text + bindings | `Block(name, canvas, **bindings)` |
+| Resolved block | components with rectangles, attachments and resolved bindings (orientation, pin↔wire map); local nets; ports | `Block.canvas`, `Block.bound`, `Block.to_dict()` |
+| Layout | coordinates: symbols with orientation, wire segments, labels, ports, bbox | `layout.Result` |
+
+`Block.to_dict()` exports the resolved block as JSON. Sub-block definitions are listed once
+under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
+
+```json
+{
+  "name": "InvAmp",
+  "size": {"cols": 25, "rows": 9},
+  "canvas": ["      ┌──────FB───────┐", "...", "     GND   <VCC>"],
+  "components": {
+    "U1": {
+      "rect": {"row": 4, "col": 13, "rows": 3, "cols": 6},
+      "binding": {"atom": "Simulation_SPICE:OPAMP", "value": "", "rot": 0, "mirror": "x"},
+      "attachments": {
+        "N": [{"pos": 13, "net": "VEE", "pin": "4"}],
+        "E": [{"pos": 5, "net": "E0", "pin": "5"}],
+        "S": [{"pos": 13, "net": "VCC", "pin": "3"}],
+        "W": [{"pos": 4, "net": "N2", "pin": "2"},
+              {"pos": 6, "net": "GND", "label": "+", "pin": "1"}]
+      }
+    },
+    "FB": {
+      "rect": {"row": 0, "col": 13, "rows": 1, "cols": 2},
+      "binding": {"block": "Parallel", "rot": 0, "mirror": null},
+      "attachments": {"E": [{"pos": 0, "net": "E0", "pin": "E0"}],
+                      "W": [{"pos": 0, "net": "N2", "pin": "W0"}]}
+    }
+  },
+  "unbound": [],
+  "ports": [{"side": "E", "index": 0, "name": null, "net": "E0"},
+            {"side": "W", "index": 0, "name": null, "net": "W0"}],
+  "nets": {
+    "N2":  {"pins": ["FB.W0", "IN.E0", "U1.2"], "ports": [], "labels": []},
+    "VEE": {"pins": ["U1.4"], "ports": [], "labels": [{"text": "VEE", "row": 2, "col": 11}]}
+  },
+  "blocks": {"Series": {"...": "..."}, "Parallel": {"...": "..."}}
+}
+```
+
+- `pos` is the canvas row (W/E) or column (N/S) where the wire meets the component.
+- `pin` is the atom's pin number or the sub-block's port name.
+- Nets are **local**: sub-blocks are opaque, and their ports appear as `FB.W0`.
+  `yasdl.netlist()` gives the flattened view.
+- The source layer alone is enough to rebuild everything; the rest is a parsed view, for
+  tools and debugging. (Open: should JSON be an input format too?)
+
+## 6. KiCad output
 
 - One flat sheet. Symbols are copied from KiCad 9's libraries into `lib_symbols`. References
   are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a `yasdl_path` field with its
@@ -241,7 +323,7 @@ attachments. Sub-blocks aren't rotatable yet.
   rendering only counts if it passes.
 - `kicad-cli sch export svg`, cropped to the drawing.
 
-## 6. Examples
+## 7. Examples
 
 `examples/blocks.py` (rendered by `python -m examples.render`, images in `docs/examples/`):
 
@@ -250,25 +332,27 @@ attachments. Sub-blocks aren't rotatable yet.
 | Series, parallel, R + (R ∥ R) | ![](docs/examples/SeriesParallel.png) |
 | Darlington pair (same drawn signature as an NPN) | ![](docs/examples/Darlington.png) |
 | Inverting op-amp, series input and parallel feedback bound as sub-blocks | ![](docs/examples/InvAmp.png) |
+| PARALLEL bound into a vertical slot (oriented at binding) | ![](docs/examples/Shunt.png) |
 
-## 7. Status
+## 8. Status
 
 | Part | State |
 |---|---|
 | Canvas: components, KMP names, wires, crossings, labels, pin labels, `+`, ports | done |
-| Binding: signatures, orientation rules, sub-blocks, flat netlist | done |
+| Binding: signatures, orientation rules (atoms and sub-blocks), flat netlist, JSON view | done |
 | Grid-bag layout with greedy alignment and ladder adapters | done |
 | KiCad 9 export, round-trip check, SVG | done |
 | Buses | specified, not implemented |
-| Sub-block rotation, hierarchical sheets, SPICE export | not started |
+| Hierarchical sheets, SPICE export | not started |
 
-## 8. Open questions
+## 9. Open questions
 
 - Bus crossings: should "which bus is on top" carry meaning (like PCB layers), or is it
   only how it's drawn?
 - KiCad buses vs parallel wires: switch above some width (5?).
 - Global pin numbering for block ports, e.g. DIP-style counterclockwise from top-left, in
   addition to side/index.
-- Rotating and mirroring sub-blocks, and what happens to their bus order.
+- How binding-time orientation of a sub-block interacts with bus order (2.6). Reversal is
+  the expected consequence; confirm when buses are implemented.
 - Flat output vs one hierarchical KiCad sheet per sub-block.
 - Label text width is estimated (1.27 mm per character), not measured.

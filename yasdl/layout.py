@@ -19,7 +19,7 @@ import math
 from dataclasses import dataclass, field
 
 from .block import Atom, Block
-from .kicad_lib import screen_bbox, to_screen
+from .kicad_lib import compose, orient_vec, screen_bbox, to_screen
 
 GRID = 1.27
 PITCH = 2.54
@@ -57,6 +57,22 @@ class Result:
     def shape(self, block_bound) -> Shape:
         pins = {id(att): self.ports[idx] for att, idx in block_bound.pin_map}
         return Shape(self.bbox, pins)
+
+    def oriented(self, rot: int, mirror: str | None) -> Result:
+        """The whole drawing rotated/mirrored about its origin (binding-time orientation)."""
+        if (rot, mirror) == (0, None):
+            return self
+        o = lambda p: tuple(round(v, 4) + 0.0 for v in orient_vec(p[0], p[1], rot, mirror))  # noqa: E731
+        corners = [o((x, y)) for x in (self.bbox[0], self.bbox[2]) for y in (self.bbox[1], self.bbox[3])]
+        return Result(
+            (min(c[0] for c in corners), min(c[1] for c in corners),
+             max(c[0] for c in corners), max(c[1] for c in corners)),
+            [o(p) for p in self.ports],
+            [(path, a, *o((x, y)), *compose((rot, mirror), (r, m)))
+             for path, a, x, y, r, m in self.symbols],
+            [(o(a), o(b)) for a, b in self.wires],
+            [(txt, o(p), scoped) for txt, p, scoped in self.labels],
+        )
 
     def translated(self, dx, dy, prefix):
         t = lambda p: (round(p[0] + dx, 4), round(p[1] + dy, 4))  # noqa: E731
@@ -136,7 +152,7 @@ class Layout:
                 key = id(b.obj)
                 if key not in self.cache:
                     self.cache[key] = Layout(b.obj, self.cache).run()
-                self.children[name] = self.cache[key]
+                self.children[name] = self.cache[key].oriented(b.rot, b.mirror)
                 self.shapes[name] = self.children[name].shape(b)
 
     # Items occupying the canvas, for adjacency: per cell -> ("wire"|"label"|"comp", key).
@@ -152,15 +168,17 @@ class Layout:
 
     def run(self) -> Result:
         jogs = {name: {s: set() for s in "NESW"} for name in self.shapes}
-        for _ in range(6):
+        self.sep = {"x": set(), "y": set()}  # extra pairwise separations (spilling shapes)
+        for _ in range(12):
             ys, oy = self._solve(jogs, "y")
             changed = self._find_jogs(jogs, ys, oy, "y")
             xs, ox = self._solve(jogs, "x")
             changed |= self._find_jogs(jogs, xs, ox, "x")
+            changed |= self._find_overlaps(xs, ys, ox, oy, jogs)
             if not changed:
                 break
         else:
-            raise LayoutError(f"{self.block.name}: ladder jogs did not converge")
+            raise LayoutError(f"{self.block.name}: layout did not converge")
         ys, oy = self._solve(jogs, "y")
         return self._emit(xs, ys, ox, oy, jogs)
 
@@ -217,6 +235,12 @@ class Layout:
                     clear = GRID
                 sys_.ge(ib, ia, clear + a_hi - b_lo)
 
+        # Shapes that spill beyond their own rows/columns and would overlap (see run()).
+        for a, b in self.sep[axis]:
+            ia, _, a_hi = extent(a)
+            ib, b_lo, _ = extent(b)
+            sys_.ge(ib, ia, PITCH + a_hi - b_lo)
+
         # Pin alignment: sides whose pins run along this axis' lines.
         aligned_sides = "NS" if horiz else "EW"
         must, maybe = [], []
@@ -260,6 +284,36 @@ class Layout:
             return arm in self.cv.wires[(r, c)]
         r, c = b[1]
         return ("W" if horiz else "N") in self.cv.wires[(r, c)]
+
+    def _find_overlaps(self, xs, ys, ox, oy, jogs) -> bool:
+        """Separate boxes (components, net labels) that overlap physically although they sit in
+        different rows/columns: in Y if their canvas rows are disjoint, else in X."""
+        cv = self.cv
+        boxes = []
+        for name, comp in cv.comps.items():
+            boxes.append((("comp", name), (comp.r0, comp.r1), (comp.c0, comp.c1),
+                          self._comp_box(name, ox, oy, jogs)))
+        for i, lab in enumerate(cv.labels):
+            if lab.pin_of is None:
+                boxes.append((("label", i), (lab.row, lab.row), (lab.c0, lab.c1),
+                              self._label_box(i, xs, ys)))
+        changed = False
+        for (ia, ra, ca, ba), (ib, rb, cb, bb) in itertools.combinations(boxes, 2):
+            if not (ba[0] < bb[2] + GRID and bb[0] < ba[2] + GRID and
+                    ba[1] < bb[3] + GRID and bb[1] < ba[3] + GRID):
+                continue
+            if ra[1] < rb[0] or rb[1] < ra[0]:
+                pair = (ia, ib) if ra[1] < rb[0] else (ib, ia)
+                axis = "y"
+            elif ca[1] < cb[0] or cb[1] < ca[0]:
+                pair = (ia, ib) if ca[1] < cb[0] else (ib, ia)
+                axis = "x"
+            else:
+                continue
+            if pair not in self.sep[axis]:
+                self.sep[axis].add(pair)
+                changed = True
+        return changed
 
     def _find_jogs(self, jogs, pos, origin, axis):
         horiz = axis == "x"

@@ -394,14 +394,14 @@ class Layout:
         x1 = max([p[0] for p in all_pts] + [b[2] for b in boxes] + xs)
         y1 = max([p[1] for p in all_pts] + [b[3] for b in boxes] + ys)
         for port in cv.edge_ports:
-            p = pt(*port.cell)
+            p = node_point(port.cell)
             edge = {"W": (x0, p[1]), "E": (x1, p[1]), "N": (p[0], y0), "S": (p[0], y1)}[port.side]
             res.wires.append((p, edge))
             res.ports.append(edge)
         # Net labels (block-scoped: prefixed when the block is nested).
         for i, lab in enumerate(cv.labels):
-            if lab.pin_of is None:
-                res.labels.append((lab.text, node_point((lab.row, lab.c0)), True))
+            if lab.kind in ("local", "global"):  # local names are block-scoped (prefixed)
+                res.labels.append((lab.text, node_point((lab.row, lab.c0)), lab.kind == "local"))
         res.wires = [w for w in res.wires if w[0] != w[1]]
         res.bbox = (x0, y0, x1, y1)
         return res

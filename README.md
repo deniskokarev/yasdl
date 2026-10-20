@@ -64,7 +64,8 @@ yasdl inverts that.
 | component | `A-Z a-z 0-9 _` | see 2.2 |
 | single wire | `─ -` `│ \|` `┌ ┐ └ ┘` `├ ┤ ┬ ┴` `┼` | ASCII `-` `\|` equal `─` `│` |
 | bus | `═ ║ ╔ ╗ ╚ ╝`, taps `╟ ╢ ╤ ╧` | section 2.6 (specified, not implemented yet) |
-| label | `<text>` on one row | net label or pin label, 2.4–2.5 |
+| angle label | `<text>` on one row | pin label, global net or local net name (2.4–2.5) |
+| brace label | `{text}` on one row | external port name, only on the block edge (2.7) |
 | pin shortcut | `+` | a one-character pin label |
 
 Any other character is an error. Whatever isn't explicitly allowed below is forbidden.
@@ -105,25 +106,35 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
 - A wire that ends on a straight wire from one side only (an implied T) is an error; use a
   tee.
 
-### 2.4 Net labels (implicit wires)
+### 2.4 Angle labels: pins and nets
 
-- `<name>` touching a wire names its net. **All labels with the same text in a block are the
-  same net**, connected without drawing the wire. This is the escape hatch for non-planar
-  circuits and long loops (`<VCC>`, `<VEE>` above).
-- A label can sit at the end of a wire (a net port) or inline in it (`──<x>──`).
+What an angle label `<name>` means depends on what it touches:
+
+| Touches | Meaning |
+|---|---|
+| a component edge (and a wire on its other side) | **pin label**, see 2.5 |
+| a wire on one side only | **global net**: every `<name>` with the same text in the whole design is one net, in every block and every instance. This is the escape hatch for non-planar circuits and long loops, and the way to reach supplies (`<VCC>`, `<VEE>`). Power symbols (`GND()`, `VCC()`) join the global net with their value as name. |
+| wires on both sides (`──<x>──`) | **local net name**: names the net inside this block only. Same-named local labels in one block are connected; they never connect across blocks or instances. |
+| nothing | error |
+
 - Horizontal wires enter a label only at its `<` or `>` end. Vertical wires pass through one
   column inside the label.
-- A label must not touch a component edge, or it becomes a pin label (2.5).
-- When a sub-block is drawn into a parent, its net labels stay block-scoped. In the flat
-  KiCad output they are prefixed with the instance path (`FB.x`).
+- In the flat KiCad output, local names are prefixed with the instance path (`FB.x`); global
+  names are not.
 
 ### 2.5 Pins
 
 - A pin **attachment** is a wire arm, or a pin label, that touches a component edge.
 - Pins on a side are ordered: **W and E sides top to bottom, N and S sides left to right**.
-- **Pin labels**: a label touching a component edge names the pin, matched case-insensitively
-  against the symbol's pin name or number. `<c>` and `<b>` are enough to orient a transistor.
-  A pin label must have a wire on its other side. Pin labels never name nets.
+- **Pin labels**: a label touching a component edge names the pin. For atoms it matches
+  the symbol's pin name or number; for sub-blocks, any of the port's names (2.7). Matching
+  is case-insensitive. Pin labels filter orientations (3.2): `<c>` and `<b>` together fix a
+  transistor completely; `<b>` alone leaves the unrotated one. A pin label must have a wire
+  on its other side, and it never names a net.
+  ```
+  {input}────<b>Q1Q1      the wire ends on Q1's base; {input} names the block port (2.7)
+                Q1Q1
+  ```
   ```
    │
   <c>
@@ -168,9 +179,30 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
 
 ### 2.7 Ports (block interface)
 
-- A wire arm leaving the canvas is a port on that side, ordered as in 2.5.
-- A port's name is the net label on its net, if there is one; otherwise it is `W0`, `E1`, ...
+- **Where**: a wire arm leaving the canvas, or a **brace label** `{name}` on the canvas edge.
+  The brace label has exactly one wire, going inward, and sits on the side opposite that wire
+  (`{in}───` on the W edge, `───{out}` on the E edge, top/bottom rows for vertical wires).
+  A `{}` label anywhere else, or touching a component, is an error.
 - A component sitting on the canvas edge exports nothing. Ports must be drawn as wires.
+- **Order and default names**: per side, ordered as in 2.5, named `W0`, `W1`, `N0`, ...
+- **DIP number**: each port also gets a unique number `D0`, `D1`, ..., counting
+  counterclockwise from the top of the W side: W top to bottom, S left to right, E bottom to
+  top, N right to left (like the pins of a DIP package).
+- **Aliases**, in priority order:
+  1. the port's `{name}` label;
+  2. programmatic aliases (below);
+  3. **re-export**: if the port has neither, and its net reaches exactly one distinct pin name
+     (an atom pin name other than `~`, or a sub-block port name), that name becomes the alias.
+     The Darlington's ports become `B`, `C` and `E` this way, and a host can orient it with
+     `<b>`/`<c>` labels. A re-exported name that collides with another port's name, or looks
+     like a default name, is silently dropped.
+- **Uniqueness**: no two ports may share an alias (case-insensitive), and aliases may not look
+  like default names (`W0`, `D3`, ...). Both are errors, whether from the drawing or from code.
+- **Programmatic attributes**: `Block(name, canvas, port_attrs={key: {"aliases": [...]}}, ...)`.
+  A key is a default name (`W0`), a DIP number (`D2`) or an existing alias. Only `aliases` is
+  supported for now; direction and class (`in`, `out`, `inout`, `pwr`) are planned. Unknown
+  keys and attributes are errors.
+- `block.port(key)` looks a port up by any of its names.
 
 ## 3. Binding
 
@@ -194,10 +226,9 @@ top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
 
 1. **Explicit**: `R().oriented(90)`, `PARALLEL.oriented(270)`, `OPAMP().oriented(0, "x")`.
    It must fit the drawing, or binding fails.
-2. **Pin labels** (2.5): only orientations consistent with every label are candidates. For
-   atoms, labels match pin names or numbers; for sub-blocks, port names. If the remaining
-   candidates connect pins differently, binding fails ("label another pin"). Symmetric atoms
-   (R, C, L) are exempt.
+2. **Pin labels** (2.5): only orientations consistent with every label stay candidates. For
+   atoms, labels match pin names or numbers; for sub-blocks, port names. If several
+   remain, rule 3 chooses among them.
 3. **Forced by the drawing**: the candidate must have exactly the drawn number of pins on
    every side (3.1). Among the candidates that fit, the one that best **keeps reading order**
    wins: pins on a start side (N, W) stay on a start side, pins on an end side (S, E) stay on
@@ -295,8 +326,8 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
     }
   },
   "unbound": [],
-  "ports": [{"side": "E", "index": 0, "name": null, "net": "E0"},
-            {"side": "W", "index": 0, "name": null, "net": "W0"}],
+  "ports": [{"side": "E", "index": 0, "dip": 1, "aliases": [], "net": "E0"},
+            {"side": "W", "index": 0, "dip": 0, "aliases": [], "net": "W0"}],
   "nets": {
     "N1":  {"pins": ["FB.W0", "IN.E0", "U1.2"], "ports": [], "labels": []},
     "VEE": {"pins": ["U1.4"], "ports": [], "labels": [{"text": "VEE", "row": 2, "col": 11}]}
@@ -306,7 +337,8 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 ```
 
 - `pos` is the canvas row (W/E) or column (N/S) where the wire meets the component.
-- `pin` is the atom's pin number or the sub-block's port name.
+- `pin` is the atom's pin number or the sub-block's port name (its first alias, else its
+  default name).
 - Nets are **local**: sub-blocks are opaque, and their ports appear as `FB.W0`.
   `yasdl.netlist()` gives the flattened view.
 - The source layer alone is enough to rebuild everything; the rest is a parsed view, for

@@ -1,3 +1,145 @@
+Few more questions/proposals below
+
+If it sounds good, add/update the spec, create the unit tests and implement
+
+- pins and global nets with {} and <> labels
+- erc validation pass
+- spice export
+
+## Pins import/export and global nets
+
+Need to clarify the pins import/export and global nets use.
+
+For example we may want to export transistor component <b> pin as `input`. What would be the cleanest way to do that?
+
+One possibility is a single-side wire label at the edge, like
+```
+{input}---------<b>NPN
+```
+
+`<b>` means we need to connect to NPN.b	pin and	`{input}` on the left edge means it's an external pin named `input`
+
+Using angle brackets convention, like `<input> raises conflict with your <VEE>-- net label example
+
+Unless it contradicts any existing tests, the convention could become:
+- angular labels are associated (imported) pins or global nets. global net when 1 side attached to nothing
+- labels with braces could be reserved for external pin names
+
+A single sided wire label without wire continuation is a global net label, example:
+
+```
+     <label>---U1U1
+```
+just like you `<VEE>` net case
+
+The angle-brackets in pin import/use scenario:
+
+```
+     U1U1<a>----<b>U2U2
+     U1U1          U2U2
+```
+
+
+Curly brace-labels allowed only at block edge and mean the exported pin name alias. The default `W0`, etc name is also given.
+
+No `{label}` means re-export the pin alias name from attached component. If no candidates or a dup conflict, don't give nice alias, just keep default like `W0`
+
+
+```
+{label}--<a>U1U1
+```
+
+which means the U1.pin.a exported as pin named `label`
+
+Raise error if dups identified
+
+Raise error if `{}` label doesn't sit on the edge of the block
+
+
+### programmatic
+
+Allow specifying extra net/pin attributes for every pin at Block() construction. Address the pins in standard `W0` manner or in DIP manner or by {} label name.
+
+There we may want to specify other aliases and other pin/net attributes, like class/signal direction: [in/out/in-out/pwr].
+
+For now just allow extra aliases, with plans for other attributes in the future.
+
+
+### DIP numbering
+
+while at it let's give each external pin a uniq numeric alias numbered in DIP fashion, like D0, D1, ...
+
+
+### uniq alias names
+
+We don't want to have 2 different external pins with same alias. Raise errors if detected. In the diagram or even when given programmatically.
+
+Users shouldn't be using pin label aliases like W0 or D0
+
+^^^^^^^^^^^commit when this portion is ready
+
+## ERC check
+
+We need our kicad exported examples passing ERC validation.
+
+Potential issues include specifying net classes and assigning power flags to VCC, GND
+
+Try to resolve issues without changing ASCII art specification only by introducing helper Blocks/components and/or enhancing the API.
+
+Ideally, any schematic constructed using yasdl should be passing ERC check without extra effort
+
+^^^^^^^^^^^commit when this portion is ready
+
+
+## SPICE export
+
+After we can pass ERC checks we should be able to create schematics exportable as SPICE netlist.
+
+I know the ideal opamp is not available out of box in ngspice, but we can start with a simple transistor/diode circuit.
+
+It would be great if you could represent a sine-wave generator from that task oracle solution from ~/work/dkv-tbench/ee_sgen/ as a nicely looking yasdl diagram
+that could be exported as kicad schematic and subsequently into SPICE netlist.
+
+^^^^^^^^^^^commit when this portion is ready
+
+
+
+it's fine to make intermediate commits or even experimental branches on the way
+
+
+
+
+
+
+---------------------------
+
+
+
+
+
+## Design validation
+
+We need to preserve the convenience of using unnamed/unnumbered pins, like when binding a resistor, but for more sophisticated components, like transistors
+it's desired to enforce the imported/exported pin names. That will reduce annoying errors.
+
+please think how to achieve the necessary balance between convenience and minimising design errors.
+
+Besides using imported pin names, we can think about Block() attributes API to put a constraint on the
+
+
+
+
+
+
+
+
+
+---------------------------------------
+
+
+
+
+
 make a branch and lets begin for real
 
 check out my below draft and if no severe contradictions identified:

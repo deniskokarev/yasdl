@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, replace
+from typing import NamedTuple
 
 from .canvas import Canvas, CanvasError, _UF
 from .kicad_lib import ORIENTATIONS, load, orient_side, orient_vec, pin_side, to_screen
@@ -57,6 +59,41 @@ class Bound:
     pin_map: list = field(default_factory=list)  # [(Attachment, pin number or port index)]
 
 
+RESERVED_NAME = re.compile(r"^[NESWD]\d+$", re.IGNORECASE)  # default port names W0, D3, ...
+PORT_ATTRS = {"aliases"}  # programmatic port attributes supported so far
+
+
+class Port(NamedTuple):
+    """An external pin of a block. Default names: f"{side}{index}" and f"D{dip}"."""
+
+    side: str
+    index: int  # order along its side: W/E top to bottom, N/S left to right
+    name: str | None  # primary alias, if any
+    dip: int  # DIP-style number: counterclockwise from the top of the W side
+    aliases: tuple = ()
+
+    @property
+    def default(self) -> str:
+        return f"{self.side}{self.index}"
+
+    def names(self) -> list[str]:
+        return [*self.aliases, self.default, f"D{self.dip}"]
+
+    def answers(self, label: str) -> bool:
+        return label.casefold() in (n.casefold() for n in self.names())
+
+
+def dip_order(edge_ports) -> list[int]:
+    """DIP numbers for ports given as (side, pos): W top->bottom, S left->right,
+    E bottom->top, N right->left."""
+    key = {"W": lambda p: (0, p), "S": lambda p: (1, p), "E": lambda p: (2, -p), "N": lambda p: (3, -p)}
+    order = sorted(range(len(edge_ports)), key=lambda i: key[edge_ports[i][0]](edge_ports[i][1]))
+    dip = [0] * len(edge_ports)
+    for n, i in enumerate(order):
+        dip[i] = n
+    return dip
+
+
 @dataclass(frozen=True)
 class OrientedBlock:
     """A block bound with an explicit orientation: `PARALLEL.oriented(270)`."""
@@ -67,8 +104,10 @@ class OrientedBlock:
 
 
 class Block:
-    def __init__(self, name: str, canvas: str, **bindings):
+    def __init__(self, name: str, canvas: str, port_attrs: dict | None = None, **bindings):
+        """port_attrs: {port key: {"aliases": [...]}}; a key is W0-style, D3-style or an alias."""
         self.name, self.text, self.bindings = name, canvas, bindings
+        self.port_attrs = port_attrs or {}
         try:
             self.canvas = Canvas(canvas, name)
         except CanvasError as e:
@@ -82,16 +121,92 @@ class Block:
         self.bound: dict[str, Bound] = {}
         for comp_name, obj in bindings.items():
             self.bound[comp_name] = self._bind(cv.comps[comp_name], obj)
-        # External ports per side, in order: [(side, index, name)].
-        self.ports = []
+        self.ports = self._make_ports()
+
+    def _make_ports(self) -> list[Port]:
+        """Ports in canvas edge-port order, with DIP numbers and validated aliases."""
+        cv = self.canvas
         counters = {s: 0 for s in "NESW"}
+        index = []
         for p in cv.edge_ports:
-            self.ports.append((p.side, counters[p.side], cv.port_name(p)))
+            index.append(counters[p.side])
             counters[p.side] += 1
+        dip = dip_order([(p.side, p.pos) for p in cv.edge_ports])
+        defaults = [f"{p.side}{i}" for p, i in zip(cv.edge_ports, index)]
+        explicit = [[p.alias] if p.alias else [] for p in cv.edge_ports]
+        reexport = [self._reexport_candidate(p) for p in cv.edge_ports]
+
+        def lookup(key):
+            for k, p in enumerate(cv.edge_ports):
+                names = [defaults[k], f"D{dip[k]}", *explicit[k]]
+                if reexport[k]:
+                    names.append(reexport[k])
+                if key.casefold() in (n.casefold() for n in names):
+                    return k
+            raise YasdlError(f"{self.name}: port_attrs key {key!r} matches no port")
+
+        for key, attrs in self.port_attrs.items():
+            unknown = set(attrs) - PORT_ATTRS
+            if unknown:
+                raise YasdlError(f"{self.name}: unsupported port attributes {sorted(unknown)} "
+                                 f"for {key!r} (supported: {sorted(PORT_ATTRS)})")
+            explicit[lookup(key)] += list(attrs.get("aliases", []))
+        seen = {}
+        for k, names in enumerate(explicit):
+            for n in names:
+                if RESERVED_NAME.match(n):
+                    raise YasdlError(f"{self.name}: port alias {n!r} looks like a default port "
+                                     "name (W0, D3, ...); pick another")
+                if n.casefold() in seen and seen[n.casefold()] != k:
+                    raise YasdlError(f"{self.name}: port alias {n!r} is used by two ports "
+                                     f"({defaults[seen[n.casefold()]]} and {defaults[k]})")
+                seen[n.casefold()] = k
+        # Re-exported names only when unambiguous: unique among all ports, not reserved.
+        counts = {}
+        for r in reexport:
+            if r:
+                counts[r.casefold()] = counts.get(r.casefold(), 0) + 1
+        ports = []
+        for k, p in enumerate(cv.edge_ports):
+            aliases = list(dict.fromkeys(explicit[k]))
+            r = reexport[k]
+            if (r and counts[r.casefold()] == 1 and r.casefold() not in seen
+                    and not RESERVED_NAME.match(r) and not aliases):
+                aliases.append(r)
+            ports.append(Port(p.side, index[k], aliases[0] if aliases else None, dip[k],
+                              tuple(aliases)))
+        return ports
+
+    def _reexport_candidate(self, edge_port) -> str | None:
+        """The one pin name (atom pin name or sub-block port name) on the port's net, if any."""
+        cv = self.canvas
+        root = cv.uf.find(edge_port.node)
+        names = set()
+        for b in self.bound.values():
+            for att, key in b.pin_map:
+                if cv.uf.find(att.node) != root:
+                    continue
+                if isinstance(b.obj, Atom):
+                    if b.obj.symbol.is_power:
+                        continue
+                    pin = next(p for p in b.obj.symbol.pins if p.number == key)
+                    if pin.name not in ("", "~"):
+                        names.add(pin.name)
+                elif b.obj.ports[key].name:
+                    names.add(b.obj.ports[key].name)
+        folded = {n.casefold() for n in names}
+        return sorted(names)[0] if len(folded) == 1 else None
+
+    def port(self, key: str) -> Port:
+        """Look a port up by W0-style name, D3-style number or alias."""
+        for p in self.ports:
+            if p.answers(key):
+                return p
+        raise YasdlError(f"{self.name}: no port {key!r}")
 
     def bind(self, **more) -> Block:
         """A copy with more components bound (the unbound ones are the block's open interface)."""
-        return Block(self.name, self.text, **{**self.bindings, **more})
+        return Block(self.name, self.text, self.port_attrs, **{**self.bindings, **more})
 
     def oriented(self, rot: int = 0, mirror: str | None = None) -> "OrientedBlock":
         """This block with a binding-time orientation (same convention as atoms)."""
@@ -107,7 +222,8 @@ class Block:
         rep = {"W": lambda i: (0.0, i + 1.0), "E": lambda i: (big, i + 1.0),
                "N": lambda i: (i + 1.0, 0.0), "S": lambda i: (i + 1.0, big)}
         out = {s: [] for s in "NESW"}
-        for k, (side, idx, _) in enumerate(self.ports):
+        for k, port in enumerate(self.ports):
+            side, idx = port.side, port.index
             new_side = orient_side(side, rot, mirror)
             x, y = orient_vec(*rep[side](idx), rot, mirror)
             out[new_side].append((y if new_side in "EW" else x, k))
@@ -133,13 +249,13 @@ class Block:
             if is_atom:
                 return {s: [(p.number, p.side, p) for p in v]
                         for s, v in target.side_pins(rot, mirror).items()}
-            return {s: [(k, target.ports[k][0], target.ports[k][2]) for k in v]
+            return {s: [(k, target.ports[k].side, target.ports[k]) for k in v]
                     for s, v in target.side_ports(rot, mirror).items()}
 
         def answers(item, label):
             if is_atom:
                 return target.matches_label(item[2], label)
-            return item[2] is not None and item[2].casefold() == label.casefold()
+            return item[2].answers(label)
 
         def mapping(rot, mirror):
             sp = keys(rot, mirror)
@@ -161,11 +277,6 @@ class Block:
             raise YasdlError(f"{self.name}: {comp.name} ({what}) does not fit its drawing: "
                              f"drawn {drawn}, has {have}"
                              + (f" in orientation {fixed}" if fixed else " in any orientation"))
-        if labelled and not target.symmetric:
-            if len({tuple(item[0] for _, item, _ in m) for _, m in fits}) > 1:
-                raise YasdlError(f"{self.name}: pin labels of {comp.name} fit several "
-                                 "orientations; label another pin")
-
         def reading_order(fit):
             """Pins that stay on a start side (N/W) or an end side (S/E): higher is better."""
             return sum((orig in "NW") == (new in "NW") for _, (_, orig, _), new in fit[1])
@@ -185,8 +296,8 @@ class Block:
             if isinstance(b.obj, Atom) and b.obj.symbol.is_power:
                 for att, _ in b.pin_map:
                     names.setdefault(cv.uf.find(att.node), b.obj.value or b.obj.lib_id.split(":")[1])
-        for p, (side, idx, pname) in zip(cv.edge_ports, self.ports):
-            names.setdefault(cv.uf.find(p.node), pname or f"{side}{idx}")
+        for p, port in zip(cv.edge_ports, self.ports):
+            names.setdefault(cv.uf.find(p.node), port.name or port.default)
         roots = {cv.uf.find(n) for n in cv.uf.parent}
         for r in sorted(roots, key=str):
             if r not in names:
@@ -218,7 +329,7 @@ class Block:
                     if b:
                         k = key_of[id(a)]
                         entry["pin"] = (k if isinstance(b.obj, Atom)
-                                        else (b.obj.ports[k][2] or f"{b.obj.ports[k][0]}{b.obj.ports[k][1]}"))
+                                        else (b.obj.ports[k].name or b.obj.ports[k].default))
                         net_pins.setdefault(entry["net"], []).append(f"{name}.{entry['pin']}")
                     lst.append(entry)
                 if lst:
@@ -243,13 +354,14 @@ class Block:
         nets = {}
         for n in sorted(set(net_of.values())):
             nets[n] = {"pins": sorted(net_pins.get(n, [])),
-                       "ports": [f"{s}{i}" for (s, i, _), p in zip(self.ports, cv.edge_ports)
-                                 if net(p.node) == n],
+                       "ports": [port.name or port.default
+                                 for port, p in zip(self.ports, cv.edge_ports) if net(p.node) == n],
                        "labels": labels.get(n, [])}
         out = {"name": self.name, "size": {"cols": cv.W, "rows": cv.H}, "canvas": cv.g,
                "components": comps, "unbound": self.unbound,
-               "ports": [{"side": s, "index": i, "name": nm, "net": net(p.node)}
-                         for (s, i, nm), p in zip(self.ports, cv.edge_ports)],
+               "ports": [{"side": port.side, "index": port.index, "dip": port.dip,
+                          "aliases": list(port.aliases), "net": net(p.node)}
+                         for port, p in zip(self.ports, cv.edge_ports)],
                "nets": {k: v for k, v in nets.items() if v["pins"] or v["ports"] or v["labels"]}}
         if top and blocks:
             out["blocks"] = blocks
@@ -270,6 +382,9 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
     for i, port in enumerate(cv.edge_ports):
         if i in ext:
             uf.union(key(port.node), ext[i])
+    for i, lab in enumerate(cv.labels):  # global net labels join across the whole design
+        if lab.kind == "global":
+            uf.union(key(("l", i)), ("global", lab.text))
     for name, b in block.bound.items():
         if isinstance(b.obj, Atom):
             power = b.obj.symbol.is_power
@@ -295,9 +410,8 @@ def netlist(block: Block) -> dict[str, list[str]]:
     cv = block.canvas
     for root, text in cv.net_names.items():
         names.setdefault(uf.find(("", root)), text)
-    for i, port in enumerate(cv.edge_ports):
-        side, idx, pname = block.ports[i]
-        names.setdefault(uf.find(("", cv.uf.find(port.node))), pname or f"{side}{idx}")
+    for edge, port in zip(cv.edge_ports, block.ports):
+        names.setdefault(uf.find(("", cv.uf.find(edge.node))), port.name or port.default)
     nets, auto = {}, {}
     for (ref, pin), node in sorted(pins.items()):
         root = uf.find(node)

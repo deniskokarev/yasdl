@@ -50,8 +50,9 @@ def to_kicad(block: Block, path) -> tuple[Path, dict[str, str]]:
             sch.add_junction(p)
     for text, p, _scoped in res.labels:
         sch.add_label(text, t(p))
-    for (side, idx, name), p in zip(block.ports, res.ports):
-        sch.add_label(name or f"{side}{idx}", t(p), {"W": 180, "E": 0, "N": 90, "S": 270}[side])
+    for port, p in zip(block.ports, res.ports):
+        sch.add_label(port.name or port.default, t(p),
+                      {"W": 180, "E": 0, "N": 90, "S": 270}[port.side])
     path = sch.save(path)
     _BBOX[str(path)] = (MARGIN, MARGIN, MARGIN + res.bbox[2] - res.bbox[0],
                         MARGIN + res.bbox[3] - res.bbox[1])

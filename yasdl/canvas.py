@@ -47,8 +47,11 @@ class Label:
     c0: int
     c1: int  # inclusive; for a 1-char shortcut c0 == c1
     shortcut: bool = False
+    brace: bool = False  # {name}: external port alias, only on the block edge
     pin_of: str | None = None  # component name when this is a pin label
     vcol: int | None = None  # column where a vertical wire passes through
+    arms: int = 0  # wire arms that end on this label
+    kind: str = ""  # "pin" | "global" | "local" | "port" (set after parsing)
 
 
 @dataclass
@@ -76,6 +79,7 @@ class EdgePort:
     pos: int
     cell: tuple[int, int]
     node: tuple
+    alias: str | None = None  # from a {name} label
 
 
 class _UF:
@@ -121,6 +125,8 @@ class Canvas:
         self._crossings()
         self._connect()
         self._pin_labels()
+        self._brace_ports()
+        self._classify_labels()
         self._merge_named_nets()
         for comp in self.comps.values():
             for side, lst in comp.attachments.items():
@@ -151,15 +157,16 @@ class Canvas:
             c = 0
             while c < self.W:
                 ch = row[c]
-                if ch == "<":
-                    end = row.find(">", c + 1)
+                if ch in "<{":
+                    close = ">" if ch == "<" else "}"
+                    end = row.find(close, c + 1)
                     if end < 0 or end == c + 1:
-                        self.err("unterminated or empty <label>", r, c)
-                    self._add_label(row[c + 1:end], r, c, end)
+                        self.err(f"unterminated or empty {ch}label{close}", r, c)
+                    self._add_label(row[c + 1:end], r, c, end, brace=ch == "{")
                     c = end + 1
                     continue
-                if ch == ">":
-                    self.err("'>' without '<'", r, c)
+                if ch in ">}":
+                    self.err(f"{ch!r} without its opening bracket", r, c)
                 if ch in PIN_SHORTCUTS:
                     self._add_label(ch, r, c, c, shortcut=True)
                 elif ch in ARMS:
@@ -178,9 +185,9 @@ class Canvas:
                 if ch.isalnum() or ch == "_":
                     self._add_component(r, c, seen)
 
-    def _add_label(self, text, r, c0, c1, shortcut=False):
+    def _add_label(self, text, r, c0, c1, shortcut=False, brace=False):
         i = len(self.labels)
-        self.labels.append(Label(text, r, c0, c1, shortcut))
+        self.labels.append(Label(text, r, c0, c1, shortcut, brace))
         for c in range(c0, c1 + 1):
             self.label_at[(r, c)] = i
 
@@ -257,6 +264,7 @@ class Canvas:
                         if lab.vcol is not None and lab.vcol != nc:
                             self.err("vertical wires through a label must share one column", r, c)
                         lab.vcol = nc
+                    lab.arms += 1
                     self.uf.union(node, ("l", i))
                 elif (nr, nc) in self.comp_at:
                     comp = self.comps[self.comp_at[(nr, nc)]]
@@ -281,6 +289,9 @@ class Canvas:
             names = {t[0] for t in touches}
             if not names:
                 continue
+            if lab.brace:
+                self.err(f"{{{lab.text}}} is a block port; it must not touch a component",
+                         lab.row, lab.c0)
             if len(names) > 1 or len({t[1] for t in touches}) > 1:
                 self.err(f"label <{lab.text}> touches several component edges", lab.row, lab.c0)
             comp = self.comps[touches[0][0]]
@@ -301,6 +312,38 @@ class Canvas:
             cell = (lab.row, pos if side in "NS" else (lab.c1 if side == "W" else lab.c0))
             comp.attachments[side].append(Attachment(side, pos, cell, ("l", i), lab.text))
 
+    def _brace_ports(self):
+        """{name} labels are external ports: on the canvas edge, with one wire going inward."""
+        for i, lab in enumerate(self.labels):
+            if not lab.brace:
+                continue
+            if lab.arms != 1:
+                self.err(f"{{{lab.text}}} needs exactly one wire", lab.row, lab.c0)
+            if lab.vcol is not None:
+                side = "N" if lab.row == 0 else "S" if lab.row == self.H - 1 else None
+                pos = lab.vcol
+            else:
+                left_wire = (lab.row, lab.c0 - 1) in self.wires
+                side = ("E" if lab.c1 == self.W - 1 else None) if left_wire else \
+                    ("W" if lab.c0 == 0 else None)
+                pos = lab.row
+            if side is None:
+                self.err(f"{{{lab.text}}} must sit on the block edge, on the side opposite "
+                         "its wire", lab.row, lab.c0)
+            lab.kind = "port"
+            self.edge_ports.append(EdgePort(side, pos, (lab.row, lab.c0), ("l", i), lab.text))
+
+    def _classify_labels(self):
+        for lab in self.labels:
+            if lab.kind:
+                continue
+            if lab.pin_of is not None:
+                lab.kind = "pin"
+            elif lab.arms == 0:
+                self.err(f"<{lab.text}> is not connected to a wire", lab.row, lab.c0)
+            else:  # wire on one side only: global net; wires on both sides: local net name
+                lab.kind = "global" if lab.arms == 1 else "local"
+
     def _label_has_wire(self, i):
         root = self.uf.find(("l", i))
         return any(self.uf.find(n) == root for n in list(self.uf.parent) if n[0] in "whv")
@@ -309,7 +352,7 @@ class Canvas:
         """Net labels with the same text are one net (implicit wires); pin labels are excluded."""
         by_text: dict[str, tuple] = {}
         for i, lab in enumerate(self.labels):
-            if lab.pin_of is None:
+            if lab.pin_of is None and not lab.brace:
                 if lab.shortcut:
                     self.err(f"'{lab.text}' is a pin shortcut and must touch a component",
                              lab.row, lab.c0)
@@ -320,5 +363,3 @@ class Canvas:
                     by_text[lab.text] = node
         self.net_names = {self.uf.find(n): t for t, n in by_text.items()}
 
-    def port_name(self, port: EdgePort) -> str | None:
-        return self.net_names.get(self.uf.find(port.node))

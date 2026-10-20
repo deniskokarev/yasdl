@@ -126,10 +126,10 @@ def test_block_orientation_at_binding():
     p = ex.SHUNT.bound["P"]
     assert (p.rot, p.mirror) == (270, None)  # left port on top (reading order)
     by_side = {att.side: idx for att, idx in p.pin_map}
-    assert ex.PARALLEL.ports[by_side["N"]][0] == "W"
+    assert ex.PARALLEL.ports[by_side["N"]].side == "W"
     flipped = ex.SHUNT.bind(P=ex.PARALLEL.oriented(90))
     by_side = {att.side: idx for att, idx in flipped.bound["P"].pin_map}
-    assert ex.PARALLEL.ports[by_side["N"]][0] == "E"
+    assert ex.PARALLEL.ports[by_side["N"]].side == "E"
     with pytest.raises(YasdlError, match="does not fit"):
         ex.SHUNT.bind(P=ex.PARALLEL.oriented(0))  # horizontal block, vertical slot
 

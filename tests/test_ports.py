@@ -1,0 +1,116 @@
+import pytest
+
+from examples import blocks as ex
+from yasdl import GND, NPN, R, Block, YasdlError, netlist
+
+
+def net_of(nets, pin):
+    return next(set(p) for p in nets.values() if pin in p)
+
+
+FOLLOWER = """
+                  │
+    {input}────<b>Q1Q1
+                  Q1Q1
+                  Q1Q1
+                  │
+"""
+
+
+def test_brace_label_names_a_port():
+    blk = Block("F", FOLLOWER, Q1=NPN())
+    assert blk.port("input").side == "W"
+    assert blk.port("input").aliases[0] == "input"
+    assert netlist(blk)["input"] == ["Q1.B"]
+
+
+def test_reexported_pin_names():
+    blk = Block("F", FOLLOWER, Q1=NPN())
+    assert blk.port("C").side == "N" and blk.port("E").side == "S"  # from Q1's pin names
+    d = {p.name for p in ex.DARLINGTON.ports}
+    assert d == {"B", "C", "E"}
+
+
+def test_reexport_conflict_keeps_defaults():
+    blk = Block("TwoQ", """
+             │          │
+        <a>──Q1    <b>──Q2
+             Q1         Q2
+             │          │
+            G1         G2
+    """, Q1=NPN(), Q2=NPN(), G1=GND(), G2=GND())
+    assert [p.name for p in blk.ports] == [None, None]  # both collectors would be "C"
+    assert blk.port("N0") and blk.port("N1")
+
+
+def test_dip_numbering():
+    blk = Block("Cross", """
+          │
+        ──┼──
+          │
+    """)
+    assert {p.default: p.dip for p in blk.ports} == {"W0": 0, "S0": 1, "E0": 2, "N0": 3}
+    assert blk.port("D3").side == "N"
+
+
+def test_brace_label_rules():
+    with pytest.raises(YasdlError, match="edge"):
+        Block("Inner", ".{x}──R1──", R1=R())  # '.' is empty but keeps {x} off the edge
+    with pytest.raises(YasdlError, match="exactly one wire"):
+        Block("Inline", "──R1──{x}──", R1=R())
+    with pytest.raises(YasdlError, match="two ports"):
+        Block("Dup", "{x}──R1──{x}", R1=R())
+    with pytest.raises(YasdlError, match="must not touch"):
+        Block("Touch", "{x}R1──", R1=R())
+    with pytest.raises(YasdlError, match="default port"):
+        Block("Reserved", "{W1}──R1──", R1=R())
+
+
+def test_programmatic_aliases():
+    blk = Block("S", "──R1──R2──", port_attrs={"W0": {"aliases": ["in"]}, "D1": {"aliases": ["out"]}},
+                R1=R(), R2=R())
+    assert blk.port("in").side == "W" and blk.port("out").side == "E"
+    with pytest.raises(YasdlError, match="two ports"):
+        Block("S", "{in}──R1──", port_attrs={"E0": {"aliases": ["IN"]}}, R1=R())
+    with pytest.raises(YasdlError, match="unsupported"):
+        Block("S", "──R1──", port_attrs={"W0": {"direction": "in"}}, R1=R())
+    with pytest.raises(YasdlError, match="matches no port"):
+        Block("S", "──R1──", port_attrs={"nope": {"aliases": ["x"]}}, R1=R())
+    with pytest.raises(YasdlError, match="default port"):
+        Block("S", "──R1──", port_attrs={"W0": {"aliases": ["D7"]}}, R1=R())
+
+
+def test_global_nets_cross_blocks():
+    pull = Block("Pull", """
+        ──R1──<VCC>
+    """, R1=R())
+    top = Block("Top", """
+        ──P
+
+        <VCC>──R2──
+    """, P=pull, R2=R())
+    nets = netlist(top)
+    assert {"P.R1.2", "R2.1"} <= set(nets["VCC"]) or {"P.R1.1", "R2.1"} <= set(nets["VCC"])
+
+
+def test_local_label_stays_in_block():
+    inner = Block("Inner", """
+        ──<x>──R1──
+    """, R1=R())  # inline label: a local net name
+    top = Block("Top", "──A──B──", A=inner, B=inner)
+    nets = netlist(top)
+    assert "x" not in nets  # local names don't leak (and don't merge the two instances)
+
+
+def test_pin_labels_match_subblock_port_names():
+    host = Block("Host", """
+             │
+            <c>
+            DDDD
+            DDDD<b>──
+            DDDD
+             │
+    """, D=ex.DARLINGTON)  # re-exported names B/C/E orient the sub-block (mirrored)
+    b = host.bound["D"]
+    assert {att.side: ex.DARLINGTON.ports[k].name for att, k in b.pin_map} == {
+        "N": "C", "E": "B", "S": "E"}

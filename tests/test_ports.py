@@ -153,3 +153,11 @@ def test_rotated_mirrored_api():
     host = Block("H", "──PS──", PS=PHASE_SHIFT.mirrored("y"))
     assert {att.side: PHASE_SHIFT.ports[k].name for att, k in host.bound["PS"].pin_map} == \
         {"W": "out", "E": "in"}
+
+
+def test_sketch_builds_canvases():
+    from yasdl import Sketch
+    s = Sketch().text(0, 0, "{in}").hline(0, 4, 5).text(0, 6, "R1").hline(0, 8, 9).text(0, 10, "┐")
+    s.vline(10, 1, 1).text(2, 8, "<GND>")
+    blk = Block("SK", s.render(), R1=R("1k"))
+    assert blk.port("in").side == "W" and "GND" in netlist(blk)

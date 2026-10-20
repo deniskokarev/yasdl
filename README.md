@@ -419,7 +419,16 @@ oscillate at 1967 Hz, the same as the oracle.
 
 ![sine generator](docs/examples/SGen.png)
 
-## 8. Examples
+## 8. Tooling
+
+- `Sketch`: build wide canvases by coordinates (`text`, `hline`, `vline`, `box`, `render`)
+  instead of typing them by hand.
+- **Agent skill** `skills/yasdl-circuit-design/SKILL.md`: the workflow, canvas cheat sheet,
+  layout style guide and error fixes for EE-assistant agents. Install it with
+  `ln -s ~/work/yasdl/skills/yasdl-circuit-design ~/.claude/skills/`; it triggers on
+  circuit-design tasks.
+
+## 9. Examples
 
 `examples/blocks.py` (rendered by `python -m examples.render`, images in `docs/examples/`):
 
@@ -431,7 +440,7 @@ oscillate at 1967 Hz, the same as the oracle.
 | PARALLEL bound into a vertical slot (oriented at binding) | ![](docs/examples/Shunt.png) |
 | 2 kHz sine generator (section 7) | ![](docs/examples/SGen.png) |
 
-## 9. Status
+## 10. Status
 
 | Part | State |
 |---|---|
@@ -444,7 +453,7 @@ oscillate at 1967 Hz, the same as the oracle.
 | SPICE export (subckt, DIP port order), KiCad Sim fields, SPICE round trip | done |
 | Hierarchical sheets | not started |
 
-## 10. Open questions
+## 11. Open questions
 
 - Bus crossings: should "which bus is on top" carry meaning (like PCB layers), or is it
   only how it's drawn?

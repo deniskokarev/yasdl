@@ -29,6 +29,8 @@ changes.
   `kicad_export.py` (block → schematic, ERC helpers, round trips), `spice.py` (SPICE export).
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
 - `examples/blocks.py` is the fixture for tests. Each new feature gets an example and a test.
+- `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
+  ~/.claude/skills). Keep it in sync with the API and spec.
 - Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m examples.render`,
   output in `out/` (ignored); copy the PNGs to `docs/examples/` when they change.
 

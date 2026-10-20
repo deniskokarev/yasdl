@@ -409,8 +409,16 @@ from the flattened design:
   schematic equals yasdl's own netlist, element by element.
 
 **Example: `examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
-emitter-follower buffer) drawn in yasdl. Grounds are `<GND>` labels. The 3-section RC ladder
-is a sub-block, bound as `PHASE_SHIFT.mirrored("y")` and drawn as `PS<in>`. The pin label
+emitter-follower buffer), composed from small blocks:
+- `PHASE_SHIFT`: the 3-section RC ladder;
+- `OSCILLATOR`: the Q1 gain stage with the ladder as feedback;
+- `OUTPUT_AMP`: from the coupling capacitor CK on, the Q2 emitter follower and AC-coupled
+  output;
+- `SGEN`: a 5-line top level wiring OSC → AMP and the supply rail.
+
+Each canvas is small and stands alone (each renders ERC-clean); yasdl composes the final
+planar schematic. Grounds are `<GND>` labels. The ladder is bound as
+`PHASE_SHIFT.mirrored("y")` and drawn as `PS<in>`. The pin label
 documents the orientation on the drawing and is checked against it: `PS<out>` with the same
 binding fails. (The label alone would pick the same mirror, 3.2, but saying it in code is
 clearer.) The generated `.subckt sgen vp vm out` is structurally identical to the oracle's

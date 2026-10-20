@@ -12,9 +12,43 @@ description: |
 
 # Designing circuits with yasdl
 
-yasdl turns an ASCII drawing of rectangular blocks into a flat netlist, a SPICE `.subckt` and a
+yasdl turns ASCII drawings of rectangular blocks into a flat netlist, a SPICE `.subckt` and a
 laid-out KiCad schematic, all from one object. The drawing is the circuit, so a readable sketch
-gives a readable schematic. The full spec is `~/work/yasdl/README.md`; read the parts you need.
+gives a readable schematic.
+
+## Think hierarchically: small blocks, yasdl composes
+
+**Never draw a large circuit as one canvas.** Decompose it into functional stages, draw each
+stage as its own small block (roughly ≤ 40 x 20 characters, a handful of parts), and compose
+them in a tiny top-level block where each stage is just a short name:
+
+```
+{vp}───┬────────────┐
+       │            │
+       OSC──────────AMP──{out}        top level: two components and the supply rail
+                    │
+                   {vm}
+```
+
+- You only ever reason about one small canvas at a time: its parts, its wires, its ports.
+  Blocks are tested on their own: `netlist()`, `spice_netlist()`, and `render()` of a single
+  block are ERC-clean standalone.
+- yasdl does the composition. It lays out every level (grid-bag, wires stretch, symbols
+  never do) and nests the sub-drawings. The result is **planar by construction**: blocks are
+  rectangles meeting only through ports, so nothing crosses unless you drew a crossing.
+- Blocks are reusable and orientable at binding (`LADDER.mirrored("y")`). A sub-block fits
+  any component drawn with the same number of wires per side.
+- **The interface is the design decision.** Put each port on the side where its neighbour
+  will be: supplies on **N** (so one rail can run across the top), inputs **W**, outputs
+  **E**, negative supply or ground returns on **S**. Mismatched port sides still work (yasdl
+  adds jogs) but look worse. Example: an oscillator with its `vp` on the left forced a loop
+  over the whole drawing; moving `{vp}` to its top edge gave one clean rail.
+- Typical stages: bias network, gain stage, feedback or filter network (RC ladder, Sallen-Key
+  section), buffer or output stage, supply decoupling. Split where a single wire (or a
+  coupling capacitor) joins two stages; that node becomes the port.
+
+`examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside OSCILLATOR (gain stage),
+then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN. The full spec is `~/work/yasdl/README.md`; read the parts you need.
 Worked examples are in `~/work/yasdl/examples/` (`blocks.py`, `sgen.py`).
 
 ## Setup
@@ -33,10 +67,12 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 
 1. **Spec**: list ports (name, order), supplies, ground, loads, targets (gain, frequency, Zout,
    power), and allowed parts and models.
-2. **Topology**: pick a known architecture. Split it into **stages** (gain stage, filter or
-   ladder, buffer, bias network). Each stage becomes a small `Block` with `{port}` labels.
-   The top block wires the stages together.
-3. **Sketch each block** (rules below). Use `Sketch` for anything wider than about 30 columns.
+2. **Topology and hierarchy**: pick a known architecture and split it into stages. Write down
+   each block's interface first: port names and the side each goes on (N supplies, W in,
+   E out, S returns). The top block is just the stages wired port to port.
+3. **Sketch each block bottom-up** (rules below), smallest first. Check each one alone
+   (`netlist`, `spice_netlist`, `render`) before using it in a parent. Use `Sketch` for anything
+   wider than about 30 columns.
 4. **Bind** atoms and sub-blocks. Fix orientation only where the drawing doesn't (rules below).
 5. **Check structure**: `netlist(block)` and `print(spice_netlist(block, subckt=...))`. Read it
    against your design: every node, every part.
@@ -92,8 +128,9 @@ Hard rules, all enforced with precise errors:
 - **Signal flows left to right**: input port W, output port E.
 - **Supplies at the top, ground at the bottom**: a `{vp}` rail across the top row, or
   `<VCC>`/`<VEE>`; `<GND>` labels under each grounded leg instead of wiring to one ground.
-- **One stage per region or sub-block.** Repeated or self-contained networks (RC ladders,
-  dividers, bias networks, filters) become sub-blocks and are reused.
+- **One stage per sub-block** (see "Think hierarchically"). Repeated or self-contained
+  networks (RC ladders, dividers, bias networks, filters) become sub-blocks and are reused.
+  The top level stays a few lines long.
 - **Feedback** runs above (or below) the stage it wraps, in its own row. Long returns hug the
   canvas edge (column 3 in `sgen.py`).
 - **Align**: the parts of one chain share a row; a component's vertical legs share its

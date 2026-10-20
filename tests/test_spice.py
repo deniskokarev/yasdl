@@ -17,18 +17,19 @@ have_ngspice = shutil.which("ngspice") is not None
 have_kicad = KICAD_CLI.exists()
 
 # yasdl element -> oracle element (ee_sgen solution)
-NAME_MAP = {"R_RA": "Rb1a", "R_RB": "Rb1b", "R_RC": "Rcol1", "R_REUP": "Re_up",
-            "R_REDN": "Re_down", "C_CE": "Ce1", "Q_Q1": "Q1", "C_CK": "Cc1", "R_RBUF": "Rbuf_series",
-            "R_RBIN": "Rbin", "Q_Q2": "Q2", "R_RE2": "Re2", "C_COUT": "Cout", "R_ROUT": "Rout",
-            "R_RBLD": "Rbleed", "C_PS_C1": "Cps1", "C_PS_C2": "Cps2", "C_PS_C3": "Cps3",
-            "R_PS_R1": "Rps1", "R_PS_R2": "Rps2"}
+NAME_MAP = {"R_OSC_RA": "Rb1a", "R_OSC_RB": "Rb1b", "R_OSC_RC": "Rcol1", "R_OSC_REUP": "Re_up",
+            "R_OSC_REDN": "Re_down", "C_OSC_CE": "Ce1", "Q_OSC_Q1": "Q1",
+            "C_OSC_PS_C1": "Cps1", "C_OSC_PS_C2": "Cps2", "C_OSC_PS_C3": "Cps3",
+            "R_OSC_PS_R1": "Rps1", "R_OSC_PS_R2": "Rps2",
+            "C_AMP_CK": "Cc1", "R_AMP_RBUF": "Rbuf_series", "R_AMP_RBIN": "Rbin", "Q_AMP_Q2": "Q2",
+            "R_AMP_RE2": "Re2", "C_AMP_COUT": "Cout", "R_AMP_ROUT": "Rout", "R_AMP_RBLD": "Rbleed"}
 
 
 def test_spice_basics():
     text = spice_netlist(SGEN, subckt="sgen")
     assert ".subckt sgen vp vm out" in text  # DIP order = V+, V-, OUT
-    assert "Q_Q1 " in text and "2N3904" in text
-    assert re.search(r"^R_RB \S+ 0 47k$", text, re.M)  # GND is node 0
+    assert "Q_OSC_Q1 " in text and "2N3904" in text
+    assert re.search(r"^R_OSC_RB \S+ 0 47k$", text, re.M)  # GND is node 0
     assert ".subckt ps out in" in spice_netlist(PHASE_SHIFT, subckt="ps", port_order=["out", "in"])
     with pytest.raises(YasdlError, match="every port"):
         spice_netlist(PHASE_SHIFT, subckt="ps", port_order=["in"])

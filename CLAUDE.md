@@ -10,8 +10,8 @@ changes.
 - Whatever the spec doesn't explicitly allow is an error, with block name, row and column. Never
   silently fix a drawing.
 - Components never touch (gap rule). Names are block-local.
-- No automatic rotation beyond spec 3.2 (explicit → pin labels → library orientation →
-  forced for symmetric parts).
+- Orientation only at binding, per spec 3.2: explicit → pin labels filter → best fit that
+  keeps reading order. Never rotate anything on the canvas.
 - Symbols are rigid; only wires stretch. All coordinates stay on the 1.27 mm grid.
 - The schematic and the netlist come from the same Block. A renderer change is only done when
   the round-trip check passes for every example: KiCad's exported netlist equals

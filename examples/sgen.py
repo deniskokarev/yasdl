@@ -7,8 +7,8 @@ Hierarchy (each block is small enough to reason about on its own; yasdl composes
 - OSCILLATOR:  common-emitter gain stage Q1 with PHASE_SHIFT feeding the collector back to the
                base; output = the collector node.
 - OUTPUT_AMP:  from the coupling capacitor CK on: emitter-follower buffer Q2, AC-coupled to OUT.
-- SGEN:        OSCILLATOR -> OUTPUT_AMP, plus the supplies. Ports in DIP order: vp, vm, out
-               (= the task's pin order V+, V-, OUT).
+- SGEN:        OSCILLATOR -> OUTPUT_AMP. Supply vp on top, vm at the bottom, out on the right.
+               The task's pin order V+, V-, OUT is SGEN_PINS (pass it as port_order).
 """
 
 import os
@@ -72,12 +72,16 @@ OUTPUT_AMP = Block("OutputAmp", """
     COUT=C("22u"), ROUT=R("10"), RBLD=R("10k"))
 
 SGEN = Block("SGen", """
-    {vp}───┬────────────┐
+             {vp}
+              │
+           ┌──┴─────────┐
            │            │
            OSC──────────AMP──{out}
                         │
                        {vm}
 """, OSC=OSCILLATOR, AMP=OUTPUT_AMP)
+
+SGEN_PINS = ["vp", "vm", "out"]  # subcircuit pin order required by the task
 
 ALL = {"PHASE_SHIFT": PHASE_SHIFT, "OSCILLATOR": OSCILLATOR, "OUTPUT_AMP": OUTPUT_AMP,
        "SGEN": SGEN}

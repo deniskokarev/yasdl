@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from examples.sgen import BJT_MODELS, PHASE_SHIFT, SGEN
+from examples.sgen import BJT_MODELS, PHASE_SHIFT, SGEN, SGEN_PINS
 from yasdl import GND, NPN, OPAMP, R, Block, YasdlError, spice_netlist
 from yasdl.kicad_lib import KICAD_CLI
 from yasdl.spice import parse_spice, spice_partition
@@ -26,8 +26,9 @@ NAME_MAP = {"R_OSC_RA": "Rb1a", "R_OSC_RB": "Rb1b", "R_OSC_RC": "Rcol1", "R_OSC_
 
 
 def test_spice_basics():
-    text = spice_netlist(SGEN, subckt="sgen")
-    assert ".subckt sgen vp vm out" in text  # DIP order = V+, V-, OUT
+    assert ".subckt sgen vm out vp" in spice_netlist(SGEN, subckt="sgen")  # DIP order
+    text = spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS)
+    assert ".subckt sgen vp vm out" in text  # the task's order
     assert "Q_OSC_Q1 " in text and "2N3904" in text
     assert re.search(r"^R_OSC_RB \S+ 0 47k$", text, re.M)  # GND is node 0
     assert ".subckt ps out in" in spice_netlist(PHASE_SHIFT, subckt="ps", port_order=["out", "in"])
@@ -60,7 +61,7 @@ def test_spice_errors():
 @pytest.mark.skipif(not ORACLE.exists(), reason="ee_sgen oracle not available")
 def test_sgen_matches_oracle_netlist():
     oracle = ORACLE.read_text().split("<<'SGEN'\n")[1].split("\nSGEN")[0]
-    ours = spice_netlist(SGEN, subckt="sgen")
+    ours = spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS)
     assert re.search(r"^\.subckt sgen (.*)$", ours, re.M).group(1) == \
         re.search(r"^\.subckt sgen (.*)$", oracle, re.M).group(1)
     o_part, o_vals = spice_partition(parse_spice(oracle), lambda n: n)
@@ -79,7 +80,7 @@ def test_sgen_kicad_export(tmp_path):
 
 @pytest.mark.skipif(not (have_ngspice and have_models), reason="ngspice or bjt.mod missing")
 def test_sgen_oscillates_near_2khz(tmp_path):
-    (tmp_path / "sgen.lib").write_text(spice_netlist(SGEN, subckt="sgen"))
+    (tmp_path / "sgen.lib").write_text(spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS))
     (tmp_path / "tb.cir").write_text(f"""* tb
 .include {BJT_MODELS}
 .include sgen.lib

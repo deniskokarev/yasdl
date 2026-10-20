@@ -414,7 +414,8 @@ emitter-follower buffer), composed from small blocks:
 - `OSCILLATOR`: the Q1 gain stage with the ladder as feedback;
 - `OUTPUT_AMP`: from the coupling capacitor CK on, the Q2 emitter follower and AC-coupled
   output;
-- `SGEN`: a 5-line top level wiring OSC → AMP and the supply rail.
+- `SGEN`: a 7-line top level wiring OSC → AMP, with the `{vp}` supply on top and `{vm}` at the
+  bottom. The task's pin order (V+, V−, OUT) is given as `port_order=SGEN_PINS`.
 
 Each canvas is small and stands alone (each renders ERC-clean); yasdl composes the final
 planar schematic. Grounds are `<GND>` labels. The ladder is bound as

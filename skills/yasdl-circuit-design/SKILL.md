@@ -136,8 +136,11 @@ Hard rules, all enforced with precise errors:
 - **Align**: the parts of one chain share a row; a component's vertical legs share its
   column. The layout stretches wires, never symbols. Rows and columns cost nothing.
 - **Avoid crossings.** Prefer re-routing or a global net label. Crossings are legal, though.
-- **Name ports** with `{}` labels in the order the task wants. `spice_netlist` uses DIP order
-  (W top→bottom, S, E bottom→top, N) unless you pass `port_order=[...]`.
+- **Name ports** with `{}` labels and put them where they belong physically (power on N).
+  `spice_netlist` orders subcircuit pins in DIP order (W top→bottom, S, E bottom→top, N), which
+  rarely matches a task's required order once power is on top. Pass the task's order:
+  `spice_netlist(top, subckt="x", port_order=["vp", "vm", "out"])`. Don't move ports to fix
+  pin order.
 - Leave a blank row or column where wide parts (sub-blocks, labels) need room. The layout
   separates overlapping shapes, but tight canvases look cramped.
 

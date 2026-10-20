@@ -18,9 +18,21 @@ from pathlib import Path
 
 from .sexp import find, find_all, parse
 
+def _resolve_kicad_layout(root: Path) -> tuple[Path, Path, Path]:
+    """Return CLI, symbol, and template paths for prefix or macOS app layouts."""
+    root = Path(root).expanduser()
+    app = root if root.suffix == ".app" else root / "KiCad.app"
+    contents = app / "Contents"
+    macos_cli = contents / "MacOS" / "kicad-cli"
+    if macos_cli.exists():
+        shared = contents / "SharedSupport"
+        return macos_cli, shared / "symbols", shared / "template"
+    shared = root / "share" / "kicad"
+    return root / "bin" / "kicad-cli", shared / "symbols", shared / "template"
+
+
 KICAD_ROOT = Path(os.environ.get("YASDL_KICAD", Path.home() / "KiCad9"))
-SYMBOL_DIR = KICAD_ROOT / "share" / "kicad" / "symbols"
-KICAD_CLI = KICAD_ROOT / "bin" / "kicad-cli"
+KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR = _resolve_kicad_layout(KICAD_ROOT)
 
 # Library pin angle -> side of the symbol the pin sits on (pin points towards the body).
 _ANGLE_SIDE = {0: "W", 180: "E", 270: "N", 90: "S"}

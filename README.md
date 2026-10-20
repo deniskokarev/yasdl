@@ -365,9 +365,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 
 ## 6. KiCad output
 
-- One flat sheet. Symbols are copied from KiCad 9's libraries into `lib_symbols`. References
-  are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a `yasdl_path` field with its
-  hierarchical name (`FB.R1`).
+- One flat sheet on the smallest landscape ISO page from A4 through A0 that contains the
+  complete drawing and port-label margin. Symbols are copied from KiCad 9's libraries into
+  `lib_symbols`. References are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a
+  `yasdl_path` field with its hierarchical name (`FB.R1`).
 - Wires, junction dots, net labels, and labels for the top block's ports.
 - **ERC-clean by construction.** Every exported schematic passes `kicad-cli sch erc` with no
   errors and no warnings. Nothing is required in the drawing; the export adds:
@@ -387,6 +388,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   `yasdl.netlist()` exactly, compared as sets of pins per net with power symbols excluded. A
   rendering only counts if it passes.
 - `kicad-cli sch export svg`, cropped to the drawing.
+
+Set `YASDL_KICAD` to a KiCad installation root. Prefix installations use
+`bin/kicad-cli` and `share/kicad`; macOS installations may point at either the directory
+containing `KiCad.app` (for example `/Applications/KiCad`) or the app bundle itself.
 
 ## 7. SPICE export
 

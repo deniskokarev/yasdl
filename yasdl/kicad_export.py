@@ -10,12 +10,30 @@ from collections import Counter
 from pathlib import Path
 
 from .block import Block, netlist, partition
-from .kicad_lib import KICAD_CLI, KICAD_ROOT, SYMBOL_DIR, to_screen
+from .kicad_lib import KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR, to_screen
 from .kicad_sch import Schematic, export_netlist, export_svg, run_erc, snap
 from .layout import layout
 from .spice import model_library, parse_spice, spice_model, spice_netlist, spice_partition
 
 MARGIN = 25.4
+SVG_PAD = 12.7
+_PAPER_SIZES = (
+    ("A4", 297.0, 210.0),
+    ("A3", 420.0, 297.0),
+    ("A2", 594.0, 420.0),
+    ("A1", 841.0, 594.0),
+    ("A0", 1189.0, 841.0),
+)
+
+
+def _paper_for_bbox(bbox) -> str:
+    """Smallest landscape ISO page containing the whole drawing and label pad."""
+    width = bbox[2] - bbox[0] + MARGIN + SVG_PAD
+    height = bbox[3] - bbox[1] + MARGIN + SVG_PAD
+    for name, page_width, page_height in _PAPER_SIZES:
+        if width <= page_width and height <= page_height:
+            return name
+    return "A0"
 
 
 def _ref_prefix(lib_id: str, sym) -> str:
@@ -34,7 +52,7 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
     dx = MARGIN - res.bbox[0]
     dy = MARGIN - res.bbox[1]
     t = lambda p: (snap(p[0] + dx), snap(p[1] + dy))  # noqa: E731
-    sch = Schematic(block.name)
+    sch = Schematic(block.name, paper=_paper_for_bbox(res.bbox))
     counters, refmap, placed = Counter(), {}, []
     for ypath, atom, x, y, rot, mirror in res.symbols:
         sym = atom.symbol
@@ -160,7 +178,7 @@ def _write_project(sch_path: Path):
     """A .kicad_pro and a sym-lib-table so ERC finds the libraries the symbols came from."""
     pro = sch_path.with_suffix(".kicad_pro")
     if not pro.exists():
-        shutil.copy(KICAD_ROOT / "share" / "kicad" / "template" / "kicad.kicad_pro", pro)
+        shutil.copy(TEMPLATE_DIR / "kicad.kicad_pro", pro)
     table = sch_path.parent / "sym-lib-table"
     if not table.exists():
         libs = sorted(f.stem for f in SYMBOL_DIR.glob("*.kicad_sym"))
@@ -187,7 +205,7 @@ def erc(sch_path) -> list[str]:
 _BBOX: dict[str, tuple] = {}
 
 
-def _crop_svg(svg_path: Path, bbox, pad: float = 6.0, px_per_mm: float = 12.0):
+def _crop_svg(svg_path: Path, bbox, pad: float = SVG_PAD, px_per_mm: float = 12.0):
     """Shrink the A4 page of a kicad-cli SVG to the drawing, scaled up for viewing."""
     x0, y0, x1, y1 = bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad
     w, h = x1 - x0, y1 - y0
@@ -195,6 +213,7 @@ def _crop_svg(svg_path: Path, bbox, pad: float = 6.0, px_per_mm: float = 12.0):
     text = re.sub(r'width="[^"]*mm" height="[^"]*mm" viewBox="[^"]*"',
                   f'width="{w * px_per_mm:.0f}" height="{h * px_per_mm:.0f}" '
                   f'viewBox="{x0:.4f} {y0:.4f} {w:.4f} {h:.4f}"', text, count=1)
+    text = "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
     svg_path.write_text(text)
 
 

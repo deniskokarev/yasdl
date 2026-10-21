@@ -1,5 +1,7 @@
 # yasdl — yet another schematic definition language
 
+> *CLAUDE: Readable layout is a graph-drawing problem with subjective quality criteria. Decades of netlist-to-schematic work gave mediocre results, which discouraged text-to-schematic approaches in general. yasdl's insight is not to infer the 2D intent but to require it in the source, and to automate only the stretching and orientation.*
+
 yasdl describes a circuit as **ASCII drawings of rectangular blocks** and turns them into a
 **KiCad 9 schematic** and a **SPICE netlist**. The goal is a schematic that is readable by
 construction.

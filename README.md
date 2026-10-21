@@ -241,6 +241,9 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
 ### 2.7 Ports (block interface)
 
 - **Where**: a wire arm leaving the canvas, or a **brace label** `{name}` on the canvas edge.
+  A brace label may list several aliases, comma-separated: `{c, collector}`,
+  `{+, non_inv, noninverting, plus}`, `{>, A, Anode}`, `{<,>}`. Spaces around commas are
+  ignored. The first alias that is a name (not `+` or an arrow) is the port's display name.
   The brace label has exactly one wire, going inward, and sits on the side opposite that wire
   (`{in}───` on the W edge, `───{out}` on the E edge, top/bottom rows for vertical wires).
   A `{}` label anywhere else, or touching a component, is an error.
@@ -257,7 +260,12 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
      The Darlington's ports become `B`, `C` and `E` this way, and a host can orient it with
      `[b]`/`[c]` labels. A re-exported name that collides with another port's name, or looks
      like a default name, is silently dropped.
-- **Uniqueness**: no two ports may share an alias (case-insensitive). Aliases may not look like
+- **Names**: aliases are letters, digits and `_`, or one of the shortcuts `+ < > ^ v`.
+  No `-` or spaces (SPICE node names can't carry them). Net labels follow the same grammar,
+  except registered power nets (`-12V`, `+5V`). Pin labels stay free-form, because they match
+  KiCad pin names such as the op-amp's `-`.
+- **Uniqueness**: no two ports may share an alias (case-insensitive), within one `{}` list or
+  across ports. `{<,>}──…──{>}` is an error. Aliases may not look like
   default names (`W0`, `D3`, ...) or use a reserved global name (`GND`, `VCC`, `0`, ...; 2.8).
   All are errors, whether from the drawing or from code.
 - **Programmatic attributes**: `Block(name, canvas, port_attrs={key: {"aliases": [...]}}, ...)`.

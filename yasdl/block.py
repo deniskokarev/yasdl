@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
 from .canvas import ARROWS, Canvas, CanvasError, _UF
-from .nets import DEFAULT_PORT_NAME, GROUND, reserved
+from .nets import DEFAULT_PORT_NAME, GROUND, POWER_NETS, reserved
 from .kicad_lib import ORIENTATIONS, compose, load, orient_side, orient_vec, pin_side, to_screen
 
 
@@ -84,6 +84,7 @@ class Bound:
     pin_map: list = field(default_factory=list)  # [(Attachment, pin number or port index)]
 
 
+NAME = re.compile(r"^[A-Za-z0-9_]+$")  # port aliases and net label names (spec 2.8)
 SHORTCUT_ALIASES = set(ARROWS) | {"+"}  # one-character aliases: never a port's display name
 
 _MIRROR = {"x": (0, "x"), "y": (180, "x")}  # "y" (left/right) = top/bottom flip + 180 deg
@@ -183,7 +184,7 @@ class Block:
             counters[p.side] += 1
         dip = dip_order([(p.side, p.pos) for p in cv.edge_ports])
         defaults = [f"{p.side}{i}" for p, i in zip(cv.edge_ports, index)]
-        explicit = [[p.alias] if p.alias else [] for p in cv.edge_ports]
+        explicit = [list(p.aliases) for p in cv.edge_ports]
         reexport = [self._reexport_candidate(p) for p in cv.edge_ports]
 
         def lookup(key):
@@ -204,6 +205,12 @@ class Block:
         seen = {}
         for k, names in enumerate(explicit):
             for n in names:
+                if reserved(n):
+                    raise YasdlError(f"{self.name}: port alias {n!r} is reserved for a global net "
+                                     "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'")
+                if n not in SHORTCUT_ALIASES and not NAME.match(n):
+                    raise YasdlError(f"{self.name}: port alias {n!r}: names are letters, digits and _ "
+                                     "(or one of + < > ^ v)")
                 if n in ARROWS:
                     side = cv.edge_ports[k].side
                     if (ARROWS[n] in "EW") != (side in "EW"):
@@ -243,6 +250,9 @@ class Block:
         for lab in self.canvas.labels:
             if lab.kind not in ("local", "global"):
                 continue
+            if not NAME.match(lab.text) and lab.text not in POWER_NETS:
+                raise YasdlError(f"{self.name}: net label [{lab.text}]: names are letters, digits "
+                                 "and _ (registered power nets like -12V are the exception)")
             if DEFAULT_PORT_NAME.match(lab.text):
                 raise YasdlError(f"{self.name}: label [{lab.text}] looks like a default port "
                                  "name (W0, N1, ...); pick another")

@@ -101,7 +101,7 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 | wire | `─ │ ┌ ┐ └ ┘` | ASCII `-` and `\|` also work |
 | junction | `├ ┤ ┬ ┴ ┼` | `┼` is always a junction (dot) |
 | crossing | straight wire with perpendicular wires on both sides: `─│─` | the middle character is the wire on top; no connection |
-| port | `{name}` on the canvas edge, wire going inward | or a bare wire leaving the canvas (`W0`, ...) |
+| port | `{name}` on the canvas edge, wire going inward | aliases: `{c, collector}`, `{>, A, Anode}`; names are letters/digits/_ or `+ < > ^ v`; or a bare wire leaving the canvas (`W0`, ...) |
 | pin label | `[b]Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
 | arrow pin label | `>D1` (beside), `v` above/below | conventional current; rotates with the part and picks its orientation: `──>D1──` anode left; NPN base `>`, emitter `v`. One arrow per pin; `<`/`>` only beside, `^`/`v` only above/below |

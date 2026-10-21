@@ -87,7 +87,7 @@ class EdgePort:
     pos: int
     cell: tuple[int, int]
     node: tuple
-    alias: str | None = None  # from a {name} label
+    aliases: tuple = ()  # from a {name, other, ...} label
 
 
 class _UF:
@@ -353,7 +353,13 @@ class Canvas:
                 self.err(f"{{{lab.text}}} must sit on the block edge, on the side opposite "
                          "its wire", lab.row, lab.c0)
             lab.kind = "port"
-            self.edge_ports.append(EdgePort(side, pos, (lab.row, lab.c0), ("l", i), lab.text))
+            aliases = [a.strip() for a in lab.text.split(",")]
+            if any(not a for a in aliases):
+                self.err(f"{{{lab.text}}}: empty alias in the comma-separated list", lab.row, lab.c0)
+            aliases = ["v" if a == "V" else a for a in aliases]  # V is the down arrow too
+            if len({a.casefold() for a in aliases}) != len(aliases):
+                self.err(f"{{{lab.text}}}: an alias is listed twice", lab.row, lab.c0)
+            self.edge_ports.append(EdgePort(side, pos, (lab.row, lab.c0), ("l", i), tuple(aliases)))
 
     def _classify_labels(self):
         for lab in self.labels:

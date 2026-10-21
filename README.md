@@ -16,10 +16,12 @@ construction.
 - **Export.** KiCad schematics that pass ERC with no errors or warnings, and SPICE
   (sub)circuits for ngspice, both from the same object.
 
-Netlist-first tools like [SKiDL](https://github.com/devbisme/skidl) compose circuits too, but
+*(Netlist-first tools like [SKiDL](https://github.com/devbisme/skidl) compose circuits too, but
 they treat a schematic as a graph and leave the drawing to an automatic placer and router.
 That ignores the 2D nature of a schematic: medium to large designs can't be laid out
-properly. yasdl keeps the 2D arrangement in the source.
+properly. yasdl keeps the 2D arrangement in the source.)*
+
+## Example: an inverting amplifier in yasdl
 
 ```python
 from yasdl import Block, C, OPAMP, R

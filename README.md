@@ -133,7 +133,7 @@ print(spice_netlist(PARALLEL, subckt="parallel"))
 
 ## 6. Skill
 
-`skills/yasdl-circuit-design/SKILL.md` teaches AI coding agents to design circuits in yasdl. It
+[skills/yasdl-circuit-design/SKILL.md](skills/yasdl-circuit-design/SKILL.md) teaches AI coding agents to design circuits in yasdl. It
 covers hierarchical design (small blocks, composed by yasdl), the canvas cheat sheet, a style
 guide and common errors.
 

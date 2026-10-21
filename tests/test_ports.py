@@ -10,7 +10,7 @@ def net_of(nets, pin):
 
 FOLLOWER = """
                   │
-    {input}────<b>Q1Q1
+    {input}────[b]Q1Q1
                   Q1Q1
                   Q1Q1
                   │
@@ -34,7 +34,7 @@ def test_reexported_pin_names():
 def test_reexport_conflict_keeps_defaults():
     blk = Block("TwoQ", """
              │          │
-        <a>──Q1    <b>──Q2
+        [a]──Q1    [b]──Q2
              Q1         Q2
              │          │
             G1         G2
@@ -82,12 +82,12 @@ def test_programmatic_aliases():
 
 def test_global_nets_cross_blocks():
     pull = Block("Pull", """
-        ──R1──<VCC>
+        ──R1──[VCC]
     """, R1=R())
     top = Block("Top", """
         ──P
 
-        <VCC>──R2──
+        [VCC]──R2──
     """, P=pull, R2=R())
     nets = netlist(top)
     assert {"P.R1.2", "R2.1"} <= set(nets["VCC"]) or {"P.R1.1", "R2.1"} <= set(nets["VCC"])
@@ -95,7 +95,7 @@ def test_global_nets_cross_blocks():
 
 def test_local_label_stays_in_block():
     inner = Block("Inner", """
-        ──<x>──R1──
+        ──[x]──R1──
     """, R1=R())  # inline label: a local net name
     top = Block("Top", "──A──B──", A=inner, B=inner)
     nets = netlist(top)
@@ -105,9 +105,9 @@ def test_local_label_stays_in_block():
 def test_pin_labels_match_subblock_port_names():
     host = Block("Host", """
              │
-            <c>
+            [c]
             DDDD
-            DDDD<b>──
+            DDDD[b]──
             DDDD
              │
     """, D=ex.DARLINGTON)  # re-exported names B/C/E orient the sub-block (mirrored)
@@ -121,7 +121,7 @@ def test_power_net_labels_draw_power_symbols():
     blk = Block("Pd", """
         ──R1──┐
               │
-            <GND>
+            [GND]
     """, R1=R())
     res = layout(blk)
     assert [a.lib_id for _, a, *_ in res.symbols if a.symbol.is_power] == ["power:GND"]
@@ -131,7 +131,7 @@ def test_power_net_labels_draw_power_symbols():
 
 def test_label_orientation_prefers_mirror_over_rotation():
     from examples.sgen import PHASE_SHIFT
-    host = Block("H", "──PS<in>──", PS=PHASE_SHIFT)  # 'in' on the right: 180 deg or mirror y
+    host = Block("H", "──PS[in]──", PS=PHASE_SHIFT)  # 'in' on the right: 180 deg or mirror y
     b = host.bound["PS"]
     assert (b.rot, b.mirror) == (180, "x")  # mirror y: one axis flipped, legs stay down
     assert host.to_dict()["components"]["PS"]["binding"]["mirror"] == "y"
@@ -140,9 +140,9 @@ def test_label_orientation_prefers_mirror_over_rotation():
 def test_explicit_orientation_checked_against_labels():
     from examples.sgen import OSCILLATOR, PHASE_SHIFT
     assert (OSCILLATOR.bound["PS"].rot, OSCILLATOR.bound["PS"].mirror) == (180, "x")  # mirrored y
-    Block("H", "──PS<in>──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
+    Block("H", "──PS[in]──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
     with pytest.raises(YasdlError, match="does not fit"):
-        Block("H", "──PS<out>──", PS=PHASE_SHIFT.mirrored("y"))  # label contradicts
+        Block("H", "──PS[out]──", PS=PHASE_SHIFT.mirrored("y"))  # label contradicts
 
 
 def test_rotated_mirrored_api():
@@ -158,6 +158,6 @@ def test_rotated_mirrored_api():
 def test_sketch_builds_canvases():
     from yasdl import Sketch
     s = Sketch().text(0, 0, "{in}").hline(0, 4, 5).text(0, 6, "R1").hline(0, 8, 9).text(0, 10, "┐")
-    s.vline(10, 1, 1).text(2, 8, "<GND>")
+    s.vline(10, 1, 1).text(2, 8, "[GND]")
     blk = Block("SK", s.render(), R1=R("1k"))
     assert blk.port("in").side == "W" and "GND" in netlist(blk)

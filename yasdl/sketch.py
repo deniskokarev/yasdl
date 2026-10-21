@@ -14,7 +14,7 @@ class Sketch:
         self.cells: dict[tuple[int, int], str] = {}
 
     def text(self, row: int, col: int, s: str) -> Sketch:
-        """Place a string left to right: component names, <labels>, {ports}, glyphs."""
+        """Place a string left to right: component names, [labels], {ports}, glyphs."""
         for i, ch in enumerate(s):
             self.cells[(row, col + i)] = ch
         return self

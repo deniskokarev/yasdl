@@ -437,7 +437,7 @@ class Layout:
             if i in self.power:  # drawn as its power symbol, pin on the label's point
                 atom, rot, _ = self.power[i]
                 x, y = node_point((lab.row, lab.c0))
-                res.symbols.append((f"<{lab.text}>@{lab.row}.{lab.c0}", atom, x, y, rot, None))
+                res.symbols.append((f"[{lab.text}]@{lab.row}.{lab.c0}", atom, x, y, rot, None))
             elif lab.kind in ("local", "global"):  # local names are block-scoped (prefixed)
                 res.labels.append((lab.text, node_point((lab.row, lab.c0)), lab.kind == "local"))
         res.wires = [w for w in res.wires if w[0] != w[1]]

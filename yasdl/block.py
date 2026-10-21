@@ -217,10 +217,10 @@ class Block:
             if lab.kind not in ("local", "global"):
                 continue
             if DEFAULT_PORT_NAME.match(lab.text):
-                raise YasdlError(f"{self.name}: label <{lab.text}> looks like a default port "
+                raise YasdlError(f"{self.name}: label [{lab.text}] looks like a default port "
                                  "name (W0, N1, ...); pick another")
             if lab.text.casefold() in aliases:
-                raise YasdlError(f"{self.name}: label <{lab.text}> clashes with port "
+                raise YasdlError(f"{self.name}: label [{lab.text}] clashes with port "
                                  f"{{{aliases[lab.text.casefold()]}}}")
 
     def _reexport_candidate(self, edge_port) -> str | None:

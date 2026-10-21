@@ -102,17 +102,17 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 | junction | `├ ┤ ┬ ┴ ┼` | `┼` is always a junction (dot) |
 | crossing | straight wire with perpendicular wires on both sides: `─│─` | the middle character is the wire on top; no connection |
 | port | `{name}` on the canvas edge, wire going inward | or a bare wire leaving the canvas (`W0`, ...) |
-| pin label | `<b>Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
+| pin label | `[b]Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
-| global net | `<VCC>` with a wire on one side only | connects across all blocks; `<GND>`, `<VCC>`, `<VEE>`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
-| local net | `──<x>──` (wires on both sides) | block-scoped name |
+| global net | `[VCC]` with a wire on one side only | connects across all blocks; `[GND]`, `[VCC]`, `[VEE]`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
+| local net | `──[x]──` (wires on both sides) | block-scoped name |
 
 Hard rules, all enforced with precise errors:
 - **Gap rule**: components never touch. Keep at least one cell, empty or wire, between them.
 - Wires must meet: a wire pointing at an empty cell is dangling. A wire ending on a straight
   wire needs a tee.
 - A component's pin count per side must match the bound part exactly. An op-amp with supply
-  pins needs wires on its top and bottom, e.g. to `<VCC>`/`<VEE>`.
+  pins needs wires on its top and bottom, e.g. to `[VCC]`/`[VEE]`.
 - Pins on a side map in order: W/E top to bottom, N/S left to right.
 
 ## Orientation
@@ -121,7 +121,7 @@ Hard rules, all enforced with precise errors:
   resistors and capacitors turn to fit their wires, sub-blocks turn to fit their slot.
 - Explicit: `R().rotated(90)`, `BLOCK.mirrored("y")` (left/right), `.mirrored("x")`
   (top/bottom). They compose.
-- **Mark the intent on the drawing too.** Put a pin label (`PS<in>`, `<c>`, `+`) next to
+- **Mark the intent on the drawing too.** Put a pin label (`PS[in]`, `[c]`, `+`) next to
   explicitly oriented parts. It's checked; a contradiction fails the binding.
 - Transistors: Q_NPN library has B left, C top, E bottom. Draw them that way, or label pins.
 - KiCad's `Simulation_SPICE:OPAMP` has + above −. For − on top (inverting stages), put `+` on
@@ -131,7 +131,7 @@ Hard rules, all enforced with precise errors:
 
 - **Signal flows left to right**: input port W, output port E.
 - **Supplies at the top, ground at the bottom**: a `{vp}` rail across the top row, or
-  `<VCC>`/`<VEE>`; `<GND>` labels under each grounded leg instead of wiring to one ground.
+  `[VCC]`/`[VEE]`; `[GND]` labels under each grounded leg instead of wiring to one ground.
 - **One stage per sub-block** (see "Think hierarchically"). Repeated or self-contained
   networks (RC ladders, dividers, bias networks, filters) become sub-blocks and are reused.
   The top level stays a few lines long.
@@ -145,7 +145,7 @@ Hard rules, all enforced with precise errors:
   rarely matches a task's required order once power is on top. Pass the task's order:
   `spice_netlist(top, subckt="x", port_order=["vp", "vm", "out"])`. Don't move ports to fix
   pin order.
-- An external `{VP}` port may feed an internal `<VCC>` power rail. Subcircuit export
+- An external `{VP}` port may feed an internal `[VCC]` power rail. Subcircuit export
   preserves the formal `VP` name; flat KiCad/SPICE export keeps `VCC`. Aliases on the same
   electrical net are rendered as annotations instead of conflicting KiCad net labels.
 - Crossings directly beside a component or label are supported. Keep the intended straight
@@ -187,7 +187,7 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 ```python
 s = Sketch()
 s.text(0, 0, "{in}").hline(0, 4, 7).text(0, 8, "R1").hline(0, 10, 13).text(0, 14, "┬")
-s.vline(14, 1, 1).text(2, 14, "C1").vline(14, 3, 3).text(4, 12, "<GND>")
+s.vline(14, 1, 1).text(2, 14, "C1").vline(14, 3, 3).text(4, 12, "[GND]")
 s.hline(0, 15, 18).text(0, 19, "{out}")
 LPF = Block("LPF", s.render(), R1=R("1k"), C1=C("100n"))
 ```
@@ -205,7 +205,7 @@ print `s.render()` and read it before binding.
 | `does not fit its drawing` | drawn pins per side ≠ part's pins; add or remove wires, or orient |
 | `must cover a rectangle` / `identical` | the component touches another or is ragged; keep the gap |
 | `{x} must sit on the block edge` | brace labels only on the outer edge, opposite their wire |
-| `port alias 'GND' is reserved` | ground and supplies are global nets, not pins: wire to `<GND>`/`<VCC>` inside the block, and give a separate return pin another name (`{gnd_ret}`) |
+| `port alias 'GND' is reserved` | ground and supplies are global nets, not pins: wire to `[GND]`/`[VCC]` inside the block, and give a separate return pin another name (`{gnd_ret}`) |
 | `names two different nets` | one name was used for two nets (labels, port aliases, globals, ignoring case); rename one |
 | `port ... is on the global ground` (SPICE) | ground is implicit in SPICE; don't give the block a ground port |
 | ERC violations | shouldn't happen (helpers are automatic); report them as a yasdl bug |

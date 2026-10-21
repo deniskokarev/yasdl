@@ -51,9 +51,9 @@ def test_crossing_keeps_nets_apart():
 
 def test_net_labels_are_implicit_wires():
     blk = Block("L", """
-        ──R1──<x>
+        ──R1──[x]
 
-        <x>──R2──
+        [x]──R2──
     """, R1=R(), R2=R())
     nets = netlist(blk)
     assert {"R1.2", "R2.1"} <= set(nets["x"]) or {"R1.1", "R2.2"} <= set(nets["x"])
@@ -62,9 +62,9 @@ def test_net_labels_are_implicit_wires():
 def test_pin_labels_set_orientation():
     blk = Block("Mirrored", """
          │
-        <c>
+        [c]
         Q1Q1
-        Q1Q1<b>─
+        Q1Q1[b]─
         Q1Q1
          │
     """, Q1=NPN())
@@ -77,9 +77,9 @@ def test_inconsistent_pin_labels_rejected():
     with pytest.raises(YasdlError, match="does not fit"):
         Block("Bad", """
              │
-            <c>
+            [c]
             Q1Q1
-            Q1Q1<e>─
+            Q1Q1[e]─
             Q1Q1
              │
         """, Q1=NPN())
@@ -145,3 +145,24 @@ def test_json_view():
     assert set(d["nets"]["VEE"]["pins"]) == {"U1.4"}
     minus = d["components"]["U1"]["attachments"]["W"][0]["net"]
     assert {"U1.2", "IN.E0", "FB.W0"} <= set(d["nets"][minus]["pins"])
+
+
+def test_bracket_labels_and_reserved_arrows():
+    nets = netlist(Block("L", "──R1──[x]\n\n[x]──R2──", R1=R(), R2=R()))
+    assert len(nets["x"]) == 2
+    with pytest.raises(CanvasError, match=r"written \[GND\] now"):
+        Canvas("──R1──<GND>")  # old label syntax: migration hint
+    for ch in "<>^":
+        with pytest.raises(CanvasError, match="reserved for directional"):
+            Canvas(f"──R1──{ch}")
+
+
+@pytest.mark.parametrize("name", ["v", "V", "vv", "VVV"])
+def test_component_named_v_rejected(name):
+    with pytest.raises(CanvasError, match="named v or V"):
+        Canvas(f"──{name}──")
+
+
+@pytest.mark.parametrize("word,name", [("v1v1v1", "v1"), ("V1", "V1"), ("VR1", "VR1"), ("Rv", "Rv")])
+def test_v_inside_names_is_fine(word, name):
+    assert set(Canvas(f"──{word}──").comps) == {name}

@@ -11,7 +11,7 @@ DIVIDER = """
               │
               R2
               │
-            <GND>
+            [GND]
 """
 
 
@@ -25,13 +25,13 @@ def test_reserved_port_aliases_rejected(alias):
 
 def test_reserved_label_spelling():
     with pytest.raises(YasdlError, match="reserved"):
-        Block("B", DIVIDER.replace("<GND>", "<gnd>"), R1=R(), R2=R())
+        Block("B", DIVIDER.replace("[GND]", "[gnd]"), R1=R(), R2=R())
     with pytest.raises(YasdlError, match="reserved"):
-        Block("B", DIVIDER.replace("<GND>", " <0> "), R1=R(), R2=R())
+        Block("B", DIVIDER.replace("[GND]", " [0] "), R1=R(), R2=R())
 
 
 def test_inline_reserved_label_is_global():
-    blk = Block("B", "{in}──R1──<GND>──R2──{out}", R1=R(), R2=R())  # wires on both sides
+    blk = Block("B", "{in}──R1──[GND]──R2──{out}", R1=R(), R2=R())  # wires on both sides
     nets = netlist(blk)
     assert {"R1.2", "R2.1"} <= set(nets["GND"]) or {"R1.1", "R2.2"} <= set(nets["GND"])
     assert " 0 " in spice_netlist(blk)
@@ -39,9 +39,9 @@ def test_inline_reserved_label_is_global():
 
 def test_label_name_clashes():
     with pytest.raises(YasdlError, match="default port"):
-        Block("B", "{in}──R1──<N1>──R2──{out}", R1=R(), R2=R())
+        Block("B", "{in}──R1──[N1]──R2──{out}", R1=R(), R2=R())
     with pytest.raises(YasdlError, match="clashes"):
-        Block("B", "{in}──R1──<OUT>──R2──{out}", R1=R(), R2=R())
+        Block("B", "{in}──R1──[OUT]──R2──{out}", R1=R(), R2=R())
 
 
 def test_generated_names_never_collide():
@@ -58,7 +58,7 @@ def test_generated_names_never_collide():
 
 
 def test_port_alias_vs_nested_global():
-    inner = Block("Inner", "──R1──<sig>", R1=R())  # global net "sig"
+    inner = Block("Inner", "──R1──[sig]", R1=R())  # global net "sig"
     with pytest.raises(YasdlError, match="two different nets"):
         netlist(Block("Top", "{sig}──A", A=inner))  # top port alias "sig" on another net
 
@@ -67,7 +67,7 @@ def test_ground_port_not_a_subckt_pin():
     blk = Block("B", """
         {in}──R1──┬──
                   │
-                <GND>
+                [GND]
     """, R1=R())  # the E port is wired to ground
     assert "0" in spice_netlist(blk).split()
     with pytest.raises(YasdlError, match="global ground"):
@@ -75,7 +75,7 @@ def test_ground_port_not_a_subckt_pin():
 
 
 def test_one_net_two_subckt_pins_rejected():
-    blk = Block("Thru", "{input}──┬──{output}\n         │\n         R1\n         │\n       <GND>",
+    blk = Block("Thru", "{input}──┬──{output}\n         │\n         R1\n         │\n       [GND]",
                 R1=R("1k"))
     assert re.search(r"^R_R1 (input|output) 0 1k$", spice_netlist(blk), re.M)  # flat is fine
     with pytest.raises(YasdlError, match="same net"):
@@ -86,7 +86,7 @@ def test_reserved_pin_names_not_reexported():
     # a pin named like a global net is never re-exported as a port alias
     blk = Block("F", """
                       │
-        {input}────<b>Q1Q1
+        {input}────[b]Q1Q1
                       Q1Q1
                       Q1Q1
                       │

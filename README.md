@@ -20,13 +20,13 @@ PARALLEL = Block("Parallel", """
 INV_AMP = Block("InvAmp", """
           ┌──────FB───────┐
           │               │
-          │    <VEE>      │
+          │    [VEE]      │
           │      │        │
     ──IN──┴──────U1U1U1   │
                  U1U1U1───┴──
           ┌─────+U1U1U1
           │      │
-         GND   <VCC>
+         GND   [VCC]
 """, U1=OPAMP(), GND=GND())
 
 amp = INV_AMP.bind(IN=SERIES, FB=PARALLEL)   # sub-circuits bound into components
@@ -64,7 +64,8 @@ yasdl inverts that.
 | component | `A-Z a-z 0-9 _` | see 2.2 |
 | single wire | `─ -` `│ \|` `┌ ┐ └ ┘` `├ ┤ ┬ ┴` `┼` | ASCII `-` `\|` equal `─` `│` |
 | bus | `═ ║ ╔ ╗ ╚ ╝`, taps `╟ ╢ ╤ ╧` | section 2.6 (specified, not implemented yet) |
-| angle label | `<text>` on one row | pin label, global net or local net name (2.4–2.5) |
+| bracket label | `[text]` on one row | pin label, global net or local net name (2.4–2.5) |
+| arrows | `<` `>` `^`, and a lone `v`/`V` | reserved for directional pin labels (2.5) |
 | brace label | `{text}` on one row | external port name, only on the block edge (2.7) |
 | pin shortcut | `+` | a one-character pin label |
 
@@ -78,6 +79,8 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
   `U1U1U1` → `U1`, `RRRR` → `R`. If no period divides the string evenly, the whole string is
   the name: `NPN` → `NPN`, `U1U1U` → `U1U1U`.
 - Names are **local to the block**: `U1` in two blocks are two components.
+- A component can't be named `v` or `V` (or `vv`, `VVV`, which reduce to it): a lone `v` is the
+  down-arrow pin label (2.5). `v` inside a longer name is fine (`v1v1v1` → `v1`, `VR1`).
 - **Gap rule**: components never touch. Touching characters merge into one rectangle, or fail
   if the result isn't one. Keep at least one empty or wire cell between components. The gap
   is also where the layout puts its wire adapters (section 4).
@@ -108,18 +111,18 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
 - A wire that ends on a straight wire from one side only (an implied T) is an error; use a
   tee.
 
-### 2.4 Angle labels: pins and nets
+### 2.4 Bracket labels: pins and nets
 
-What an angle label `<name>` means depends on what it touches:
+What a bracket label `[name]` means depends on what it touches:
 
 | Touches | Meaning |
 |---|---|
 | a component edge (and a wire on its other side) | **pin label**, see 2.5 |
-| a wire on one side only | **global net**: every `<name>` with the same text in the whole design is one net, in every block and every instance. This is the escape hatch for non-planar circuits and long loops, and the way to reach supplies (`<VCC>`, `<VEE>`). Power symbols (`GND()`, `VCC()`) join the global net with their value as name. |
-| wires on both sides (`──<x>──`) | **local net name**: names the net inside this block only. Same-named local labels in one block are connected; they never connect across blocks or instances. |
+| a wire on one side only | **global net**: every `[name]` with the same text in the whole design is one net, in every block and every instance. This is the escape hatch for non-planar circuits and long loops, and the way to reach supplies (`[VCC]`, `[VEE]`). Power symbols (`GND()`, `VCC()`) join the global net with their value as name. |
+| wires on both sides (`──[x]──`) | **local net name**: names the net inside this block only. Same-named local labels in one block are connected; they never connect across blocks or instances. |
 | nothing | error |
 
-- Horizontal wires enter a label only at its `<` or `>` end. Vertical wires pass through one
+- Horizontal wires enter a label only at its `[` or `]` end. Vertical wires pass through one
   column inside the label.
 - **Power nets**: a global label whose name is in the power-net registry (`GND`, `GNDA`, `VCC`,
   `VEE`, `VDD`, `VSS`, `+5V`, `+3V3`, `+12V`, `-12V`; extend with
@@ -128,7 +131,7 @@ What an angle label `<name>` means depends on what it touches:
   nothing changes: the net is still the global net, and `GND` is SPICE node 0. So
   ```
      │
-   <GND>
+   [GND]
   ```
   replaces placing `GND()` atoms one by one.
 - In the flat KiCad output, local names are prefixed with the instance path (`FB.x`); global
@@ -140,18 +143,18 @@ What an angle label `<name>` means depends on what it touches:
 - Pins on a side are ordered: **W and E sides top to bottom, N and S sides left to right**.
 - **Pin labels**: a label touching a component edge names the pin. For atoms it matches
   the symbol's pin name or number; for sub-blocks, any of the port's names (2.7). Matching
-  is case-insensitive. Pin labels filter orientations (3.2): `<c>` and `<b>` together fix a
-  transistor completely; `<b>` alone leaves the unrotated one. A pin label must have a wire
+  is case-insensitive. Pin labels filter orientations (3.2): `[c]` and `[b]` together fix a
+  transistor completely; `[b]` alone leaves the unrotated one. A pin label must have a wire
   on its other side, and it never names a net.
   ```
-  {input}────<b>Q1Q1      the wire ends on Q1's base; {input} names the block port (2.7)
+  {input}────[b]Q1Q1      the wire ends on Q1's base; {input} names the block port (2.7)
                 Q1Q1
   ```
   ```
    │
-  <c>
+  [c]
   Q1Q1          collector on top, base on the right: the NPN is mirrored
-  Q1Q1<b>─
+  Q1Q1[b]─
   Q1Q1
    │
   ```
@@ -173,7 +176,7 @@ What an angle label `<name>` means depends on what it touches:
   wires attached to it, in order. Widths propagate from bound components. When every bus on
   a side but one is known, the last one is inferred. An undetermined width is an error.
 - **Taps**: only single-wire taps, `╟ ╢ ╤ ╧`, each followed by a label that selects the wire
-  by name or 1-based number (`╟──<3>──`, `╟──<MISO>──`). Tapping a wire the bus doesn't carry
+  by name or 1-based number (`╟──[3]──`, `╟──[MISO]──`). Tapping a wire the bus doesn't carry
   is an error. Taps take wires out of a bus; they never add them.
 - **Crossings**: at 90° only, never connecting, drawn like single-wire crossings (2.3), with
   the character on top shown in the middle. Allowed pairs: bus/bus and single wire/bus
@@ -186,7 +189,7 @@ What an angle label `<name>` means depends on what it touches:
   There is no bus-to-bus junction (`╬`) or bus tee (`╠`). Other junctions and shapes are
   forbidden.
 - **Ports**: buses reaching the canvas edge are ports. Their wires appear in the side's pin
-  list in order, named by the bus's net labels (`<a>═══` gives `a.pins`).
+  list in order, named by the bus's net labels (`[a]═══` gives `a.pins`).
 - **KiCad**: drawn as individual parallel wires. (Open: use KiCad buses above some width.)
 
 ### 2.7 Ports (block interface)
@@ -206,7 +209,7 @@ What an angle label `<name>` means depends on what it touches:
   3. **re-export**: if the port has neither, and its net reaches exactly one distinct pin name
      (an atom pin name other than `~`, or a sub-block port name), that name becomes the alias.
      The Darlington's ports become `B`, `C` and `E` this way, and a host can orient it with
-     `<b>`/`<c>` labels. A re-exported name that collides with another port's name, or looks
+     `[b]`/`[c]` labels. A re-exported name that collides with another port's name, or looks
      like a default name, is silently dropped.
 - **Uniqueness**: no two ports may share an alias (case-insensitive). Aliases may not look like
   default names (`W0`, `D3`, ...) or use a reserved global name (`GND`, `VCC`, `0`, ...; 2.8).
@@ -230,9 +233,9 @@ are compared case-insensitively.
    `0`. Global nets are design-wide, and a block can't know which parents will use it, so these
    names are taken in every block:
    - no port alias (`{GND}`, `{0}`, `{vcc}`, or `port_attrs`) may use them;
-   - labels must spell them exactly as registered (`<GND>`, not `<gnd>`); `<0>` is never
+   - labels must spell them exactly as registered (`[GND]`, not `[gnd]`); `[0]` is never
      allowed;
-   - a label with a reserved name is always the global net, even inline (`──<GND>──`);
+   - a label with a reserved name is always the global net, even inline (`──[GND]──`);
    - pin names like `GND` are never re-exported as port aliases.
 3. Labels may not look like default port names (`W0`, `N1`, `D3`), and a block's labels may not
    reuse its port aliases.
@@ -285,7 +288,7 @@ top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
    - The horizontal PARALLEL block in a vertical slot turns so that its left port is on top
      (example `SHUNT`). `PARALLEL.oriented(90)` puts it at the bottom.
 
-Inconsistent labels, like `<e>` where only C or B could go, are errors. When the electrical
+Inconsistent labels, like `[e]` where only C or B could go, are errors. When the electrical
 direction matters but nothing in the drawing pins it down, e.g. a non-symmetric 2-port in a
 vertical slot, rule 3 still decides, deterministically. Label a pin or orient explicitly if
 the default isn't what you want.
@@ -352,7 +355,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
 {
   "name": "InvAmp",
   "size": {"cols": 25, "rows": 9},
-  "canvas": ["      ┌──────FB───────┐", "...", "     GND   <VCC>"],
+  "canvas": ["      ┌──────FB───────┐", "...", "     GND   [VCC]"],
   "components": {
     "U1": {
       "rect": {"row": 4, "col": 13, "rows": 3, "cols": 6},
@@ -398,7 +401,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   `lib_symbols`. References are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a
   `yasdl_path` field with its hierarchical name (`FB.R1`).
 - Wires, junction dots, net labels, and labels for the top block's ports. Ports that alias an
-  existing net name (e.g. `{VP}` connected to `<VCC>`, or two ports on one wire) retain their
+  existing net name (e.g. `{VP}` connected to `[VCC]`, or two ports on one wire) retain their
   visible names as non-electrical text. Only the canonical name becomes an electrical label,
   avoiding KiCad's `multiple_net_names` warning without hiding or disabling ERC checks.
 - **ERC-clean by construction.** Every exported schematic passes `kicad-cli sch erc` with no
@@ -430,7 +433,7 @@ containing `KiCad.app` (for example `/Applications/KiCad`) or the app bundle its
 from the flattened design:
 - **Ports**: with `subckt`, the netlist is wrapped in `.subckt name <ports>`, ports in DIP
   order (2.7) unless `port_order` lists port names. Formal port aliases take precedence over
-  internal global names in subcircuit exports: `{VP}` wired to `<VCC>` yields a `VP` pin and
+  internal global names in subcircuit exports: `{VP}` wired to `[VCC]` yields a `VP` pin and
   `VP` device nodes. Without `subckt`, a flat netlist is written and retains `VCC`.
   Ground remains implicit node `0`, never a subcircuit port. Two ports on one net can't both
   be subcircuit pins (ngspice silently miswires duplicate formal nodes), so that's an error.
@@ -458,9 +461,9 @@ emitter-follower buffer), composed from small blocks:
   bottom. The task's pin order (V+, V−, OUT) is given as `port_order=SGEN_PINS`.
 
 Each canvas is small and stands alone (each renders ERC-clean); yasdl composes the final
-planar schematic. Grounds are `<GND>` labels. The ladder is bound as
-`PHASE_SHIFT.mirrored("y")` and drawn as `PS<in>`. The pin label
-documents the orientation on the drawing and is checked against it: `PS<out>` with the same
+planar schematic. Grounds are `[GND]` labels. The ladder is bound as
+`PHASE_SHIFT.mirrored("y")` and drawn as `PS[in]`. The pin label
+documents the orientation on the drawing and is checked against it: `PS[out]` with the same
 binding fails. (The label alone would pick the same mirror, 3.2, but saying it in code is
 clearer.) The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
 netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic

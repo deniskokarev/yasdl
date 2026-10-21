@@ -40,7 +40,7 @@ def test_subckt_supply_keeps_formal_port_alias():
     block = Block("SupplyAlias", """
         {VP}──┬──R1──{out}
               │
-            <VCC>
+            [VCC]
     """, R1=R("1k"))
     text = spice_netlist(block, subckt="supply", port_order=["VP", "out"])
     assert ".subckt supply VP out" in text
@@ -50,8 +50,8 @@ def test_subckt_supply_keeps_formal_port_alias():
 
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 @pytest.mark.parametrize("canvas", [
-    "{input}──┬──{output}\\n         │\\n         R1\\n         │\\n       <GND>\\n",
-    "{VP}──┬──R1──{out}\\n      │\\n    <VCC>\\n",
+    "{input}──┬──{output}\\n         │\\n         R1\\n         │\\n       [GND]\\n",
+    "{VP}──┬──R1──{out}\\n      │\\n    [VCC]\\n",
 ])
 def test_port_aliases_on_one_net_render_cleanly(tmp_path, canvas):
     from yasdl.kicad_export import render
@@ -69,11 +69,11 @@ def test_port_aliases_on_one_net_render_cleanly(tmp_path, canvas):
 def test_crossing_between_power_label_and_component(tmp_path):
     from yasdl.kicad_export import render
     block = Block("CrossingSupply", """
-              <VCC>
+              [VCC]
         {a}─────│─────{b}
                 R1
                 │
-              <GND>
+              [GND]
     """, R1=R("1k"))
     info = render(block, tmp_path, svg=False, spice=True)
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
@@ -99,12 +99,12 @@ def test_crossing_between_two_components(tmp_path):
 
 def test_spice_errors():
     amp = Block("A", """
-           <VEE>
+           [VEE]
              │
         ─────U1U1──
            ┌+U1U1
            │ │
-          G1 <VCC>
+          G1 [VCC]
     """, U1=OPAMP(), G1=GND())
     with pytest.raises(YasdlError, match="no SPICE mapping"):
         spice_netlist(amp)

@@ -36,13 +36,13 @@ DARLINGTON = Block("Darlington", """
 INV_AMP = Block("InvAmp", """
           ┌──────FB───────┐
           │               │
-          │    <VEE>      │
+          │    [VEE]      │
           │      │        │
     ──IN──┴──────U1U1U1   │
                  U1U1U1───┴──
           ┌─────+U1U1U1
           │      │
-         GND   <VCC>
+         GND   [VCC]
 """, U1=OPAMP(), GND=GND())
 
 # Resistor sub-circuits bound into the amplifier's IN and FB components.
@@ -63,16 +63,16 @@ SHUNT = Block("Shunt", """
 SUPPLY_ALIAS = Block("SupplyAlias", """
     {VP}──┬──R1──{out}
           │
-        <VCC>
+        [VCC]
 """, R1=R("1k"))
 
 # The crossing is directly between a power label and a resistor terminal.
 CROSSING_SUPPLY = Block("CrossingSupply", """
-          <VCC>
+          [VCC]
     {a}─────│─────{b}
             R1
             │
-          <GND>
+          [GND]
 """, R1=R("1k"))
 
 ALL = {"SERIES": SERIES, "PARALLEL": PARALLEL, "SERIES_PARALLEL": SERIES_PARALLEL,

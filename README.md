@@ -142,7 +142,6 @@ guide and common errors.
 | Example | Code | |
 |---|---|---|
 | Series, parallel, R + (R ∥ R) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/SeriesParallel.png) |
-| Darlington pair (fits wherever an NPN is drawn) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Darlington.png) |
-| Inverting op-amp with sub-circuits bound into its holes | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/InvAmp.png) |
 | PARALLEL bound into a vertical slot (turned automatically) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Shunt.png) |
+| Darlington pair (fits wherever an NPN is drawn) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Darlington.png) |
 | 2 kHz sine generator, composed from small blocks | [docs/examples/sgen.py](docs/examples/sgen.py) | ![](docs/examples/generated/SGen.png) |

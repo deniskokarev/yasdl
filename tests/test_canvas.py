@@ -102,7 +102,7 @@ def test_examples_netlists():
     assert net_of(nets, "Q1.C") == {"Q1.C", "Q2.C"}
     nets = netlist(ex.INV_AMP_RESISTORS)
     assert net_of(nets, "U1.2") == {"U1.2", "IN.R2.2", "FB.R1.1", "FB.R2.1"}  # inverting input
-    assert net_of(nets, "U1.1") == {"U1.1", "GND.1"}
+    assert nets["GND"] == ["U1.1"]  # [GND] label, no ground atom
     assert net_of(nets, "U1.5") >= {"FB.R1.2", "FB.R2.2"}
     assert nets["VEE"] == ["U1.4"] and nets["VCC"] == ["U1.3"]
 

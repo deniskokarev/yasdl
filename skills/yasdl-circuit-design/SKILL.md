@@ -48,7 +48,7 @@ them in a tiny top-level block where each stage is just a short name:
   coupling capacitor) joins two stages; that node becomes the port.
 
 `examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside OSCILLATOR (gain stage),
-then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN. The full spec is `~/work/yasdl/README.md`; read the parts you need.
+then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN. The full spec is `~/work/yasdl/SPEC.md` (overview: `README.md`); read the parts you need.
 Worked examples are in `~/work/yasdl/examples/` (`blocks.py`, `sgen.py`).
 
 ## Setup

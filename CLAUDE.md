@@ -1,6 +1,6 @@
 # CLAUDE.md — yasdl
 
-README.md is the spec. Read it first, and update it in the same change whenever behaviour
+SPEC.md is the spec (README.md is the short overview). Read SPEC.md first, and update it in the same change whenever behaviour
 changes.
 
 ## Invariants

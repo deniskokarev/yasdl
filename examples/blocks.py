@@ -34,16 +34,16 @@ DARLINGTON = Block("Darlington", """
 # The '+' pin shortcut fixes the op-amp orientation (non-inverting input at the bottom),
 # which mirrors the symbol and puts V- on top.
 INV_AMP = Block("InvAmp", """
-          ┌──────FB───────┐
-          │               │
-          │    [VEE]      │
-          │      │        │
-    ──IN──┴──────U1U1U1   │
-                 U1U1U1───┴──
-          ┌─────+U1U1U1
-          │      │
-         GND   [VCC]
-""", U1=OPAMP(), GND=GND())
+              ┌──────FB───────┐
+              │               │
+              │    [VEE]      │
+              │      │        │
+    {in}──IN──┴──────U1U1U1   │
+                     U1U1U1───┴──{out}
+              ┌─────+U1U1U1
+              │      │
+            [GND]  [VCC]
+""", U1=OPAMP())
 
 # Resistor sub-circuits bound into the amplifier's IN and FB components.
 INV_AMP_RESISTORS = INV_AMP.bind(IN=SERIES, FB=PARALLEL)

@@ -3,7 +3,7 @@
 
 import sys
 
-from examples import blocks, sgen
+from docs.examples import blocks, sgen
 from yasdl.kicad_export import render
 
 if __name__ == "__main__":

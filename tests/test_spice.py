@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from examples.sgen import BJT_MODELS, PHASE_SHIFT, SGEN, SGEN_PINS
+from docs.examples.sgen import BJT_MODELS, PHASE_SHIFT, SGEN, SGEN_PINS
 from yasdl import GND, NPN, OPAMP, R, Block, YasdlError, spice_netlist
 from yasdl.kicad_lib import KICAD_CLI
 from yasdl.spice import parse_spice, spice_partition
 
-ORACLE = Path.home() / "work/dkv-tbench/ee_sgen/solution/solve.sh"
+# ee_sgen task oracle (solve.sh); the comparison test is skipped unless this is set
+ORACLE = Path(os.environ.get("YASDL_SGEN_ORACLE", "/nonexistent"))
 have_models = os.path.exists(BJT_MODELS)
 have_ngspice = shutil.which("ngspice") is not None
 have_kicad = KICAD_CLI.exists()
@@ -85,11 +86,11 @@ def test_crossing_between_power_label_and_component(tmp_path):
 def test_crossing_between_two_components(tmp_path):
     from yasdl.kicad_export import render
     block = Block("CrossingComponents", """
-        ....{top}
-        ......│
+            {top}
+              │
         {a}─R1─R2─{b}
-        ......│
-        ....{bottom}
+              │
+            {bottom}
     """, R1=R("1k"), R2=R("2k"))
     info = render(block, tmp_path, svg=False, spice=True)
     assert info["roundtrip_ok"], (info["missing"], info["extra"])

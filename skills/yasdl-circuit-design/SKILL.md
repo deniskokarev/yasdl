@@ -1,7 +1,7 @@
 ---
 name: yasdl-circuit-design
 description: |
-  Design electronic circuits with yasdl (ASCII-canvas schematic language, ~/work/yasdl) so the
+  Design electronic circuits with yasdl (ASCII-canvas schematic language, installed at $YASDL_PATH) so the
   result is both functional (SPICE netlist, simulated in ngspice) and a clean, planar,
   ERC-passing KiCad 9 schematic. Use it whenever a task asks to design, build, draw or fix a
   circuit or SPICE (sub)circuit: analog stages, oscillators, filters, amplifiers, regulators,
@@ -36,8 +36,8 @@ them in a tiny top-level block where each stage is just a short name:
 - yasdl does the composition. It lays out every level (grid-bag, wires stretch, symbols
   never do) and nests the sub-drawings. The result is **planar by construction**: blocks are
   rectangles meeting only through ports, so nothing crosses unless you drew a crossing.
-- Blocks are reusable and orientable at binding (`LADDER.mirrored("y")`). A sub-block fits
-  any component drawn with the same number of wires per side.
+- Blocks are reusable. A sub-block fits any component drawn with the same number of wires per
+  side; yasdl turns it to fit (see Orientation).
 - **The interface is the design decision.** Put each port on the side where its neighbour
   will be: supplies on **N** (so one rail can run across the top), inputs **W**, outputs
   **E**, negative supply or ground returns on **S**. Mismatched port sides still work (yasdl
@@ -47,14 +47,15 @@ them in a tiny top-level block where each stage is just a short name:
   section), buffer or output stage, supply decoupling. Split where a single wire (or a
   coupling capacitor) joins two stages; that node becomes the port.
 
-`examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside OSCILLATOR (gain stage),
-then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN. The full spec is `~/work/yasdl/SPEC.md` (overview: `README.md`); read the parts you need.
-Worked examples are in `~/work/yasdl/examples/` (`blocks.py`, `sgen.py`).
+`$YASDL_PATH/docs/examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside
+OSCILLATOR (gain stage), then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN.
+More examples in `$YASDL_PATH/docs/examples/blocks.py`. The full spec is
+`$YASDL_PATH/docs/SPEC.md` (overview: `$YASDL_PATH/README.md`); read the parts you need.
 
 ## Setup
 
 ```bash
-export PYTHONPATH=~/work/yasdl:$PYTHONPATH   # stdlib-only package, no install needed
+export PYTHONPATH=$YASDL_PATH:$PYTHONPATH    # stdlib-only package, no install needed
 # Prefix install: ~/KiCad9. macOS also accepts the directory containing KiCad.app.
 export YASDL_KICAD=/Applications/KiCad         # omit when KiCad is at ~/KiCad9
 python -c "import yasdl"                      # ngspice on PATH
@@ -75,7 +76,8 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 3. **Sketch each block bottom-up** (rules below), smallest first. Check each one alone
    (`netlist`, `spice_netlist`, `render`) before using it in a parent. Use `Sketch` for anything
    wider than about 30 columns.
-4. **Bind** atoms and sub-blocks. Fix orientation only where the drawing doesn't (rules below).
+4. **Bind** atoms and sub-blocks. Let yasdl orient them; add pin labels where pin order
+   matters (rules below).
 5. **Check structure**: `netlist(block)` and `print(spice_netlist(block, subckt=...))`. Read it
    against your design: every node, every part.
 6. **Simulate** in ngspice with a testbench (supplies, load, `.tran`/`.ac`/`.op`). Iterate on
@@ -96,8 +98,8 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 
 | Thing | Syntax | Notes |
 |---|---|---|
-| empty | space or `.` | |
-| component | rectangle of one repeated word: `R1`, `Q1Q1` x 3 rows | name = minimal period: `U1U1` → `U1`, but **`CC` → `C`, `RR` → `R`**, so avoid self-repeating names |
+| empty | space | `.` is reserved (an error) |
+| component | rectangle of one repeated word: `R1`, `Q1Q1` x 3 rows | name = minimal period: `U1U1` → `U1`, but **`CC` → `C`, `RR` → `R`**, so avoid names that are one repeated letter |
 | wire | `─ │ ┌ ┐ └ ┘` | ASCII `-` and `\|` also work |
 | junction | `├ ┤ ┬ ┴ ┼` | `┼` is always a junction (dot) |
 | crossing | straight wire with perpendicular wires on both sides: `─│─` | the middle character is the wire on top; no connection |
@@ -116,17 +118,27 @@ Hard rules, all enforced with precise errors:
   pins needs wires on its top and bottom, e.g. to `[VCC]`/`[VEE]`.
 - Pins on a side map in order: W/E top to bottom, N/S left to right.
 
-## Orientation
+## Orientation: let yasdl do it, label pins where order matters
 
-- Parts are drawn in the KiCad library orientation unless the drawing forces otherwise:
-  resistors and capacitors turn to fit their wires, sub-blocks turn to fit their slot.
-- Explicit: `R().rotated(90)`, `BLOCK.mirrored("y")` (left/right), `.mirrored("x")`
-  (top/bottom). They compose.
-- **Mark the intent on the drawing too.** Put a pin label (`PS[in]`, `[c]`, `+`) next to
-  explicitly oriented parts. It's checked; a contradiction fails the binding.
-- Transistors: Q_NPN library has B left, C top, E bottom. Draw them that way, or label pins.
-- KiCad's `Simulation_SPICE:OPAMP` has + above −. For − on top (inverting stages), put `+` on
-  the lower input.
+yasdl rotates and mirrors every atom and sub-block to fit the wires drawn around it. **Don't
+orient parts by hand.** Draw the wires where you want the pins and say which pin is which with
+labels; the labels choose the orientation.
+
+- **Pin order doesn't matter** (resistors, capacitors, inductors, symmetric networks): no
+  labels. `──R1──` and a vertical `R1` just work.
+- **2-terminal directional parts** (diodes, polarised caps, directional sub-blocks): one label
+  is enough. `──>D1──` puts the anode left; `+` marks a polarised cap's positive pin.
+- **3+ pin parts** (transistors, op-amps, sub-blocks with several ports): label **two pins on
+  different sides** whenever one label leaves a choice. For example, `[b]` alone on an NPN still
+  allows a top/bottom mirror that swaps collector and emitter; `[b]` plus `v` under the
+  emitter fixes it. Arrows: NPN base `>`, emitter `v`; PNP base `<`, emitter `^`.
+- The op-amp (`Simulation_SPICE:OPAMP`) has + above −. A `+` on its lower input flips it so −
+  is on top, as in inverting stages.
+- Sub-block ports with names (`{in}`, `{a, anode}`) work as labels in the parent:
+  `PS[in]` puts PS's `in` port on that side.
+- If two orientations still fit, yasdl picks one deterministically: unrotated first, then the
+  one that keeps reading order. That's fine when the choice doesn't matter electrically; when it
+  does, add a label. Explicit `.rotated()`/`.mirrored()` exist as a last resort.
 
 ## Making it look good
 
@@ -163,7 +175,7 @@ from yasdl import (Block, Sketch, R, C, L, D, NPN, PNP, OPAMP, GND, VCC, VEE, C_
                    netlist, spice_netlist, register_power_net, SpiceModel)
 from yasdl.kicad_export import render
 
-STAGE = Block("Stage", canvas_text, R1=R("10k"), Q1=NPN("2N3904"), SUB=OTHER.mirrored("y"))
+STAGE = Block("Stage", canvas_text, R1=R("10k"), Q1=NPN("2N3904"), SUB=OTHER)
 STAGE.unbound                     # components without a binding = open interface
 TOP = TEMPLATE.bind(IN=R("1k"))   # bind later
 STAGE.ports                       # Port(side, index, name, dip, aliases)

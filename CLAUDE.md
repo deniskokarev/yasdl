@@ -28,11 +28,14 @@ changes.
   `kicad_lib.py` (library symbols, orientation), `kicad_sch.py` (file writer, kicad-cli),
   `kicad_export.py` (block → schematic, ERC helpers, round trips), `spice.py` (SPICE export).
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
-- `examples/blocks.py` is the fixture for tests. Each new feature gets an example and a test.
+- `docs/examples/blocks.py` (and `sgen.py`) are the fixtures for tests. Each new feature gets an
+  example and a test.
 - `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
   ~/.claude/skills). Keep it in sync with the API and spec.
-- Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m examples.render`,
-  output in `out/` (ignored); copy the PNGs to `docs/examples/` when they change.
+- Simulation and oracle tests need `YASDL_BJT_MOD` (2N3904 model file) and `YASDL_SGEN_ORACLE`
+  (ee_sgen solve.sh); they skip when unset.
+- Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m docs.examples.render`,
+  output in `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
 
 ## KiCad
 

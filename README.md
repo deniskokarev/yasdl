@@ -49,9 +49,9 @@ INV_AMP = Block("InvAmp", """
 amp = INV_AMP.bind(IN=SERIES, FB=PARALLEL)   # sub-circuits plugged into the IN and FB holes
 ```
 
-![inverting amplifier](docs/examples/InvAmp.png)
+![inverting amplifier](docs/examples/generated/InvAmp.png)
 
-Full reference: [SPEC.md](SPEC.md).
+Full reference: [docs/SPEC.md](docs/SPEC.md).
 
 ## 1. Concepts
 
@@ -79,7 +79,8 @@ Full reference: [SPEC.md](SPEC.md).
 | port | `{in}`, `{out}` on the canvas edge | a named external pin of the block |
 | pin label | `[b]`, `+`, `>`, `v` touching a component | which pin of the part this wire is; arrows also fix its orientation |
 
-Components must not touch each other; keep at least one cell between them. Wires can fork,
+Empty cells are spaces (`.` is reserved for future use). Components must not touch each
+other; keep at least one cell between them. Wires can fork,
 cross and overlap freely. Buses (bundles of wires) are specified and will be supported later.
 
 Reading the inverting amplifier above:
@@ -134,16 +135,14 @@ print(spice_netlist(PARALLEL, subckt="parallel"))
 
 `skills/yasdl-circuit-design/SKILL.md` teaches AI coding agents to design circuits in yasdl. It
 covers hierarchical design (small blocks, composed by yasdl), the canvas cheat sheet, a style
-guide and common errors. Install it with
-`ln -s ~/work/yasdl/skills/yasdl-circuit-design ~/.claude/skills/`; it triggers on circuit
-design tasks.
+guide and common errors.
 
 ## 7. Examples
 
 | Example | Code | |
 |---|---|---|
-| Series, parallel, R + (R ∥ R) | [examples/blocks.py](examples/blocks.py) | ![](docs/examples/SeriesParallel.png) |
-| Darlington pair (fits wherever an NPN is drawn) | [examples/blocks.py](examples/blocks.py) | ![](docs/examples/Darlington.png) |
-| Inverting op-amp with sub-circuits bound into its holes | [examples/blocks.py](examples/blocks.py) | ![](docs/examples/InvAmp.png) |
-| PARALLEL bound into a vertical slot (turned automatically) | [examples/blocks.py](examples/blocks.py) | ![](docs/examples/Shunt.png) |
-| 2 kHz sine generator, composed from small blocks | [examples/sgen.py](examples/sgen.py) | ![](docs/examples/SGen.png) |
+| Series, parallel, R + (R ∥ R) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/SeriesParallel.png) |
+| Darlington pair (fits wherever an NPN is drawn) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Darlington.png) |
+| Inverting op-amp with sub-circuits bound into its holes | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/InvAmp.png) |
+| PARALLEL bound into a vertical slot (turned automatically) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Shunt.png) |
+| 2 kHz sine generator, composed from small blocks | [docs/examples/sgen.py](docs/examples/sgen.py) | ![](docs/examples/generated/SGen.png) |

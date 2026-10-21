@@ -1,6 +1,6 @@
 import pytest
 
-from examples import blocks as ex
+from docs.examples import blocks as ex
 from yasdl import GND, NPN, R, Block, YasdlError, netlist
 
 
@@ -55,7 +55,7 @@ def test_dip_numbering():
 
 def test_brace_label_rules():
     with pytest.raises(YasdlError, match="edge"):
-        Block("Inner", ".{x}──R1──", R1=R())  # '.' is empty but keeps {x} off the edge
+        Block("Inner", "──R2──────\n\n {x}──R1──", R1=R(), R2=R())  # {x} one cell off the edge
     with pytest.raises(YasdlError, match="exactly one wire"):
         Block("Inline", "──R1──{x}──", R1=R())
     with pytest.raises(YasdlError, match="two ports"):
@@ -130,7 +130,7 @@ def test_power_net_labels_draw_power_symbols():
 
 
 def test_label_orientation_prefers_mirror_over_rotation():
-    from examples.sgen import PHASE_SHIFT
+    from docs.examples.sgen import PHASE_SHIFT
     host = Block("H", "──PS[in]──", PS=PHASE_SHIFT)  # 'in' on the right: 180 deg or mirror y
     b = host.bound["PS"]
     assert (b.rot, b.mirror) == (180, "x")  # mirror y: one axis flipped, legs stay down
@@ -138,7 +138,7 @@ def test_label_orientation_prefers_mirror_over_rotation():
 
 
 def test_explicit_orientation_checked_against_labels():
-    from examples.sgen import OSCILLATOR, PHASE_SHIFT
+    from docs.examples.sgen import OSCILLATOR, PHASE_SHIFT
     assert (OSCILLATOR.bound["PS"].rot, OSCILLATOR.bound["PS"].mirror) == (180, "x")  # mirrored y
     Block("H", "──PS[in]──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
     with pytest.raises(YasdlError, match="does not fit"):
@@ -146,7 +146,7 @@ def test_explicit_orientation_checked_against_labels():
 
 
 def test_rotated_mirrored_api():
-    from examples.sgen import PHASE_SHIFT
+    from docs.examples.sgen import PHASE_SHIFT
     assert (R().mirrored("y").rot, R().mirrored("y").mirror) == (180, "x")
     assert R().mirrored("y").mirrored("y").rot % 360 == 0 and R().mirrored("y").mirrored("y").mirror is None
     assert PHASE_SHIFT.rotated(90).rot == 90

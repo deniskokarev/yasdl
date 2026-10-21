@@ -15,8 +15,8 @@ import os
 
 from yasdl import C, NPN, R, Block
 
-BJT_MODELS = os.environ.get("YASDL_BJT_MOD",
-                            os.path.expanduser("~/work/dkv-tbench/ee_sgen/environment/data/bjt.mod"))
+# 2N3904 model file (e.g. the ee_sgen task's bjt.mod); simulation tests skip if it's unset
+BJT_MODELS = os.environ.get("YASDL_BJT_MOD", "")
 
 PHASE_SHIFT = Block("PhaseShift", """
     {in}──C1──┬──C2──┬──C3──{out}

@@ -1,4 +1,4 @@
-"""Example blocks. `python -m examples.blocks` prints netlists; see examples/render.py for KiCad."""
+"""Example blocks. `python -m docs.examples.blocks` prints netlists; see examples/render.py for KiCad."""
 
 from yasdl import GND, NPN, OPAMP, R, Block, netlist
 

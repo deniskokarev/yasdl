@@ -20,7 +20,8 @@ ARMS = {
 }
 STRAIGHT_H, STRAIGHT_V = "─-", "│|"
 BUS_CHARS = set("═║╔╗╚╝╟╢╤╧")
-EMPTY = " ."
+EMPTY = " "
+RESERVED_CHARS = "."  # reserved for future use (spec 2.1)
 ARROWS = {">": "E", "<": "W", "^": "N", "v": "S"}  # directional pin labels (spec 2.5)
 PIN_SHORTCUTS = "+<>^"  # one-character pin labels (plus a lone v, see _scan)
 
@@ -179,6 +180,8 @@ class Canvas:
                     not (c + 1 < self.W and _word_char(row[c + 1]))
                 if lone_v:
                     ch = "v"  # a lone v (no letters/digits beside it) is the down arrow
+                if ch in RESERVED_CHARS:
+                    self.err(f"{ch!r} is reserved for future use; use spaces for empty cells", r, c)
                 if ch in PIN_SHORTCUTS or lone_v:
                     self._add_label(ch, r, c, c, shortcut=True)
                 elif ch in ARMS:

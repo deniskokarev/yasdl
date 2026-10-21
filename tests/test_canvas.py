@@ -2,7 +2,7 @@ import shutil
 
 import pytest
 
-from examples import blocks as ex
+from docs.examples import blocks as ex
 from yasdl import NPN, OPAMP, R, Block, CanvasError, YasdlError, minimal_period, netlist
 from yasdl.canvas import Canvas
 from yasdl.kicad_lib import KICAD_CLI
@@ -166,3 +166,10 @@ def test_component_named_v_rejected(name):
 @pytest.mark.parametrize("word,name", [("v1v1v1", "v1"), ("V1", "V1"), ("VR1", "VR1"), ("Rv", "Rv")])
 def test_v_inside_names_is_fine(word, name):
     assert set(Canvas(f"──{word}──").comps) == {name}
+
+
+def test_dot_is_reserved():
+    with pytest.raises(CanvasError, match="reserved for future use"):
+        Canvas("──R1──.")
+    with pytest.raises(CanvasError, match="reserved for future use"):
+        Canvas(".──R1──")

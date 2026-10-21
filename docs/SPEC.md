@@ -1,7 +1,7 @@
 # yasdl specification
 
 The full language and tool reference. For an overview and a first example, see
-[README.md](README.md).
+[README.md](../README.md).
 
 ## 1. Concepts
 
@@ -23,7 +23,8 @@ The full language and tool reference. For an overview and a first example, see
 
 | Class | Characters | Notes |
 |---|---|---|
-| empty | space, `.` | `.` is a visual aiming aid only |
+| empty | space | |
+| reserved | `.` | reserved for future use; an error for now |
 | component | `A-Z a-z 0-9 _` | see 2.2 |
 | single wire | `─ -` `│ \|` `┌ ┐ └ ┘` `├ ┤ ┬ ┴` `┼` | ASCII `-` `\|` equal `─` `│` |
 | bus | `═ ║ ╔ ╗ ╚ ╝`, taps `╟ ╢ ╤ ╧` | section 2.6 (specified, not implemented yet) |
@@ -319,8 +320,8 @@ direction matters but nothing in the drawing pins it down, e.g. a non-symmetric 
 vertical slot, rule 3 still decides, deterministically. Label a pin or orient explicitly if
 the default isn't what you want.
 
-*(Corner markers like `*` for pin 1 were considered and dropped: they break the KMP naming
-and `.` already means empty. Pin labels give the same information.)*
+*(Corner markers like `*` for pin 1 were considered and dropped: they break the KMP naming.
+Pin labels give the same information.)*
 
 ### 3.3 Sub-blocks
 
@@ -479,7 +480,10 @@ from the flattened design:
 - **SPICE round trip**: `render(..., spice=True)` checks that KiCad's SPICE export of the
   schematic equals yasdl's own netlist, element by element.
 
-**Example: `examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
+Its simulation tests read the 2N3904 model file from `YASDL_BJT_MOD`, and the oracle comparison
+reads `YASDL_SGEN_ORACLE`; both are skipped when unset.
+
+**Example: `docs/examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
 emitter-follower buffer), composed from small blocks:
 - `PHASE_SHIFT`: the 3-section RC ladder;
 - `OSCILLATOR`: the Q1 gain stage with the ladder as feedback;
@@ -497,16 +501,14 @@ clearer.) The generated `.subckt sgen vp vm out` is structurally identical to th
 netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic
 oscillate at 1967 Hz, the same as the oracle.
 
-![sine generator](docs/examples/SGen.png)
+![sine generator](examples/generated/SGen.png)
 
 ## 7. Tooling
 
 - `Sketch`: build wide canvases by coordinates (`text`, `hline`, `vline`, `box`, `render`)
   instead of typing them by hand.
 - **Agent skill** `skills/yasdl-circuit-design/SKILL.md`: the workflow, canvas cheat sheet,
-  layout style guide and error fixes for EE-assistant agents. Install it with
-  `ln -s ~/work/yasdl/skills/yasdl-circuit-design ~/.claude/skills/`; it triggers on
-  circuit-design tasks.
+  layout style guide and error fixes for EE-assistant agents.
 
 ## 8. Status
 

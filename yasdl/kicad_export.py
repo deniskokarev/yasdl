@@ -9,7 +9,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .block import Block, netlist, partition
+from .block import Block, flat_names, netlist, partition
 from .kicad_lib import KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR, to_screen
 from .kicad_sch import Schematic, export_netlist, export_svg, run_erc, snap
 from .layout import layout
@@ -80,10 +80,17 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
         sch.add_label(text, t(p))
         labels.append((text, t(p), not scoped))
     port_points = []
-    for port, p in zip(block.ports, res.ports):
-        sch.add_label(port.name or port.default, t(p),
-                      {"W": 180, "E": 0, "N": 90, "S": 270}[port.side])
-        labels.append((port.name or port.default, t(p), False))
+    uf, _, names = flat_names(block)
+    for port, edge, p in zip(block.ports, block.canvas.edge_ports, res.ports):
+        alias = port.name or port.default
+        root = uf.find(("", block.canvas.uf.find(edge.node)))
+        angle = {"W": 180, "E": 0, "N": 90, "S": 270}[port.side]
+        if alias == names[root]:
+            sch.add_label(alias, t(p), angle)
+            labels.append((alias, t(p), False))
+        else:
+            # Multiple interface aliases need not rename one electrical net.
+            sch.add_text(alias, t(p), angle)
         port_points.append((port.side, t(p)))
     if erc_helpers:
         for side, p in port_points:  # open interface: a test point gives the net a second pin

@@ -103,6 +103,8 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
   ───│───   or   ───────     (vertical on top / horizontal on top)
      │              │
   ```
+- A crossing may sit directly beside a component or label. The renderer connects through
+  it to the next real node or pin, without placing an electrical endpoint on the crossing.
 - A wire that ends on a straight wire from one side only (an implied T) is an error; use a
   tee.
 
@@ -395,7 +397,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   complete drawing and port-label margin. Symbols are copied from KiCad 9's libraries into
   `lib_symbols`. References are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a
   `yasdl_path` field with its hierarchical name (`FB.R1`).
-- Wires, junction dots, net labels, and labels for the top block's ports.
+- Wires, junction dots, net labels, and labels for the top block's ports. Ports that alias an
+  existing net name (e.g. `{VP}` connected to `<VCC>`, or two ports on one wire) retain their
+  visible names as non-electrical text. Only the canonical name becomes an electrical label,
+  avoiding KiCad's `multiple_net_names` warning without hiding or disabling ERC checks.
 - **ERC-clean by construction.** Every exported schematic passes `kicad-cli sch erc` with no
   errors and no warnings. Nothing is required in the drawing; the export adds:
   - a `.kicad_pro` and a `sym-lib-table` next to the schematic, so the symbol libraries are
@@ -424,7 +429,11 @@ containing `KiCad.app` (for example `/Applications/KiCad`) or the app bundle its
 `spice_netlist(block, subckt="name", port_order=None, includes=())` writes an ngspice netlist
 from the flattened design:
 - **Ports**: with `subckt`, the netlist is wrapped in `.subckt name <ports>`, ports in DIP
-  order (2.7) unless `port_order` lists port names. Without it, a flat netlist is written.
+  order (2.7) unless `port_order` lists port names. Formal port aliases take precedence over
+  internal global names in subcircuit exports: `{VP}` wired to `<VCC>` yields a `VP` pin and
+  `VP` device nodes. Without `subckt`, a flat netlist is written and retains `VCC`.
+  Ground remains implicit node `0`, never a subcircuit port. Two ports on one net can't both
+  be subcircuit pins (ngspice silently miswires duplicate formal nodes), so that's an error.
 - **Nodes**: global nets keep their names, and `GND` becomes node `0`. Ports use their
   aliases; other nets are `n1`, `n2`, ...
 - **Elements**: each atom becomes one element named `<letter>_<path>` (`C_PS_C1`), through a

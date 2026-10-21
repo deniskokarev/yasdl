@@ -112,6 +112,12 @@ class Schematic:
         self.items.append([Sym("label"), name, [Sym("at"), _num(p[0]), _num(p[1]), _num(angle)],
                            _effects(justify=justify), [Sym("uuid"), _uid()]])
 
+    def add_text(self, text: str, p, angle: int = 0):
+        """Non-electrical annotation with the same placement as a net label."""
+        justify = {0: "left bottom", 180: "right bottom", 90: "left bottom", 270: "right bottom"}[angle]
+        self.items.append([Sym("text"), text, [Sym("at"), _num(p[0]), _num(p[1]), _num(angle)],
+                           _effects(justify=justify), [Sym("uuid"), _uid()]])
+
     def to_sexp(self):
         libs = [Sym("lib_symbols")]
         for lib_id in self.lib_ids:

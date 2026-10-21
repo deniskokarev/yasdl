@@ -1,5 +1,7 @@
 """Net naming (spec 2.8): reserved global names, unique user names, collision-free generated names."""
 
+import re
+
 import pytest
 
 from yasdl import NPN, R, Block, YasdlError, netlist, partition, spice_netlist
@@ -70,6 +72,14 @@ def test_ground_port_not_a_subckt_pin():
     assert "0" in spice_netlist(blk).split()
     with pytest.raises(YasdlError, match="global ground"):
         spice_netlist(blk, subckt="x")
+
+
+def test_one_net_two_subckt_pins_rejected():
+    blk = Block("Thru", "{input}──┬──{output}\n         │\n         R1\n         │\n       <GND>",
+                R1=R("1k"))
+    assert re.search(r"^R_R1 (input|output) 0 1k$", spice_netlist(blk), re.M)  # flat is fine
+    with pytest.raises(YasdlError, match="same net"):
+        spice_netlist(blk, subckt="thru")  # ngspice silently miswires duplicate formal nodes
 
 
 def test_reserved_pin_names_not_reexported():

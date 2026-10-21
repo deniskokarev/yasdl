@@ -59,8 +59,25 @@ SHUNT = Block("Shunt", """
          GND
 """, R1=R("1k"), P=PARALLEL, GND=GND())
 
+# A port may expose a named power rail without changing its formal interface name.
+SUPPLY_ALIAS = Block("SupplyAlias", """
+    {VP}──┬──R1──{out}
+          │
+        <VCC>
+""", R1=R("1k"))
+
+# The crossing is directly between a power label and a resistor terminal.
+CROSSING_SUPPLY = Block("CrossingSupply", """
+          <VCC>
+    {a}─────│─────{b}
+            R1
+            │
+          <GND>
+""", R1=R("1k"))
+
 ALL = {"SERIES": SERIES, "PARALLEL": PARALLEL, "SERIES_PARALLEL": SERIES_PARALLEL,
-       "DARLINGTON": DARLINGTON, "INV_AMP_RESISTORS": INV_AMP_RESISTORS, "SHUNT": SHUNT}
+       "DARLINGTON": DARLINGTON, "INV_AMP_RESISTORS": INV_AMP_RESISTORS, "SHUNT": SHUNT,
+       "SUPPLY_ALIAS": SUPPLY_ALIAS, "CROSSING_SUPPLY": CROSSING_SUPPLY}
 
 if __name__ == "__main__":
     for title, blk in ALL.items():

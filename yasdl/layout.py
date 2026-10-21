@@ -403,7 +403,20 @@ class Layout:
                 items = []
                 for att in comp.attachments[side]:
                     px, py = shape.pins[id(att)]
-                    items.append((node_point(att.cell), (origin[0] + px, origin[1] + py)))
+                    cell = att.cell
+                    while cell in cv.crossings:
+                        cell = walk(cell, side)
+                    if cell in cv.comp_at:
+                        # A crossing may be the only cell between two symbols.
+                        other = cv.comp_at[cell]
+                        opposite = {"N": "S", "S": "N", "E": "W", "W": "E"}[side]
+                        target = next(a for a in cv.comps[other].attachments[opposite]
+                                      if a.pos == att.pos)
+                        tx, ty = self.shapes[other].pins[id(target)]
+                        wire_point = (ox[other] + tx, oy[other] + ty)
+                    else:
+                        wire_point = node_point(cell)
+                    items.append((wire_point, (origin[0] + px, origin[1] + py)))
                 res.wires += _route_side(side, items, f"{self.block.name}.{name}")
 
         # Edge ports.

@@ -90,6 +90,24 @@ def spice_netlist(block: Block, subckt: str | None = None, port_order: list[str]
         ports = [block.port(n) for n in port_order]
         if len(ports) != len(block.ports):
             raise YasdlError(f"{block.name}: port_order must list every port once")
+    if subckt:
+        # Formal interface names must survive an internal global supply label.
+        # Flat exports retain the global name for KiCad/SPICE round trips.
+        names = dict(names)
+        for port in ports:
+            edge = cv.edge_ports[block.ports.index(port)]
+            root = uf.find(("", cv.uf.find(edge.node)))
+            if port.name:
+                names[root] = port.name
+    if subckt:  # one net exposed twice: ngspice silently miswires duplicate formal nodes
+        seen = {}
+        for port in ports:
+            root = uf.find(("", cv.uf.find(cv.edge_ports[block.ports.index(port)].node)))
+            if root in seen:
+                raise YasdlError(f"{block.name}: ports {seen[root]} and {port.name or port.default} "
+                                 "are the same net; a SPICE subcircuit can't expose one node as two "
+                                 "pins (ngspice would miswire it). Keep one of the ports.")
+            seen[root] = port.name or port.default
     port_nodes = []
     for port in ports:
         edge_node = ("", cv.uf.find(cv.edge_ports[block.ports.index(port)].node))

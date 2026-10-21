@@ -145,6 +145,13 @@ Hard rules, all enforced with precise errors:
   rarely matches a task's required order once power is on top. Pass the task's order:
   `spice_netlist(top, subckt="x", port_order=["vp", "vm", "out"])`. Don't move ports to fix
   pin order.
+- An external `{VP}` port may feed an internal `<VCC>` power rail. Subcircuit export
+  preserves the formal `VP` name; flat KiCad/SPICE export keeps `VCC`. Aliases on the same
+  electrical net are rendered as annotations instead of conflicting KiCad net labels.
+- Crossings directly beside a component or label are supported. Keep the intended straight
+  wire glyph and do not replace it with a junction to make an export pass.
+- Keep inter-stage signals on drawn wires and explicit block ports. Use power globals freely;
+  reserve global signal labels for a small number of genuinely shared signals.
 - Leave a blank row or column where wide parts (sub-blocks, labels) need room. The layout
   separates overlapping shapes, but tight canvases look cramped.
 
@@ -169,6 +176,9 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 
 - Atom values are SPICE values (`"4.7k"`, `"100n"`). Transistors and diodes take the model
   name as their value (`NPN("2N3904")`, `D("1N4148")`). Models come from `includes`/`spice_libs`.
+- `includes` adds top-level `.include` cards. For a component-only library whose verifier
+  supplies approved models, omit `includes`; pass model files to `render(spice_libs=...)`
+  and include them in your simulation testbench instead.
 - Parts without a default SPICE mapping (the op-amp) need `Atom(..., spice=SpiceModel(...))`,
   e.g. a behavioural subcircuit `SpiceModel("X", pins=(...), model="myopamp")`.
 

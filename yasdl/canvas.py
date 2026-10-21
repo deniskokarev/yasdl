@@ -21,8 +21,12 @@ ARMS = {
 STRAIGHT_H, STRAIGHT_V = "─-", "│|"
 BUS_CHARS = set("═║╔╗╚╝╟╢╤╧")
 EMPTY = " ."
-PIN_SHORTCUTS = "+"
-ARROW_CHARS = "<>^"  # reserved for directional pin labels (spec 2.5); "v"/"V" too, see _scan
+ARROWS = {">": "E", "<": "W", "^": "N", "v": "S"}  # directional pin labels (spec 2.5)
+PIN_SHORTCUTS = "+<>^"  # one-character pin labels (plus a lone v, see _scan)
+
+
+def _word_char(ch: str) -> bool:
+    return ch.isalnum() or ch == "_"
 
 
 class CanvasError(ValueError):
@@ -171,13 +175,11 @@ class Canvas:
                     continue
                 if ch in "]}":
                     self.err(f"{ch!r} without its opening bracket", r, c)
-                if ch in ARROW_CHARS:
-                    end = row.find(">", c + 1) if ch == "<" else -1
-                    if end > c + 1 and row[c + 1:end].replace("_", "").isalnum():
-                        self.err(f"labels are written [{row[c + 1:end]}] now; '<' is reserved for "
-                                 "directional pin labels", r, c)
-                    self.err(f"{ch!r} is reserved for directional pin labels", r, c)
-                if ch in PIN_SHORTCUTS:
+                lone_v = ch in "vV" and not (c > 0 and _word_char(row[c - 1])) and \
+                    not (c + 1 < self.W and _word_char(row[c + 1]))
+                if lone_v:
+                    ch = "v"  # a lone v (no letters/digits beside it) is the down arrow
+                if ch in PIN_SHORTCUTS or lone_v:
                     self._add_label(ch, r, c, c, shortcut=True)
                 elif ch in ARMS:
                     self.wires[(r, c)] = ARMS[ch]
@@ -311,6 +313,10 @@ class Canvas:
             comp = self.comps[touches[0][0]]
             direction = touches[0][1]  # where the component is, seen from the label
             side = OPPOSITE[direction]
+            if lab.text in ARROWS and (ARROWS[lab.text] in "EW") != (side in "EW"):
+                axis = "left or right of" if lab.text in "<>" else "above or below"
+                self.err(f"arrow {lab.text!r} must sit {axis} a component (it points along the "
+                         "pin)", lab.row, lab.c0)
             if side in "EW":
                 pos = lab.row
             else:
@@ -320,8 +326,10 @@ class Canvas:
                 if not comp.c0 <= pos <= comp.c1:
                     self.err(f"the wire through [{lab.text}] misses {comp.name}", lab.row, pos)
             if not self._label_has_wire(i):
-                self.err(f"pin label [{lab.text}] of {comp.name} is not connected to a wire",
-                         lab.row, lab.c0)
+                hint = (" (old-style label? labels are written [name] now)"
+                        if lab.text in "<>" else "")
+                self.err(f"pin label [{lab.text}] of {comp.name} is not connected to a wire"
+                         + hint, lab.row, lab.c0)
             lab.pin_of = comp.name
             cell = (lab.row, pos if side in "NS" else (lab.c1 if side == "W" else lab.c0))
             comp.attachments[side].append(Attachment(side, pos, cell, ("l", i), lab.text))
@@ -373,7 +381,9 @@ class Canvas:
         for i, lab in enumerate(self.labels):
             if lab.pin_of is None and not lab.brace:
                 if lab.shortcut:
-                    self.err(f"'{lab.text}' is a pin shortcut and must touch a component",
+                    kind = "arrow" if lab.text in ARROWS else "pin shortcut"
+                    self.err(f"'{lab.text}' is a one-character {kind} pin label and must touch a "
+                             "component",
                              lab.row, lab.c0)
                 node = ("l", i)
                 if lab.text in by_text:

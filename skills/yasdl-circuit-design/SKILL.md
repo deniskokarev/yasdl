@@ -104,6 +104,7 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
 | port | `{name}` on the canvas edge, wire going inward | or a bare wire leaving the canvas (`W0`, ...) |
 | pin label | `[b]Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
+| arrow pin label | `>D1` (beside), `v` above/below | conventional current; rotates with the part and picks its orientation: `──>D1──` anode left; NPN base `>`, emitter `v`. One arrow per pin; `<`/`>` only beside, `^`/`v` only above/below |
 | global net | `[VCC]` with a wire on one side only | connects across all blocks; `[GND]`, `[VCC]`, `[VEE]`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
 | local net | `──[x]──` (wires on both sides) | block-scoped name |
 

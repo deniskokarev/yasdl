@@ -150,14 +150,14 @@ def test_json_view():
 def test_bracket_labels_and_reserved_arrows():
     nets = netlist(Block("L", "──R1──[x]\n\n[x]──R2──", R1=R(), R2=R()))
     assert len(nets["x"]) == 2
-    with pytest.raises(CanvasError, match=r"written \[GND\] now"):
-        Canvas("──R1──<GND>")  # old label syntax: migration hint
-    for ch in "<>^":
-        with pytest.raises(CanvasError, match="reserved for directional"):
-            Canvas(f"──R1──{ch}")
+    with pytest.raises(CanvasError, match="old-style label"):
+        Canvas("──R1──<GND>")  # old label syntax: arrows around a component, no wire: hint
+    for ch in "<>^vV":
+        with pytest.raises(CanvasError, match="arrow pin label and must touch"):
+            Canvas(f"──R1──{ch}──")  # arrows are pin labels, not wire decorations
 
 
-@pytest.mark.parametrize("name", ["v", "V", "vv", "VVV"])
+@pytest.mark.parametrize("name", ["vv", "VVV"])  # a lone v/V is an arrow, never a component
 def test_component_named_v_rejected(name):
     with pytest.raises(CanvasError, match="named v or V"):
         Canvas(f"──{name}──")

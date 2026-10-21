@@ -159,8 +159,54 @@ What a bracket label `[name]` means depends on what it touches:
    │
   ```
 - `+` is a one-character pin label (`──+C1──`, or `+` on the op-amp's non-inverting input
-  above). Atoms can declare aliases, e.g. `C_POL` maps `+` to pin 1. Only `+` is reserved so
-  far.
+  above). Atoms can declare aliases, e.g. `C_POL` maps `+` to pin 1.
+
+#### Directional pin labels: `<` `>` `^` `v`
+
+The arrows are one-character pin labels that **rotate and mirror with the part**. `v` and
+`V` are the same arrow; a `v` is an arrow only when no letter, digit or `_` touches it left or
+right (`v1v1v1` is a component named `v1`), which is why no component may be named `v`.
+
+- **Meaning: conventional current.** An arrow at a pin points the way current flows through
+  that pin: into the part on an input, out on an output. Atoms declare arrows in their library
+  orientation (`Atom(..., arrows={pin: arrow})`):
+  - `D`: the anode, `<` (current enters it and points at the cathode);
+  - `NPN`: base `>` (in), emitter `v` (out, like the symbol's own arrow);
+  - `PNP`: base `<` (out), emitter `^` (in).
+- **One pin per arrow.** On atoms and on block ports alike, an arrow names exactly one pin, so
+  `{>}──…──{>}` is an error (two ports with one alias). Name other pins in brackets (`[c]`).
+- **Placement**: `<` and `>` only beside a component (W/E sides), `^` and `v` only above or below
+  it (N/S). An arrow touching nothing, or on the wrong axis, is an error. This also keeps arrows
+  from merging into names: `──vQ1` would be a component `vQ1`, and the error says so.
+- **Matching**: when binding, an arrow label at a side fits a pin only if that pin's arrow,
+  turned by the candidate orientation, points the same way (3.2). So arrows choose the
+  orientation:
+  ```
+  ──>D1──     anode left           ──D1<──     anode right (library orientation)
+     │
+     v        anode on top         ──<Q2Q2──   NPN in common base: emitter current
+     D1                               Q2Q2     leaves on the left, base current enters
+     │                                ^        from below; collector on the right
+  ```
+  An arrow that can't be produced by rotating the part is rejected: `──D1>──` (only the anode
+  has an arrow), or `──>Q2Q2>──` (signal-flow arrows; current in a common-base NPN flows the
+  other way).
+- **Block ports** take arrow aliases from `{<}`, `{>}`, `{^}`, `{v}`: `<`/`>` only on W/E ports,
+  `^`/`v` only on N/S ports, so a rotation can never turn an arrow into a letter glued to a name.
+  An arrow alias is never a port's display name.
+
+**Mirror-agnostic pairs.** Arrows on opposite ports that point the same way relative to the
+block (both outward `{<}──…──{>}`, or both inward `{>}──…──{<}`) still match after a
+left/right mirror. Such a block fits either way round, with **no guarantee which port lands on
+which side**:
+```
+TWO_R = Block("TwoR", "{<}──R1──R2──{>}", R1=R("1k"), R2=R("2k"))
+Block("H", "{a}──<RX>──{b}", RX=TWO_R)                # a–R1 … R2–b
+Block("H", "{a}──<RX>──{b}", RX=TWO_R.mirrored("y"))  # a–R2 … R1–b: the same labels fit
+```
+That's fine for parts that don't care (a resistor network, a fuse). When direction matters, give
+the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way) or name the ports
+(`[a]`/`[k]` labels in the host). Arrows are optional: `──R1──` needs none.
 
 ### 2.6 Buses (specified, not implemented)
 

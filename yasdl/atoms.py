@@ -20,16 +20,22 @@ def C_POL(value: str = "") -> Atom:
     return Atom("Device:C_Polarized", value, aliases={"+": "1"})
 
 
+# Arrows show conventional current in the library orientation, one pin per arrow (spec 2.5).
 def NPN(value: str = "") -> Atom:
-    return Atom("Device:Q_NPN", value)
+    """B left (> current in), C top, E bottom (v current out, like the symbol's arrow)."""
+    return Atom("Device:Q_NPN", value, arrows={"B": ">", "E": "v"})
 
 
 def PNP(value: str = "") -> Atom:
-    return Atom("Device:Q_PNP", value)
+    """B left (< current out), C top, E bottom (^ current in)."""
+    return Atom("Device:Q_PNP", value, arrows={"B": "<", "E": "^"})
 
 
 def D(value: str = "") -> Atom:
-    return Atom("Device:D", value)
+    """Diode: cathode (pin 1) left, anode (pin 2) right. The anode carries the arrow: current
+    enters it, pointing at the cathode (< in the library orientation), so --->D1--- puts the
+    anode on the left."""
+    return Atom("Device:D", value, arrows={"2": "<"})
 
 
 def OPAMP(value: str = "") -> Atom:

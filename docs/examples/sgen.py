@@ -50,9 +50,10 @@ OSCILLATOR = Block("Oscillator", """
        └───────────PS[in]─────────┘
 """, RA=R("300k"), RB=R("47k"), RC=R("4.7k"), REUP=R("68"), REDN=R("910"), CE=C("100u"),
     Q1=NPN("2N3904"),
-    # The ladder runs from the collector (right) to the base (left): mirrored left/right so its
-    # shunt legs keep hanging down. The [in] pin label documents that and is checked.
-    PS=PHASE_SHIFT.mirrored("y"))
+    # The ladder runs from the collector (right) to the base (left). The [in] pin label on the
+    # right side is enough: of the two fits (180 deg turn, left/right mirror) yasdl picks the
+    # mirror, which keeps the shunt legs hanging down (spec 3.2).
+    PS=PHASE_SHIFT)
 
 OUTPUT_AMP = Block("OutputAmp", """
                          {vp}

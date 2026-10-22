@@ -961,6 +961,31 @@ exported without its `.kicad_pro` (for example a renamed copy). A moved project 
 ERC and exports SPICE. KiCad's own symbol libraries remain an installation dependency,
 resolved where the project is opened. `bundle_models=False` keeps absolute paths.
 
+### 6.7 Linear analysis (MNA)
+
+`yasdl.analysis` solves the flattened design in the s-domain by modified nodal analysis, so
+every drawing comes with its transfer functions, exact whatever the loading between stages:
+
+```python
+from yasdl.analysis import Circuit, elements
+ckt = Circuit(block)
+ckt.transfer("V1", "vo", s=2j * math.pi * 1e3)   # numeric, element values from the bindings
+ckt.transfer_symbolic("V1", "vo")                 # sympy H(s) in the element names (optional dep)
+ckt.transfer_symbolic("V1", "vo", numeric=True)   # values plugged in as exact rationals
+```
+
+- `elements(block)`: the flattened elements (`name`, `path`, `kind`, SPICE-ordered `nodes`,
+  numeric `value`), net names as in `netlist()`, ground `"0"`. Names are the components'
+  own names when unique across the design, else the path with `.` → `_` (`A_RI`).
+- Elements: R, C, L, `V`, `I` (SPICE current direction) and `OPAMP_IDEAL` as a nullor
+  (V(+) = V(−), no input current). Anything else is an error.
+- Values parse as SPICE numbers (`4.7k`, `2meg`, `1M` = milli). A source's small-signal value
+  is its `ac` magnitude, else its DC value, else 1.
+- A circuit without a unique solution (source loops, op-amp outputs fighting a source) is an
+  error, numerically and symbolically.
+- Numeric solving is stdlib only; `transfer_symbolic` needs sympy. Tests compare against
+  closed forms and ngspice.
+
 ## 7. Tooling
 
 - The KiCad S-expression reader (`yasdl.sexp.parse`) raises `ValueError` with an
@@ -1022,5 +1047,7 @@ resolved where the project is opened. `bundle_models=False` keeps absolute paths
   values, model bodies or equivalent expressions. Simulation and measurements remain
   circuit-specific; no simulation runs automatically. Models do not establish physical lead
   numbers or ratings.
+- Linear analysis (6.7) covers R, C, L, V, I and the ideal op-amp; other parts (diodes,
+  transistors, pots, packages, X models) are rejected rather than linearized.
 
 See [API.md](API.md) for the callable interfaces and parameter conventions.

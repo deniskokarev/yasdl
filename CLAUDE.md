@@ -30,8 +30,9 @@ changes.
   schematic, ERC helpers, round trips), `spice.py` (SPICE export, comparison parser),
   `sketch.py` (atomic canvas construction), `atoms.py` (atom factories, pots), `parts.py`
   (generic part factories, standard parts, packages), `resources.py` (portable model copies),
-  `std.py` (standard blocks), `circuits.py` (reusable circuits) and `standard.py` (positional
-  entry points to them).
+  `std.py` (standard blocks), `circuits.py` (reusable circuits), `standard.py` (positional
+  entry points to them) and `analysis.py` (MNA transfer functions; sympy optional). Bundled
+  symbols/models: `yasdl/lib/`.
 - Standard topologies are literal ASCII canvases in the source; parameterized families repeat
   small literal cells or strips. Don't generate them with `Sketch`.
 - Standard-part pin maps are checked against an independent reference (the exact KiCad

@@ -293,6 +293,16 @@ Supply all package units once; check a partial-package block inside its containi
 returns electrical track position. `Sketch.crossing_count` counts deliberate crossings;
 `Sketch.crossings` exposes their coordinates. Full callable details: `docs/API.md`.
 
+## Transfer functions without a simulator run
+
+```python
+from yasdl.analysis import Circuit
+ckt = Circuit(top)                                  # R, C, L, V, I, OPAMP_IDEAL
+ckt.transfer("V1", "out", s=2j * math.pi * f)       # numeric H(jw), stdlib only
+ckt.transfer_symbolic("V1", "out")                  # sympy H(s) in element names
+```
+Use it to check a design against its target in milliseconds; confirm the final one in ngspice.
+
 ## Sketch for wide canvases
 
 Counting columns by hand is the most common source of errors (a row shifted by one column).

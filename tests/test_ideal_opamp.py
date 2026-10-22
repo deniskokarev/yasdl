@@ -130,3 +130,12 @@ def test_reference_names_fall_back_to_paths_when_names_repeat():
     with tempfile.TemporaryDirectory() as tmp:
         _, refmap = to_kicad(twice, f"{tmp}/t.kicad_sch", references="names")
     assert {"A_RI", "B_RI", "A_U1", "V1"} <= set(refmap)
+
+
+@pytest.mark.skipif(not have_kicad, reason="KiCad not installed")
+def test_render_without_erc_helpers(tmp_path):
+    from yasdl.kicad_export import render
+    info = render(TESTBENCH, tmp_path, svg=False, erc_helpers=False)
+    assert info["roundtrip_ok"] and info["erc"] is None
+    text = info["schematic"].read_text()
+    assert "PWR_FLAG" not in text and "TestPoint" not in text

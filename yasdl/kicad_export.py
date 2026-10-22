@@ -354,7 +354,11 @@ def render(
     spice: bool = False,
     references: str = "annotate",
     values: bool = True,
+    erc_helpers: bool = True,
 ) -> dict:
+    """Schematic (+ SVG) of `block` with the netlist round trip, ERC and optional SPICE round
+    trip. erc_helpers=False draws no test points or power flags (a cleaner picture); ERC is
+    then not run (info["erc"] is None), since it would flag exactly what the helpers fix."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(
@@ -363,6 +367,7 @@ def render(
         spice_libs=spice_libs,
         references=references,
         values=values,
+        erc_helpers=erc_helpers,
     )
     ok, missing, extra = roundtrip(block, sch_path, refmap)
     info: dict[str, object] = {
@@ -370,7 +375,7 @@ def render(
         "roundtrip_ok": ok,
         "missing": missing,
         "extra": extra,
-        "erc": erc(sch_path),
+        "erc": erc(sch_path) if erc_helpers else None,
     }
     if spice:
         info["spice_ok"], info["spice_diff"] = spice_roundtrip(block, sch_path, refmap)

@@ -171,7 +171,7 @@ labels; the labels choose the orientation.
 ## API
 
 ```python
-from yasdl import (Block, Sketch, R, C, L, D, NPN, PNP, OPAMP, GND, VCC, VEE, C_POL,
+from yasdl import (Block, Sketch, R, C, L, D, NPN, PNP, OPAMP, OPAMP_IDEAL, V, I, GND, VCC, VEE, C_POL,
                    netlist, spice_netlist, register_power_net, SpiceModel)
 from yasdl.kicad_export import render
 
@@ -192,7 +192,12 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 - `includes` adds top-level `.include` cards. For a component-only library whose verifier
   supplies approved models, omit `includes`; pass model files to `render(spice_libs=...)`
   and include them in your simulation testbench instead.
-- Parts without a default SPICE mapping (the op-amp) need `Atom(..., spice=SpiceModel(...))`,
+- `OPAMP_IDEAL()`: ideal op-amp **without supply pins** (3 pins: `+` above `-`, output E),
+  simulated by the bundled `yasdl_ideal_opamp` model, auto-included by `spice_netlist`. Use it
+  for transfer-function work; no `[VCC]`/`[VEE]` wires. A `+` on its lower input flips it.
+- `V("dc 0 ac 1")`, `I("1m")`: independent sources; the value is the SPICE source spec. `+`
+  marks V's positive pin; `v`/`^` beside I's output pin gives the current direction.
+- Parts without a default SPICE mapping (the 5-pin `OPAMP()`) need `Atom(..., spice=SpiceModel(...))`,
   e.g. a behavioural subcircuit `SpiceModel("X", pins=(...), model="myopamp")`.
 
 ## Sketch for wide canvases

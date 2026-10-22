@@ -473,6 +473,18 @@ from the flattened design:
   Model-based parts take the model name from the value (`NPN("2N3904")`). Other symbols
   need `Atom(..., spice=SpiceModel(...))`, or export fails with an error. Power symbols are
   global nets, not elements.
+- **Bundled library** `yasdl` (`yasdl/lib/yasdl.kicad_sym`, models in `yasdl/lib/yasdl.lib`)
+  holds symbols KiCad lacks. `OPAMP_IDEAL()` is `yasdl:OPAMP_IDEAL`: the op-amp triangle with
+  only `+` (pin 1, above), `-` (pin 2) and the output (pin 3), no supply pins, so it needs no
+  rail wires. It simulates as `yasdl_ideal_opamp`, a behavioural source
+  `V(out) = 1e9 * (V(+) - V(-))`. A `SpiceModel` may name its `library`; `spice_netlist`
+  `.include`s each such library once, and the KiCad export puts it in `Sim.Library`. The
+  generated `sym-lib-table` lists the bundled libraries next to KiCad's, and is rewritten when
+  the set of libraries changes.
+- **Sources**: `V(spec)` (`Simulation_SPICE:VDC`, `+` on pin 1, on top) and `I(spec)`
+  (`Simulation_SPICE:IDC`) export as `V`/`I` elements whose value is the SPICE source
+  specification (`"dc 0 ac 1"`, `"pulse(...)"`). SPICE current flows from pin 1 through the
+  source to pin 2, i.e. out of pin 2, which carries the arrow `v`.
 - **KiCad simulation fields**: `to_kicad(..., spice_libs=(paths,))` adds `Sim.Library`,
   `Sim.Name` and `Sim.Pins` to model-based parts whose model is defined in one of the libraries.
   `kicad-cli sch export netlist --format spice` then works on the schematic. ERC helpers are
@@ -535,4 +547,5 @@ oscillate at 1967 Hz, the same as the oracle.
 - Component names with a repeating period collapse by design (`CC` → `C`, `RR` → `R`). That's
   surprising in practice; a warning when a multi-character row reduces to one character
   might help.
-- SPICE for op-amps: ngspice has no ideal op-amp; a behavioural subcircuit mapping is needed.
+- SPICE for op-amps with supplies (`OPAMP()`): still needs a user `SpiceModel`; `OPAMP_IDEAL()`
+  covers the ideal case.

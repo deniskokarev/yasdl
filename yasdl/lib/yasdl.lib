@@ -1,0 +1,9 @@
+* yasdl simulation models.
+*
+* Ideal op-amp without supply pins (symbol yasdl:OPAMP_IDEAL): no input
+* current, zero output impedance, no rails, no pole. A behavioural source
+* drives the output with GAIN*(V(inp)-V(inn)); GAIN stands in for infinity
+* (1e9 keeps closed-loop errors below 1 ppb for loop gains near 1).
+.subckt yasdl_ideal_opamp inp inn out params: GAIN=1e9
+B1 out 0 V={GAIN}*(V(inp)-V(inn))
+.ends yasdl_ideal_opamp

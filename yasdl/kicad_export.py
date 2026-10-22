@@ -10,7 +10,7 @@ from collections import Counter
 from pathlib import Path
 
 from .block import Block, flat_names, netlist, partition
-from .kicad_lib import KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR, to_screen
+from .kicad_lib import KICAD_CLI, library_names, library_path, TEMPLATE_DIR, to_screen
 from .kicad_sch import export_netlist, export_svg, run_erc, Schematic, snap
 from .layout import layout
 from .spice import (
@@ -154,10 +154,12 @@ def _sim_fields(atom, spice_libs) -> dict:
         return {}
     if m is None or not m.model or atom.spice is None and not m.sim_pins:
         return {}
-    lib = model_library(m.model, spice_libs)
+    lib = m.library or model_library(m.model, spice_libs)
     if lib is None:
         return {}
     fields = {"Sim.Library": lib, "Sim.Name": m.model}
+    if m.prefix == "X":
+        fields["Sim.Device"] = "SUBCKT"
     if m.sim_pins:
         fields["Sim.Pins"] = m.sim_pins
     return fields
@@ -226,15 +228,15 @@ def _write_project(sch_path: Path):
     if not pro.exists():
         shutil.copy(TEMPLATE_DIR / "kicad.kicad_pro", pro)
     table = sch_path.parent / "sym-lib-table"
-    if not table.exists():
-        libs = sorted(f.stem for f in SYMBOL_DIR.glob("*.kicad_sym"))
-        lines = ["(sym_lib_table", "  (version 7)"]
-        lines += [
-            f'  (lib (name "{lib}")(type "KiCad")(uri "{SYMBOL_DIR / (lib + ".kicad_sym")}")'
-            '(options "")(descr ""))'
-            for lib in libs
-        ]
-        table.write_text("\n".join(lines + [")"]) + "\n")
+    lines = ["(sym_lib_table", "  (version 7)"]
+    lines += [
+        f'  (lib (name "{lib}")(type "KiCad")(uri "{library_path(lib)}")'
+        '(options "")(descr ""))'
+        for lib in library_names()
+    ]
+    text = "\n".join(lines + [")"]) + "\n"
+    if not table.exists() or table.read_text() != text:  # rewritten when libraries change
+        table.write_text(text)
 
 
 def erc(sch_path) -> list[str]:

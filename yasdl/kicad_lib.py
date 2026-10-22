@@ -35,6 +35,23 @@ def _resolve_kicad_layout(root: Path) -> tuple[Path, Path, Path]:
 KICAD_ROOT = Path(os.environ.get("YASDL_KICAD", Path.home() / "KiCad9"))
 KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR = _resolve_kicad_layout(KICAD_ROOT)
 
+# Libraries shipped with yasdl (symbols KiCad lacks, e.g. the supply-less ideal op-amp) and
+# their simulation models. A bundled library shadows a KiCad library of the same name.
+BUNDLED_DIR = Path(__file__).resolve().parent / "lib"
+BUNDLED_MODELS = BUNDLED_DIR / "yasdl.lib"
+
+
+def library_path(lib: str) -> Path:
+    """The .kicad_sym file of library `lib`: bundled first, then KiCad's."""
+    bundled = BUNDLED_DIR / f"{lib}.kicad_sym"
+    return bundled if bundled.exists() else SYMBOL_DIR / f"{lib}.kicad_sym"
+
+
+def library_names() -> list[str]:
+    """Every library a schematic can draw from (KiCad's and yasdl's bundled ones)."""
+    return sorted({f.stem for f in SYMBOL_DIR.glob("*.kicad_sym")} |
+                  {f.stem for f in BUNDLED_DIR.glob("*.kicad_sym")})
+
 # Library pin angle -> side of the symbol the pin sits on (pin points towards the body).
 _ANGLE_SIDE = {0: "W", 180: "E", 270: "N", 90: "S"}
 
@@ -62,7 +79,7 @@ class LibSymbol:
 
 @lru_cache(maxsize=None)
 def _library(lib: str):
-    return parse((SYMBOL_DIR / f"{lib}.kicad_sym").read_text())
+    return parse(library_path(lib).read_text())
 
 
 @lru_cache(maxsize=None)
@@ -71,7 +88,7 @@ def load(lib_id: str) -> LibSymbol:
     root = _library(lib)
     sym = next((s for s in find_all(root, "symbol") if s[1] == name), None)
     if sym is None:
-        raise KeyError(f"symbol {lib_id} not found in {SYMBOL_DIR}")
+        raise KeyError(f"symbol {lib_id} not found in {library_path(lib)}")
     if find(sym, "extends"):
         raise NotImplementedError(
             f"{lib_id}: symbols using (extends) are not supported yet"

@@ -183,6 +183,7 @@ STAGE.port("vp")                  # lookup by alias, "W0" or "D2"
 netlist(STAGE)                    # {net: ["path.pin", ...]}
 spice_netlist(STAGE, subckt="name", port_order=["vp", "vm", "out"], includes=("models.lib",))
 render(STAGE, "out", spice_libs=("models.lib",), spice=True)  # .kicad_sch + .svg + checks
+render(STAGE, "out", references="names", values=False)  # refs = yasdl names, values hidden
 STAGE.to_dict()                   # JSON view for debugging
 Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 ```

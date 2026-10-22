@@ -429,6 +429,10 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
   complete drawing and port-label margin. Symbols are copied from KiCad 9's libraries into
   `lib_symbols`. References are annotated (`R1`, `Q2`, `#PWR001`), and each symbol carries a
   `yasdl_path` field with its hierarchical name (`FB.R1`).
+- `to_kicad(..., references="names")` (also `render`) uses each component's yasdl name as its
+  reference (`RI`, `Rint1`) instead of annotating `R1`, `R2`; when names repeat across
+  sub-blocks it uses the flattened path (`A_RI`). `values=False` hides value fields (they stay
+  in the file and the SPICE export), for symbolic drawings.
 - Wires, junction dots, net labels, and labels for the top block's ports. Ports that alias an
   existing net name (e.g. `{VP}` connected to `[VCC]`, or two ports on one wire) retain their
   visible names as non-electrical text. Only the canonical name becomes an electrical label,

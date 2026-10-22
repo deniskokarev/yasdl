@@ -3,6 +3,9 @@
 	(generator "yasdl")
 	(generator_version "9.0")
 	(symbol "OPAMP_IDEAL"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(offset 0.254)
 		)

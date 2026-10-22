@@ -100,3 +100,33 @@ def test_stale_sym_lib_table_is_rewritten(tmp_path):
     (tmp_path / "sym-lib-table").write_text("(sym_lib_table\n  (version 7)\n)\n")
     info = render(TESTBENCH, tmp_path, svg=False)
     assert info["erc"] == []
+
+
+@pytest.mark.skipif(not have_kicad, reason="KiCad not installed")
+def test_references_from_names_and_hidden_values(tmp_path):
+    from yasdl.kicad_export import render
+    from yasdl.sexp import find, find_all, parse
+    info = render(TESTBENCH, tmp_path, svg=False, spice=True, references="names", values=False)
+    assert info["roundtrip_ok"] and info["erc"] == [] and info["spice_ok"]
+    text = info["schematic"].read_text()
+    refs = set(re.findall(r'\(property "Reference" "([^"#]+)"', text))
+    assert {"V1", "RI", "CF", "U1"} <= refs and not {"R1", "C1"} & refs
+    value = re.search(r'\(property "Value" "1k"(.*?)\n\t\t\)', text, re.S).group(1)
+    assert "(hide yes)" in value
+
+
+def test_reference_names_fall_back_to_paths_when_names_repeat():
+    from yasdl.kicad_export import to_kicad
+    twice = Block("Twice", """
+  ┌──A──B──{out}
+  +
+  V1
+  │
+[GND]
+""", V1=V("ac 1"), A=INTEGRATOR, B=INTEGRATOR)
+    if not have_kicad:
+        pytest.skip("KiCad not installed")
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        _, refmap = to_kicad(twice, f"{tmp}/t.kicad_sch", references="names")
+    assert {"A_RI", "B_RI", "A_U1", "V1"} <= set(refmap)

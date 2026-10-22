@@ -56,8 +56,10 @@ class Schematic:
         mirror: str | None = None,
         fields: dict | None = None,
         helper: bool = False,
+        hide_value: bool = False,
     ):
-        """helper: an ERC helper (test point, power flag): hidden fields, not in BOM/simulation."""
+        """helper: an ERC helper (test point, power flag): hidden fields, not in BOM/simulation.
+        hide_value: keep the Value field but don't show it."""
         sym = load(lib_id)
         if lib_id not in self.lib_ids:
             self.lib_ids.append(lib_id)
@@ -108,6 +110,8 @@ class Schematic:
             }
         if helper:
             spots = {}
+        if hide_value and not sym.is_power:
+            spots.pop("Value", None)
         field_angle = rot % 180  # cancels the symbol rotation: text stays horizontal
         # KiCad keeps text readable: if the symbol transform turns the text direction to point
         # left, it swaps left/right justification. Pre-swap so the text lands where intended.

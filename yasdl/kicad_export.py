@@ -55,18 +55,32 @@ def _ref_prefix(lib_id: str, sym) -> str:
 
 
 def to_kicad(
-    block: Block, path, erc_helpers: bool = True, spice_libs: tuple = ()
+    block: Block,
+    path,
+    erc_helpers: bool = True,
+    spice_libs: tuple = (),
+    references: str = "annotate",
+    values: bool = True,
 ) -> tuple[Path, dict[str, str]]:
     """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
+    references: "annotate" numbers parts per prefix (R1, R2, ...); "names" uses each
+    component's own yasdl name (RI, Rint1) when names are unique design-wide, else the path
+    ("INT1_RI"), so the drawing shows the names a netlist or question uses.
+    values: False hides the value fields (symbolic drawings); the values stay in the file.
     """
+    if references not in ("annotate", "names"):
+        raise ValueError(f"references must be 'annotate' or 'names', not {references!r}")
     res = layout(block)
     dx = MARGIN - res.bbox[0]
     dy = MARGIN - res.bbox[1]
     t = lambda p: (snap(p[0] + dx), snap(p[1] + dy))  # noqa: E731
     sch = Schematic(block.name, paper=_paper_for_bbox(res.bbox))
     counters, refmap, placed = Counter(), {}, []
+    leaf = {p: p.rsplit(".", 1)[-1] for p, a, *_ in res.symbols if not a.symbol.is_power}
+    if len({v.casefold() for v in leaf.values()}) != len(leaf):
+        leaf = {p: p.replace(".", "_") for p in leaf}
     for ypath, atom, x, y, rot, mirror in res.symbols:
         sym = atom.symbol
         prefix = _ref_prefix(atom.lib_id, sym)
@@ -76,7 +90,7 @@ def to_kicad(
             )
         else:
             counters[prefix] += 1
-            ref = f"{prefix}{counters[prefix]}"
+            ref = f"{prefix}{counters[prefix]}" if references == "annotate" else leaf[ypath]
             sch.add_symbol(
                 atom.lib_id,
                 ref,
@@ -85,6 +99,7 @@ def to_kicad(
                 rot,
                 mirror,
                 fields={"yasdl_path": ypath, **_sim_fields(atom, spice_libs)},
+                hide_value=not values,
             )
         refmap[ref] = ypath
         placed.append(
@@ -332,12 +347,22 @@ def spice_roundtrip(block: Block, sch_path, refmap) -> tuple[bool, str]:
 
 
 def render(
-    block: Block, out_dir, svg: bool = True, spice_libs: tuple = (), spice: bool = False
+    block: Block,
+    out_dir,
+    svg: bool = True,
+    spice_libs: tuple = (),
+    spice: bool = False,
+    references: str = "annotate",
+    values: bool = True,
 ) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(
-        block, out_dir / f"{block.name}.kicad_sch", spice_libs=spice_libs
+        block,
+        out_dir / f"{block.name}.kicad_sch",
+        spice_libs=spice_libs,
+        references=references,
+        values=values,
     )
     ok, missing, extra = roundtrip(block, sch_path, refmap)
     info: dict[str, object] = {

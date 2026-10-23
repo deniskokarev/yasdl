@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from docs.examples.sgen import BJT_MODELS, PHASE_SHIFT, SGEN, SGEN_PINS
 from yasdl import spice_netlist, YasdlError
 from yasdl.kicad_lib import KICAD_CLI
@@ -42,9 +41,7 @@ NAME_MAP = {
 
 
 def test_sine_generator_spice_netlist():
-    assert ".subckt sgen vm out vp" in spice_netlist(
-        SGEN, subckt="sgen"
-    )  # DIP order
+    assert ".subckt sgen vm out vp" in spice_netlist(SGEN, subckt="sgen")  # DIP order
     text = spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS)
     assert ".subckt sgen vp vm out" in text  # explicit supply/output order
     assert "Q_OSC_Q1 " in text and "2N3904" in text
@@ -59,12 +56,10 @@ def test_sine_generator_spice_netlist():
 def test_sine_generator_matches_reference_netlist():
     expected = SINE_GENERATOR_NETLIST.read_text()
     actual = spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS)
-    assert re.search(r"^\.subckt sgen (.*)$", actual, re.M).group(
-        1
-    ) == re.search(r"^\.subckt sgen (.*)$", expected, re.M).group(1)
-    expected_part, expected_vals = spice_partition(
-        parse_spice(expected), lambda n: n
-    )
+    assert re.search(r"^\.subckt sgen (.*)$", actual, re.M).group(1) == re.search(
+        r"^\.subckt sgen (.*)$", expected, re.M
+    ).group(1)
+    expected_part, expected_vals = spice_partition(parse_spice(expected), lambda n: n)
     actual_part, actual_vals = spice_partition(
         parse_spice(actual), lambda n: NAME_MAP[n]
     )
@@ -72,17 +67,17 @@ def test_sine_generator_matches_reference_netlist():
     assert actual_vals == expected_vals
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 def test_sine_generator_kicad_export(tmp_path):
     from yasdl.kicad_export import render
 
-    info = render(
-        SGEN, tmp_path, svg=False, spice_libs=(BJT_MODELS,), spice=True
-    )
+    info = render(SGEN, tmp_path, svg=False, spice_libs=(BJT_MODELS,), spice=True)
     assert info["roundtrip_ok"] and info["erc"] == []
     assert info["spice_ok"], info["spice_diff"]
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
 @pytest.mark.parametrize("netlist", ["reference", "generated"])
 def test_sine_generator_oscillates_near_2khz(tmp_path, netlist):

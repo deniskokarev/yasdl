@@ -1,7 +1,6 @@
 import re
 
 import pytest
-
 from yasdl import Block, GND, NPN, OPAMP, R, spice_netlist, YasdlError
 from yasdl.kicad_lib import KICAD_CLI
 
@@ -24,6 +23,7 @@ def test_subckt_supply_keeps_formal_port_alias():
     assert "R_R1 VCC out 1k" in spice_netlist(block)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 @pytest.mark.parametrize(
     "canvas",
@@ -47,6 +47,7 @@ def test_port_aliases_on_one_net_render_cleanly(tmp_path, canvas):
     assert {port.name for port in block.ports} <= visible
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 def test_crossing_between_power_label_and_component(tmp_path):
     from yasdl.kicad_export import render
@@ -68,6 +69,7 @@ def test_crossing_between_power_label_and_component(tmp_path):
     assert info["spice_ok"]
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 def test_crossing_between_two_components(tmp_path):
     from yasdl.kicad_export import render

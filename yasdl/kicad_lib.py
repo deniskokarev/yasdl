@@ -37,7 +37,7 @@ KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR = _resolve_kicad_layout(KICAD_ROOT)
 
 # Libraries shipped with yasdl (symbols KiCad lacks, e.g. the supply-less ideal op-amp) and
 # their simulation models. A bundled library shadows a KiCad library of the same name.
-BUNDLED_DIR = Path(__file__).resolve().parent / "lib"
+BUNDLED_DIR = Path(__file__).parent / "lib"
 BUNDLED_MODELS = BUNDLED_DIR / "yasdl.lib"
 JELLYBEAN_MODEL = BUNDLED_DIR / "jellybean.lib"
 
@@ -50,8 +50,11 @@ def library_path(lib: str) -> Path:
 
 def library_names() -> list[str]:
     """Every library a schematic can draw from (KiCad's and yasdl's bundled ones)."""
-    return sorted({f.stem for f in SYMBOL_DIR.glob("*.kicad_sym")} |
-                  {f.stem for f in BUNDLED_DIR.glob("*.kicad_sym")})
+    return sorted(
+        {f.stem for f in SYMBOL_DIR.glob("*.kicad_sym")}
+        | {f.stem for f in BUNDLED_DIR.glob("*.kicad_sym")}
+    )
+
 
 # Library pin angle -> side of the symbol the pin sits on (pin points towards the body).
 _ANGLE_SIDE = {0: "W", 180: "E", 270: "N", 90: "S"}

@@ -149,3 +149,24 @@ guide and common errors.
 | PARALLEL bound into a vertical slot (turned automatically) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Shunt.png) |
 | Darlington pair (fits wherever an NPN is drawn) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Darlington.png) |
 | 2 kHz sine generator, composed from small blocks | [docs/examples/sgen.py](docs/examples/sgen.py) | ![](docs/examples/generated/SGen.png) |
+
+## 8. Tests
+
+In fbsource, the Buck target runs the self-contained unit tests, using packaged symbol fixtures
+when KiCad's symbol directory is absent:
+
+```sh
+buck2 test fbcode//aai/forge/ee/yasdl/tests:tests
+```
+
+The `integration` tests exercise KiCad ERC and netlist round trips and ngspice
+simulation. Models and the reference sine-generator netlist are bundled with
+yasdl. From this directory, run:
+
+```sh
+export YASDL_KICAD=~/KiCad9
+python3 -m pytest -q -m integration tests
+```
+
+`ngspice` must be on `PATH`. Omit `-m integration` to run the full suite. A regular
+pytest invocation retains the existing skips when external prerequisites are absent.

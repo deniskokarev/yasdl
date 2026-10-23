@@ -48,16 +48,31 @@ def OPAMP_IDEAL() -> Atom:
     """Ideal op-amp without supply pins (yasdl:OPAMP_IDEAL): + above -, out on the right.
     Simulates as the bundled behavioural subcircuit yasdl_ideal_opamp (gain 1e9)."""
     from .spice import SpiceModel
-    return Atom("yasdl:OPAMP_IDEAL", "OPAMP_IDEAL",
-                spice=SpiceModel("X", ("1", "2", "3"), "yasdl_ideal_opamp", "1=inp 2=inn 3=out",
-                                 str(BUNDLED_MODELS)))
+
+    return Atom(
+        "yasdl:OPAMP_IDEAL",
+        "OPAMP_IDEAL",
+        spice=SpiceModel(
+            "X",
+            ("1", "2", "3"),
+            "yasdl_ideal_opamp",
+            "1=inp 2=inn 3=out",
+            str(BUNDLED_MODELS),
+        ),
+    )
 
 
 def V(value: str = "") -> Atom:
     """Independent voltage source (Simulation_SPICE:VDC), + on top. The value is the SPICE
     source specification, e.g. "1", "dc 0 ac 1", "pulse(0 1 0 1n 1n 1m 2m)"."""
     from .spice import SpiceModel
-    return Atom("Simulation_SPICE:VDC", value, aliases={"+": "1"}, spice=SpiceModel("V", ("1", "2")))
+
+    return Atom(
+        "Simulation_SPICE:VDC",
+        value,
+        aliases={"+": "1"},
+        spice=SpiceModel("V", ("1", "2")),
+    )
 
 
 def I(value: str = "") -> Atom:  # noqa: E743
@@ -65,8 +80,14 @@ def I(value: str = "") -> Atom:  # noqa: E743
     the + pin (top) through the source to the - pin, i.e. out of the bottom pin. The arrow `v`
     marks that pin: `v` below the part means the current leaves downwards."""
     from .spice import SpiceModel
-    return Atom("Simulation_SPICE:IDC", value, aliases={"+": "1"}, arrows={"2": "v"},
-                spice=SpiceModel("I", ("1", "2")))
+
+    return Atom(
+        "Simulation_SPICE:IDC",
+        value,
+        aliases={"+": "1"},
+        arrows={"2": "v"},
+        spice=SpiceModel("I", ("1", "2")),
+    )
 
 
 def GND() -> Atom:

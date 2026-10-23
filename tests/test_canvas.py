@@ -144,6 +144,7 @@ def test_unbound_components_are_the_interface():
         netlist(ex.INV_AMP)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not KICAD_CLI.exists() and not shutil.which("kicad-cli"),
     reason="kicad-cli not available",

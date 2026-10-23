@@ -71,14 +71,18 @@ def to_kicad(
     values: False hides the value fields (symbolic drawings); the values stay in the file.
     """
     if references not in ("annotate", "names"):
-        raise ValueError(f"references must be 'annotate' or 'names', not {references!r}")
+        raise ValueError(
+            f"references must be 'annotate' or 'names', not {references!r}"
+        )
     res = layout(block)
     dx = MARGIN - res.bbox[0]
     dy = MARGIN - res.bbox[1]
     t = lambda p: (snap(p[0] + dx), snap(p[1] + dy))  # noqa: E731
     sch = Schematic(block.name, paper=_paper_for_bbox(res.bbox))
     counters, refmap, placed = Counter(), {}, []
-    leaf = {p: p.rsplit(".", 1)[-1] for p, a, *_ in res.symbols if not a.symbol.is_power}
+    leaf = {
+        p: p.rsplit(".", 1)[-1] for p, a, *_ in res.symbols if not a.symbol.is_power
+    }
     if len({v.casefold() for v in leaf.values()}) != len(leaf):
         leaf = {p: p.replace(".", "_") for p in leaf}
     for ypath, atom, x, y, rot, mirror in res.symbols:
@@ -90,7 +94,11 @@ def to_kicad(
             )
         else:
             counters[prefix] += 1
-            ref = f"{prefix}{counters[prefix]}" if references == "annotate" else leaf[ypath]
+            ref = (
+                f"{prefix}{counters[prefix]}"
+                if references == "annotate"
+                else leaf[ypath]
+            )
             sch.add_symbol(
                 atom.lib_id,
                 ref,
@@ -250,7 +258,9 @@ def _write_project(sch_path: Path):
         for lib in library_names()
     ]
     text = "\n".join(lines + [")"]) + "\n"
-    if not table.exists() or table.read_text() != text:  # rewritten when libraries change
+    if (
+        not table.exists() or table.read_text() != text
+    ):  # rewritten when libraries change
         table.write_text(text)
 
 

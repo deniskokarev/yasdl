@@ -525,6 +525,9 @@ at about 1967 Hz, matching the test circuit.
 
 ## 7. Tooling
 
+- The KiCad S-expression reader (`yasdl.sexp.parse`) raises `ValueError` with an
+  unexpected-end message for empty input or an unterminated list, quoted string,
+  or escape.
 - `Sketch`: build wide canvases by coordinates (`text`, `hline`, `vline`, `box`, `render`)
   instead of typing them by hand.
 - **Agent skill** `skills/yasdl-circuit-design/SKILL.md`: the workflow, canvas cheat sheet,

@@ -8,7 +8,10 @@ class Sym(str):
 
 
 def parse(text: str):
-    """Parse one S-expression into nested lists of Sym / str."""
+    """Parse one S-expression into nested lists of Sym / str.
+
+    Unexpected end of input raises ValueError.
+    """
     pos, n = 0, len(text)
 
     def skip():
@@ -16,26 +19,31 @@ def parse(text: str):
         while pos < n and text[pos].isspace():
             pos += 1
 
+    def peek() -> str:
+        if pos >= n:
+            raise ValueError("unexpected end of input while parsing s-expression")
+        return text[pos]
+
     def node():
         nonlocal pos
         skip()
-        ch = text[pos]
+        ch = peek()
         if ch == "(":
             pos += 1
             out = []
             while True:
                 skip()
-                if text[pos] == ")":
+                if peek() == ")":
                     pos += 1
                     return out
                 out.append(node())
         if ch == '"':
             pos += 1
             buf = []
-            while text[pos] != '"':
-                if text[pos] == "\\":
+            while peek() != '"':
+                if peek() == "\\":
                     pos += 1
-                buf.append(text[pos])
+                buf.append(peek())
                 pos += 1
             pos += 1
             return "".join(buf)

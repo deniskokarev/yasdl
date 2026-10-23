@@ -32,8 +32,9 @@ changes.
   example and a test.
 - `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
   ~/.claude/skills). Keep it in sync with the API and spec.
-- Simulation and oracle tests need `YASDL_BJT_MOD` (2N3904 model file) and `YASDL_SGEN_ORACLE`
-  (ee_sgen solve.sh); they skip when unset.
+- Sine-generator tests use the bundled `yasdl/lib/jellybean.lib` models and
+  `tests/test_sine_generator.lib` netlist. KiCad and ngspice tests skip only when their tools
+  are unavailable.
 - Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m docs.examples.render`,
   output in `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
 

@@ -1,0 +1,29 @@
+* sgen.lib - 3-terminal fixed ~2kHz sine generator subcircuit for ngspice
+* Pins:  Vp  Vn  Out
+* Topology: RC phase-shift oscillator (Q1) + emitter-follower buffer (Q2).
+.subckt sgen vp vm out
+* --- common-emitter gain stage (bias to ground-referenced emitter) ---
+Rcol1 vp nc1 4.7k
+Q1 nc1 nb1 ne1 2N3904
+Re_up ne1 ne1b 68
+Re_down ne1b 0 910
+Ce1 ne1b 0 100u
+Rb1a vp nb1 300k
+Rb1b nb1 0 47k
+* --- 3-stage RC phase-shift ladder (sets f ~= 1.9 kHz, feeds Q1 base) ---
+Cps1 nc1 nps1 2.5n
+Rps1 nps1 0 10k
+Cps2 nps1 nps2 2.5n
+Rps2 nps2 0 10k
+Cps3 nps2 nb1 2.5n
+* --- emitter-follower output buffer (low Zout, stiff enough to drive 100R) ---
+Cc1 nc1 nbuf_a 1u
+Rbuf_series nbuf_a nbuf 10k
+Rbin nbuf 0 6.8k
+Q2 vp nbuf ne2 2N3904
+Re2 ne2 vm 680
+* --- AC-couple to ground-referenced output, small series R ---
+Cout ne2 nout_ac 22u
+Rout nout_ac out 10
+Rbleed out 0 10k
+.ends sgen

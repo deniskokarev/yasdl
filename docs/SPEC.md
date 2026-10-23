@@ -496,24 +496,28 @@ from the flattened design:
 - **SPICE round trip**: `render(..., spice=True)` checks that KiCad's SPICE export of the
   schematic equals yasdl's own netlist, element by element.
 
-Its simulation tests read the 2N3904 model file from `YASDL_BJT_MOD`, and the oracle comparison
-reads `YASDL_SGEN_ORACLE`; both are skipped when unset.
+`yasdl/lib/jellybean.lib` bundles reusable 2N3904, 2N3906 and 1N4148 SPICE models;
+`yasdl.kicad_lib.JELLYBEAN_MODEL` gives its path. The sine-generator example uses this library
+for simulation. `tests/test_sine_generator.py` compares the generated netlist against
+`tests/test_sine_generator.lib` and simulates both netlists. These fixtures are checked in;
+the tests skip only when KiCad or ngspice is unavailable.
 
-**Example: `docs/examples/sgen.py`**, the ee_sgen oracle (2 kHz RC phase-shift oscillator plus
-emitter-follower buffer), composed from small blocks:
+**Example: `docs/examples/sgen.py`**, a 2 kHz RC phase-shift oscillator plus
+emitter-follower buffer, composed from small blocks:
 - `PHASE_SHIFT`: the 3-section RC ladder;
 - `OSCILLATOR`: the Q1 gain stage with the ladder as feedback;
 - `OUTPUT_AMP`: from the coupling capacitor CK on, the Q2 emitter follower and AC-coupled
   output;
 - `SGEN`: a 7-line top level wiring OSC → AMP, with the `{vp}` supply on top and `{vm}` at the
-  bottom. The task's pin order (V+, V−, OUT) is given as `port_order=SGEN_PINS`.
+  bottom. The supply/output pin order (V+, V−, OUT) is given as `port_order=SGEN_PINS`.
 
 Each canvas is small and stands alone (each renders ERC-clean); yasdl composes the final
 planar schematic. Grounds are `[GND]` labels. The ladder is drawn as `PS[in]` and bound
 with no explicit orientation: the label puts its input on the right, and of the two fits (180°,
-left/right mirror) the mirror flips fewer axes (3.2), so the shunt legs keep hanging down. The generated `.subckt sgen vp vm out` is structurally identical to the oracle's
-netlist. In ngspice, both the yasdl netlist and KiCad's export of the generated schematic
-oscillate at 1967 Hz, the same as the oracle.
+left/right mirror) the mirror flips fewer axes (3.2), so the shunt legs keep hanging down.
+The generated `.subckt sgen vp vm out` is structurally identical to the fixed test netlist.
+In ngspice, both the yasdl netlist and KiCad's export of the generated schematic oscillate
+at about 1967 Hz, matching the test circuit.
 
 ![sine generator](examples/generated/SGen.png)
 

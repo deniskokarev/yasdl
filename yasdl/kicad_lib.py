@@ -39,6 +39,7 @@ KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR = _resolve_kicad_layout(KICAD_ROOT)
 # their simulation models. A bundled library shadows a KiCad library of the same name.
 BUNDLED_DIR = Path(__file__).resolve().parent / "lib"
 BUNDLED_MODELS = BUNDLED_DIR / "yasdl.lib"
+JELLYBEAN_MODEL = BUNDLED_DIR / "jellybean.lib"
 
 
 def library_path(lib: str) -> Path:

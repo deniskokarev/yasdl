@@ -62,8 +62,8 @@ python -c "import yasdl"                      # ngspice on PATH
 ```
 
 If yasdl isn't reachable (for example inside a task container), copy the `yasdl/` package
-directory next to your script (stdlib only). Rendering needs KiCad; netlist and SPICE output
-don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Generate it with
+directory next to your script (Python stdlib only). Standard components use KiCad symbol-library
+data; rendering also uses the KiCad CLI. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Generate it with
 `spice_netlist()` and keep the yasdl source next to it.
 
 ## Workflow
@@ -89,10 +89,10 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
    - `spice_ok`: KiCad's SPICE export equals yasdl's.
 
    The exporter selects the smallest fitting landscape ISO page and keeps port labels inside
-   the cropped SVG. Then look at the picture: convert the SVG to PNG and view it. Fix ugliness
-   in the canvas.
-8. **Deliver**: the SPICE file the task asks for, plus `.kicad_sch`, `.svg`/`.png` and the
-   yasdl source.
+   the cropped SVG. Inspect the SVG in a browser or the schematic in KiCad. If your viewer
+   requires PNG, use an optional SVG-to-PNG converter. Fix ugliness in the canvas.
+8. **Deliver**: the SPICE file the task asks for, plus `.kicad_sch`, `.svg` and the yasdl
+   source. Include `.png` when requested or needed by the image viewer.
 
 ## Canvas rules (cheat sheet)
 

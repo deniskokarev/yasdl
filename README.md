@@ -6,6 +6,11 @@ yasdl describes a circuit as **ASCII drawings of rectangular blocks** and turns 
 **KiCad 9 schematic** and a **SPICE netlist**. The goal is a schematic that is readable by
 construction.
 
+The Python package requires Python 3.12+ and has no required third-party Python
+packages. Standard components use KiCad symbol-library data; KiCad 9 provides
+schematic export and validation, and ngspice provides simulation. SVG output can
+be viewed directly. An SVG-to-PNG converter such as librsvg is optional.
+
 - **2D, rectangular.** Each block is a small drawing: components are rectangles, wires are
   ASCII art. What you draw is the circuit's topology and its picture at the same time, so the
   output is planar and aligned without any automatic placement or routing.

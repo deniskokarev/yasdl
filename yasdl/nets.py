@@ -12,8 +12,21 @@ import re
 
 # Global nets drawn as power symbols (spec 2.4). The first one is the ground net.
 GROUND = "GND"
-POWER_NETS = {name: f"power:{name}" for name in
-              ("GND", "GNDA", "VCC", "VEE", "VDD", "VSS", "+5V", "+3V3", "+12V", "-12V")}
+POWER_NETS = {
+    name: f"power:{name}"
+    for name in (
+        "GND",
+        "GNDA",
+        "VCC",
+        "VEE",
+        "VDD",
+        "VSS",
+        "+5V",
+        "+3V3",
+        "+12V",
+        "-12V",
+    )
+}
 
 DEFAULT_PORT_NAME = re.compile(r"^[NESWD]\d+$", re.IGNORECASE)  # W0, N1, D3, ...
 

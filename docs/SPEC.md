@@ -59,7 +59,7 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
   - a label;
   - a component edge (making a pin attachment);
   - the canvas edge (making a port).
-  
+
   An arm pointing at an empty cell is a **dangling wire**, an error.
 - `┼` is always a **junction**. Tees `├ ┤ ┬ ┴` are the only other junctions, and they get a
   dot in KiCad.
@@ -444,7 +444,7 @@ under `"blocks"` and referenced by name. Excerpt for `INV_AMP_RESISTORS`:
     power output, e.g. GND, VCC, VEE. It goes on a power symbol, else a global label, else a
     power pin, turned across the wire. Nets for this are rebuilt from the geometry, as KiCad
     does.
-  
+
   `to_kicad(..., erc_helpers=False)` leaves them out. Helpers never appear in the round-trip
   comparison or in SPICE output.
 - **Round-trip check.** `kicad-cli sch export netlist` on the generated file must reproduce

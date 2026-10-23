@@ -87,7 +87,7 @@ don't. Whatever the task asks for (e.g. `/app/x.lib`) stays the deliverable. Gen
    - `roundtrip_ok`: KiCad's netlist equals yasdl's;
    - `erc == []`: KiCad ERC clean, errors and warnings;
    - `spice_ok`: KiCad's SPICE export equals yasdl's.
-   
+
    The exporter selects the smallest fitting landscape ISO page and keeps port labels inside
    the cropped SVG. Then look at the picture: convert the SVG to PNG and view it. Fix ugliness
    in the canvas.

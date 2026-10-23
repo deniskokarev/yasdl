@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .sexp import find, find_all, parse
 
+
 def _resolve_kicad_layout(root: Path) -> tuple[Path, Path, Path]:
     """Return CLI, symbol, and template paths for prefix or macOS app layouts."""
     root = Path(root).expanduser()
@@ -45,7 +46,9 @@ class LibPin:
     x: float  # connection point, library coordinates (y up)
     y: float
     side: str  # N/E/S/W in library orientation
-    etype: str = "passive"  # electrical type: input, output, passive, power_in, power_out, ...
+    etype: str = (
+        "passive"  # electrical type: input, output, passive, power_in, power_out, ...
+    )
 
 
 @dataclass(frozen=True)
@@ -70,11 +73,16 @@ def load(lib_id: str) -> LibSymbol:
     if sym is None:
         raise KeyError(f"symbol {lib_id} not found in {SYMBOL_DIR}")
     if find(sym, "extends"):
-        raise NotImplementedError(f"{lib_id}: symbols using (extends) are not supported yet")
+        raise NotImplementedError(
+            f"{lib_id}: symbols using (extends) are not supported yet"
+        )
     pins, xs, ys = [], [], []
     for unit in find_all(sym, "symbol"):
         _, unit_no, style = str(unit[1]).rsplit("_", 2)
-        if int(unit_no) not in (0, 1) or int(style) not in (0, 1):  # unit 1, normal body style
+        if int(unit_no) not in (0, 1) or int(style) not in (
+            0,
+            1,
+        ):  # unit 1, normal body style
             continue
         for item in unit:
             if not isinstance(item, list):
@@ -84,9 +92,20 @@ def load(lib_id: str) -> LibSymbol:
                 at = find(item, "at")
                 x, y, ang = float(at[1]), float(at[2]), int(float(at[3])) % 360
                 length = float(find(item, "length")[1])
-                pins.append(LibPin(str(find(item, "number")[1]), str(find(item, "name")[1]),
-                                   x, y, _ANGLE_SIDE[ang], str(item[1])))
-                dx, dy = round(math.cos(math.radians(ang))), round(math.sin(math.radians(ang)))
+                pins.append(
+                    LibPin(
+                        str(find(item, "number")[1]),
+                        str(find(item, "name")[1]),
+                        x,
+                        y,
+                        _ANGLE_SIDE[ang],
+                        str(item[1]),
+                    )
+                )
+                dx, dy = (
+                    round(math.cos(math.radians(ang))),
+                    round(math.sin(math.radians(ang))),
+                )
                 xs += [x, x + dx * length]
                 ys += [y, y + dy * length]
             elif kind in ("rectangle", "polyline", "arc", "circle", "bezier"):
@@ -106,7 +125,9 @@ def load(lib_id: str) -> LibSymbol:
                 xs += [q[0] for q in pts]
                 ys += [q[1] for q in pts]
     is_power = find(sym, "power") is not None
-    return LibSymbol(lib_id, sym, tuple(pins), (min(xs), min(ys), max(xs), max(ys)), is_power)
+    return LibSymbol(
+        lib_id, sym, tuple(pins), (min(xs), min(ys), max(xs), max(ys)), is_power
+    )
 
 
 # --- orientation ----------------------------------------------------------------
@@ -130,7 +151,9 @@ def orient_vec(x: float, y: float, rot: int, mirror: str | None) -> tuple[float,
     return to_screen(x, -y, rot, mirror)
 
 
-def compose(outer: tuple[int, str | None], inner: tuple[int, str | None]) -> tuple[int, str | None]:
+def compose(
+    outer: tuple[int, str | None], inner: tuple[int, str | None]
+) -> tuple[int, str | None]:
     """The single orientation equal to applying `inner`, then `outer`."""
     probes = [(1, 0), (0, 1)]
     want = [orient_vec(*orient_vec(x, y, *inner), *outer) for x, y in probes]
@@ -147,6 +170,8 @@ _SCREEN_SIDE = {(0, -1): "N", (0, 1): "S", (-1, 0): "W", (1, 0): "E"}
 def orient_side(side: str, rot: int, mirror: str | None) -> str:
     x, y = orient_vec(*SIDE_VEC[side], rot, mirror)
     return _SCREEN_SIDE[(round(x), round(y))]
+
+
 _SIDE_VEC = {"N": (0, 1), "S": (0, -1), "W": (-1, 0), "E": (1, 0)}  # library y-up
 
 
@@ -169,5 +194,9 @@ def rot_with_pin_on(sym: LibSymbol, side: str) -> int:
 def screen_bbox(sym: LibSymbol, rot: int, mirror: str | None):
     xmin, ymin, xmax, ymax = sym.bbox
     pts = [to_screen(x, y, rot, mirror) for x in (xmin, xmax) for y in (ymin, ymax)]
-    return (min(p[0] for p in pts), min(p[1] for p in pts),
-            max(p[0] for p in pts), max(p[1] for p in pts))
+    return (
+        min(p[0] for p in pts),
+        min(p[1] for p in pts),
+        max(p[0] for p in pts),
+        max(p[1] for p in pts),
+    )

@@ -13,9 +13,18 @@ from .nets import global_spelling, reserved
 STEP = {"N": (-1, 0), "S": (1, 0), "E": (0, 1), "W": (0, -1)}
 OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
 ARMS = {
-    "─": "EW", "-": "EW", "│": "NS", "|": "NS",
-    "┌": "ES", "┐": "SW", "└": "NE", "┘": "NW",
-    "├": "NES", "┤": "NSW", "┬": "ESW", "┴": "NEW",
+    "─": "EW",
+    "-": "EW",
+    "│": "NS",
+    "|": "NS",
+    "┌": "ES",
+    "┐": "SW",
+    "└": "NE",
+    "┘": "NW",
+    "├": "NES",
+    "┤": "NSW",
+    "┬": "ESW",
+    "┴": "NEW",
     "┼": "NESW",
 }
 STRAIGHT_H, STRAIGHT_V = "─-", "│|"
@@ -59,7 +68,9 @@ class Label:
     pin_of: str | None = None  # component name when this is a pin label
     vcol: int | None = None  # column where a vertical wire passes through
     arms: int = 0  # wire arms that end on this label
-    entries: list = field(default_factory=list)  # sides of the label its wires come from
+    entries: list = field(
+        default_factory=list
+    )  # sides of the label its wires come from
     kind: str = ""  # "pin" | "global" | "local" | "port" (set after parsing)
 
 
@@ -141,7 +152,9 @@ class Canvas:
             for side, lst in comp.attachments.items():
                 lst.sort(key=lambda a: a.pos)
                 if len({a.pos for a in lst}) != len(lst):
-                    raise CanvasError(f"{name}: {comp.name} has two connections at one {side} position")
+                    raise CanvasError(
+                        f"{name}: {comp.name} has two connections at one {side} position"
+                    )
         self.edge_ports.sort(key=lambda p: ("NESW".index(p.side), p.pos))
 
     # --- helpers -----------------------------------------------------------
@@ -171,23 +184,32 @@ class Canvas:
                     end = row.find(close, c + 1)
                     if end < 0 or end == c + 1:
                         self.err(f"unterminated or empty {ch}label{close}", r, c)
-                    self._add_label(row[c + 1:end], r, c, end, brace=ch == "{")
+                    self._add_label(row[c + 1 : end], r, c, end, brace=ch == "{")
                     c = end + 1
                     continue
                 if ch in "]}":
                     self.err(f"{ch!r} without its opening bracket", r, c)
-                lone_v = ch in "vV" and not (c > 0 and _word_char(row[c - 1])) and \
-                    not (c + 1 < self.W and _word_char(row[c + 1]))
+                lone_v = (
+                    ch in "vV"
+                    and not (c > 0 and _word_char(row[c - 1]))
+                    and not (c + 1 < self.W and _word_char(row[c + 1]))
+                )
                 if lone_v:
                     ch = "v"  # a lone v (no letters/digits beside it) is the down arrow
                 if ch in RESERVED_CHARS:
-                    self.err(f"{ch!r} is reserved for future use; use spaces for empty cells", r, c)
+                    self.err(
+                        f"{ch!r} is reserved for future use; use spaces for empty cells",
+                        r,
+                        c,
+                    )
                 if ch in PIN_SHORTCUTS or lone_v:
                     self._add_label(ch, r, c, c, shortcut=True)
                 elif ch in ARMS:
                     self.wires[(r, c)] = ARMS[ch]
                 elif ch in BUS_CHARS:
-                    self.err(f"buses are specified but not implemented yet ({ch!r})", r, c)
+                    self.err(
+                        f"buses are specified but not implemented yet ({ch!r})", r, c
+                    )
                 elif not (ch in EMPTY or ch.isalnum() or ch == "_"):
                     self.err(f"unexpected character {ch!r}", r, c)
                 c += 1
@@ -214,7 +236,11 @@ class Canvas:
             cells.append((cr, cc))
             for dr, dc in STEP.values():
                 nr, nc = cr + dr, cc + dc
-                if (nr, nc) in seen or (nr, nc) in self.label_at or not self.inside(nr, nc):
+                if (
+                    (nr, nc) in seen
+                    or (nr, nc) in self.label_at
+                    or not self.inside(nr, nc)
+                ):
                     continue
                 ch = self.g[nr][nc]
                 if ch.isalnum() or ch == "_":
@@ -223,15 +249,27 @@ class Canvas:
         r0, r1 = min(x for x, _ in cells), max(x for x, _ in cells)
         c0, c1 = min(y for _, y in cells), max(y for _, y in cells)
         if len(cells) != (r1 - r0 + 1) * (c1 - c0 + 1):
-            self.err("component characters must form a rectangle (keep a 1-cell gap between "
-                     "components)", r0, c0)
-        rows = {self.g[x][c0:c1 + 1] for x in range(r0, r1 + 1)}
+            self.err(
+                "component characters must form a rectangle (keep a 1-cell gap between "
+                "components)",
+                r0,
+                c0,
+            )
+        rows = {self.g[x][c0 : c1 + 1] for x in range(r0, r1 + 1)}
         if len(rows) != 1:
-            self.err(f"all rows of a component rectangle must be identical: {sorted(rows)}", r0, c0)
+            self.err(
+                f"all rows of a component rectangle must be identical: {sorted(rows)}",
+                r0,
+                c0,
+            )
         name = minimal_period(rows.pop())
         if name in ("v", "V"):
-            self.err("a component can't be named v or V (reserved for the down-arrow pin "
-                     "label)", r0, c0)
+            self.err(
+                "a component can't be named v or V (reserved for the down-arrow pin "
+                "label)",
+                r0,
+                c0,
+            )
         if name in self.comps:
             self.err(f"duplicate component {name}", r0, c0)
         self.comps[name] = Comp(name, r0, c0, r1, c1)
@@ -245,7 +283,7 @@ class Canvas:
         return OPPOSITE[from_side] in arms
 
     def _crossings(self):
-        for (r, c), arms in list(self.wires.items()):
+        for r, c in list(self.wires):
             ch = self.g[r][c]
             if ch in STRAIGHT_H:
                 cross = ("N", "S")
@@ -258,7 +296,11 @@ class Canvas:
                 self.crossings.add((r, c))
                 self.wires[(r, c)] = "NESW"
             elif any(ins):
-                self.err("a wire ends on a straight wire; use a tee glyph (├┤┬┴) for a junction", r, c)
+                self.err(
+                    "a wire ends on a straight wire; use a tee glyph (├┤┬┴) for a junction",
+                    r,
+                    c,
+                )
 
     def _connect(self):
         for (r, c), arms in self.wires.items():
@@ -268,19 +310,33 @@ class Canvas:
                 dr, dc = STEP[arm]
                 nr, nc = r + dr, c + dc
                 if not self.inside(nr, nc):
-                    self.edge_ports.append(EdgePort(arm, r if arm in "EW" else c, (r, c), node))
+                    self.edge_ports.append(
+                        EdgePort(arm, r if arm in "EW" else c, (r, c), node)
+                    )
                 elif (nr, nc) in self.wires:
                     if OPPOSITE[arm] not in self.wires[(nr, nc)]:
-                        self.err(f"wire arm {arm} runs into a wire that doesn't continue it", r, c)
+                        self.err(
+                            f"wire arm {arm} runs into a wire that doesn't continue it",
+                            r,
+                            c,
+                        )
                     self.uf.union(node, self._wire_node(nr, nc, OPPOSITE[arm]))
                 elif (nr, nc) in self.label_at:
                     i = self.label_at[(nr, nc)]
                     lab = self.labels[i]
                     if arm == "E" and nc != lab.c0 or arm == "W" and nc != lab.c1:
-                        self.err("a horizontal wire must enter a label at its '[' or ']' end", r, c)
+                        self.err(
+                            "a horizontal wire must enter a label at its '[' or ']' end",
+                            r,
+                            c,
+                        )
                     if arm in "NS":
                         if lab.vcol is not None and lab.vcol != nc:
-                            self.err("vertical wires through a label must share one column", r, c)
+                            self.err(
+                                "vertical wires through a label must share one column",
+                                r,
+                                c,
+                            )
                         lab.vcol = nc
                     lab.arms += 1
                     lab.entries.append(OPPOSITE[arm])
@@ -289,7 +345,8 @@ class Canvas:
                     comp = self.comps[self.comp_at[(nr, nc)]]
                     side = OPPOSITE[arm]
                     comp.attachments[side].append(
-                        Attachment(side, r if side in "EW" else c, (r, c), node))
+                        Attachment(side, r if side in "EW" else c, (r, c), node)
+                    )
                 else:
                     self.err(f"dangling wire (arm {arm} points at an empty cell)", r, c)
 
@@ -309,33 +366,64 @@ class Canvas:
             if not names:
                 continue
             if lab.brace:
-                self.err(f"{{{lab.text}}} is a block port; it must not touch a component",
-                         lab.row, lab.c0)
+                self.err(
+                    f"{{{lab.text}}} is a block port; it must not touch a component",
+                    lab.row,
+                    lab.c0,
+                )
             if len(names) > 1 or len({t[1] for t in touches}) > 1:
-                self.err(f"label [{lab.text}] touches several component edges", lab.row, lab.c0)
+                self.err(
+                    f"label [{lab.text}] touches several component edges",
+                    lab.row,
+                    lab.c0,
+                )
             comp = self.comps[touches[0][0]]
             direction = touches[0][1]  # where the component is, seen from the label
             side = OPPOSITE[direction]
             if lab.text in ARROWS and (ARROWS[lab.text] in "EW") != (side in "EW"):
                 axis = "left or right of" if lab.text in "<>" else "above or below"
-                self.err(f"arrow {lab.text!r} must sit {axis} a component (it points along the "
-                         "pin)", lab.row, lab.c0)
+                self.err(
+                    f"arrow {lab.text!r} must sit {axis} a component (it points along the "
+                    "pin)",
+                    lab.row,
+                    lab.c0,
+                )
             if side in "EW":
                 pos = lab.row
             else:
                 if lab.vcol is None and not lab.shortcut:
-                    self.err(f"pin label [{lab.text}] needs a vertical wire through it", lab.row, lab.c0)
+                    self.err(
+                        f"pin label [{lab.text}] needs a vertical wire through it",
+                        lab.row,
+                        lab.c0,
+                    )
                 pos = lab.c0 if lab.shortcut else lab.vcol
                 if not comp.c0 <= pos <= comp.c1:
-                    self.err(f"the wire through [{lab.text}] misses {comp.name}", lab.row, pos)
+                    self.err(
+                        f"the wire through [{lab.text}] misses {comp.name}",
+                        lab.row,
+                        pos,
+                    )
             if not self._label_has_wire(i):
-                hint = (" (old-style label? labels are written [name] now)"
-                        if lab.text in "<>" else "")
-                self.err(f"pin label [{lab.text}] of {comp.name} is not connected to a wire"
-                         + hint, lab.row, lab.c0)
+                hint = (
+                    " (old-style label? labels are written [name] now)"
+                    if lab.text in "<>"
+                    else ""
+                )
+                self.err(
+                    f"pin label [{lab.text}] of {comp.name} is not connected to a wire"
+                    + hint,
+                    lab.row,
+                    lab.c0,
+                )
             lab.pin_of = comp.name
-            cell = (lab.row, pos if side in "NS" else (lab.c1 if side == "W" else lab.c0))
-            comp.attachments[side].append(Attachment(side, pos, cell, ("l", i), lab.text))
+            cell = (
+                lab.row,
+                pos if side in "NS" else (lab.c1 if side == "W" else lab.c0),
+            )
+            comp.attachments[side].append(
+                Attachment(side, pos, cell, ("l", i), lab.text)
+            )
 
     def _brace_ports(self):
         """{name} labels are external ports: on the canvas edge, with one wire going inward."""
@@ -349,20 +437,35 @@ class Canvas:
                 pos = lab.vcol
             else:
                 left_wire = (lab.row, lab.c0 - 1) in self.wires
-                side = ("E" if lab.c1 == self.W - 1 else None) if left_wire else \
-                    ("W" if lab.c0 == 0 else None)
+                side = (
+                    ("E" if lab.c1 == self.W - 1 else None)
+                    if left_wire
+                    else ("W" if lab.c0 == 0 else None)
+                )
                 pos = lab.row
             if side is None:
-                self.err(f"{{{lab.text}}} must sit on the block edge, on the side opposite "
-                         "its wire", lab.row, lab.c0)
+                self.err(
+                    f"{{{lab.text}}} must sit on the block edge, on the side opposite "
+                    "its wire",
+                    lab.row,
+                    lab.c0,
+                )
             lab.kind = "port"
             aliases = [a.strip() for a in lab.text.split(",")]
             if any(not a for a in aliases):
-                self.err(f"{{{lab.text}}}: empty alias in the comma-separated list", lab.row, lab.c0)
-            aliases = ["v" if a == "V" else a for a in aliases]  # V is the down arrow too
+                self.err(
+                    f"{{{lab.text}}}: empty alias in the comma-separated list",
+                    lab.row,
+                    lab.c0,
+                )
+            aliases = [
+                "v" if a == "V" else a for a in aliases
+            ]  # V is the down arrow too
             if len({a.casefold() for a in aliases}) != len(aliases):
                 self.err(f"{{{lab.text}}}: an alias is listed twice", lab.row, lab.c0)
-            self.edge_ports.append(EdgePort(side, pos, (lab.row, lab.c0), ("l", i), tuple(aliases)))
+            self.edge_ports.append(
+                EdgePort(side, pos, (lab.row, lab.c0), ("l", i), tuple(aliases))
+            )
 
     def _classify_labels(self):
         for lab in self.labels:
@@ -372,17 +475,25 @@ class Canvas:
                 lab.kind = "pin"
             elif lab.arms == 0:
                 self.err(f"[{lab.text}] is not connected to a wire", lab.row, lab.c0)
-            elif reserved(lab.text):  # reserved names always mean the global net (spec 2.8)
+            elif reserved(
+                lab.text
+            ):  # reserved names always mean the global net (spec 2.8)
                 if global_spelling(lab.text) is None:
-                    self.err(f"[{lab.text}] is a reserved global net name; write it exactly as "
-                             "registered (e.g. [GND]; [0] is not allowed)", lab.row, lab.c0)
+                    self.err(
+                        f"[{lab.text}] is a reserved global net name; write it exactly as "
+                        "registered (e.g. [GND]; [0] is not allowed)",
+                        lab.row,
+                        lab.c0,
+                    )
                 lab.kind = "global"
             else:  # wire on one side only: global net; wires on both sides: local net name
                 lab.kind = "global" if lab.arms == 1 else "local"
 
     def _label_has_wire(self, i):
         root = self.uf.find(("l", i))
-        return any(self.uf.find(n) == root for n in list(self.uf.parent) if n[0] in "whv")
+        return any(
+            self.uf.find(n) == root for n in list(self.uf.parent) if n[0] in "whv"
+        )
 
     def _merge_named_nets(self):
         """Net labels with the same text are one net (implicit wires); pin labels are excluded."""
@@ -391,13 +502,15 @@ class Canvas:
             if lab.pin_of is None and not lab.brace:
                 if lab.shortcut:
                     kind = "arrow" if lab.text in ARROWS else "pin shortcut"
-                    self.err(f"'{lab.text}' is a one-character {kind} pin label and must touch a "
-                             "component",
-                             lab.row, lab.c0)
+                    self.err(
+                        f"'{lab.text}' is a one-character {kind} pin label and must touch a "
+                        "component",
+                        lab.row,
+                        lab.c0,
+                    )
                 node = ("l", i)
                 if lab.text in by_text:
                     self.uf.union(node, by_text[lab.text])
                 else:
                     by_text[lab.text] = node
         self.net_names = {self.uf.find(n): t for t, n in by_text.items()}
-

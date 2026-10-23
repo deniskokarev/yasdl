@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from yasdl.kicad_export import MARGIN, SVG_PAD, _crop_svg, _paper_for_bbox
+from yasdl.kicad_export import _crop_svg, _paper_for_bbox, MARGIN, SVG_PAD
 from yasdl.kicad_lib import _resolve_kicad_layout
 
 
@@ -46,7 +46,7 @@ def test_svg_crop_removes_generator_trailing_whitespace(
     svg.write_text(
         '<svg width="297mm" height="210mm" viewBox="0 0 297 210">  \n'
         '<path d="M0 0" /> \n'
-        '</svg>\n'
+        "</svg>\n"
     )
 
     _crop_svg(svg, (0.0, 0.0, 10.0, 10.0))

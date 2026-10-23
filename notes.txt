@@ -17,7 +17,7 @@ One possibility is a single-side wire label at the edge, like
 {input}---------<b>NPN
 ```
 
-`<b>` means we need to connect to NPN.b	pin and	`{input}` on the left edge means it's an external pin named `input`
+`<b>` means we need to connect to NPN.b pin and `{input}` on the left edge means it's an external pin named `input`
 
 Using angle brackets convention, like `<input> raises conflict with your <VEE>-- net label example
 
@@ -285,15 +285,15 @@ Maybe a middle ground could be used, say bus <5 wires is depicted as parallel wi
 
 The ASCII bus of 1 or more wires
 ```
-═	Horizontal line
-║	Vertical line
+═  Horizontal line
+║  Vertical line
 ```
 with corresponding elbows
 ```
-╔	Top-left corner
-╗	Top-right corner
-╚	Bottom-left corner
-╝	Bottom-right corner
+╔  Top-left corner
+╗  Top-right corner
+╚  Bottom-left corner
+╝  Bottom-right corner
 ```
 
 It is allowed to represent a single wire as a bus too.

@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple, TYPE_CHECKING
 
-from .canvas import ARROWS, Canvas, CanvasError, _UF
+from .canvas import _UF, ARROWS, Canvas, CanvasError
+from .kicad_lib import (
+    compose,
+    load,
+    orient_side,
+    orient_vec,
+    ORIENTATIONS,
+    pin_side,
+    to_screen,
+)
 from .nets import DEFAULT_PORT_NAME, GROUND, POWER_NETS, reserved
-from .kicad_lib import ORIENTATIONS, compose, load, orient_side, orient_vec, pin_side, to_screen
 
 if TYPE_CHECKING:
     from .spice import SpiceModel
@@ -27,14 +35,20 @@ class Atom:
     rot: int | None = None
     mirror: str | None = None
     symmetric: bool = False  # all pins interchangeable (R, C, L)
-    aliases: dict = field(default_factory=dict)  # pin label -> pin number, e.g. {"+": "1"}
+    aliases: dict = field(
+        default_factory=dict
+    )  # pin label -> pin number, e.g. {"+": "1"}
     spice: SpiceModel | None = None  # override for the default mapping by lib_id
-    arrows: dict = field(default_factory=dict)  # pin number -> arrow (current direction, library frame)
+    arrows: dict = field(
+        default_factory=dict
+    )  # pin number -> arrow (current direction, library frame)
 
     def __post_init__(self):
         arrows = list(self.arrows.values())
         if len(arrows) != len(set(arrows)):
-            raise YasdlError(f"{self.lib_id}: each arrow may name only one pin: {self.arrows}")
+            raise YasdlError(
+                f"{self.lib_id}: each arrow may name only one pin: {self.arrows}"
+            )
         if any(a not in ARROWS for a in arrows):
             raise YasdlError(f"{self.lib_id}: arrows must be one of {''.join(ARROWS)}")
 
@@ -44,13 +58,27 @@ class Atom:
 
     def rotated(self, deg: int) -> Atom:
         """Rotate counterclockwise by `deg` (multiple of 90), on top of any orientation set."""
-        return replace(self, **dict(zip(("rot", "mirror"),
-                                        compose((deg % 360, None), (self.rot or 0, self.mirror)))))
+        return replace(
+            self,
+            **dict(
+                zip(
+                    ("rot", "mirror"),
+                    compose((deg % 360, None), (self.rot or 0, self.mirror)),
+                )
+            ),
+        )
 
     def mirrored(self, axis: str) -> Atom:
         """Mirror about an axis: "y" flips left/right, "x" flips top/bottom (KiCad's convention)."""
-        return replace(self, **dict(zip(("rot", "mirror"),
-                                        compose(_MIRROR[axis], (self.rot or 0, self.mirror)))))
+        return replace(
+            self,
+            **dict(
+                zip(
+                    ("rot", "mirror"),
+                    compose(_MIRROR[axis], (self.rot or 0, self.mirror)),
+                )
+            ),
+        )
 
     @property
     def symbol(self):
@@ -62,18 +90,27 @@ class Atom:
         for p in self.symbol.pins:
             out[pin_side(p, rot, mirror)].append(p)
         for s, lst in out.items():
-            lst.sort(key=lambda p: to_screen(p.x, p.y, rot, mirror)[1 if s in "EW" else 0])
+            lst.sort(
+                key=lambda p: to_screen(p.x, p.y, rot, mirror)[1 if s in "EW" else 0]
+            )
         return out
 
-    def matches_label(self, pin, label: str, rot: int = 0, mirror: str | None = None) -> bool:
+    def matches_label(
+        self, pin, label: str, rot: int = 0, mirror: str | None = None
+    ) -> bool:
         """Pin labels match a pin's name or number, case-insensitively, or an alias. Arrow labels
         match the pin's arrow after orienting the part (spec 2.5)."""
         if label in ARROWS:
             arrow = self.arrows.get(pin.number)
-            return arrow is not None and orient_side(ARROWS[arrow], rot, mirror) == ARROWS[label]
+            return (
+                arrow is not None
+                and orient_side(ARROWS[arrow], rot, mirror) == ARROWS[label]
+            )
         lab = label.casefold()
-        return lab in (pin.name.casefold(), pin.number.casefold()) or \
-            self.aliases.get(label) == pin.number
+        return (
+            lab in (pin.name.casefold(), pin.number.casefold())
+            or self.aliases.get(label) == pin.number
+        )
 
 
 @dataclass
@@ -84,13 +121,20 @@ class Bound:
     obj: Atom | Block
     rot: int = 0
     mirror: str | None = None
-    pin_map: list = field(default_factory=list)  # [(Attachment, pin number or port index)]
+    pin_map: list = field(
+        default_factory=list
+    )  # [(Attachment, pin number or port index)]
 
 
 NAME = re.compile(r"^[A-Za-z0-9_]+$")  # port aliases and net label names (spec 2.8)
-SHORTCUT_ALIASES = set(ARROWS) | {"+"}  # one-character aliases: never a port's display name
+SHORTCUT_ALIASES = set(ARROWS) | {
+    "+"
+}  # one-character aliases: never a port's display name
 
-_MIRROR = {"x": (0, "x"), "y": (180, "x")}  # "y" (left/right) = top/bottom flip + 180 deg
+_MIRROR = {
+    "x": (0, "x"),
+    "y": (180, "x"),
+}  # "y" (left/right) = top/bottom flip + 180 deg
 
 
 def display_orientation(rot: int, mirror: str | None) -> tuple[int, str | None]:
@@ -98,6 +142,7 @@ def display_orientation(rot: int, mirror: str | None) -> tuple[int, str | None]:
     if mirror == "x" and rot in (90, 180):
         return (rot - 180) % 360, "y"
     return rot, mirror
+
 
 RESERVED_NAME = DEFAULT_PORT_NAME  # default port names W0, D3, ...
 PORT_ATTRS = {"aliases"}  # programmatic port attributes supported so far
@@ -122,16 +167,26 @@ class Port(NamedTuple):
     def answers(self, label: str, rot: int = 0, mirror: str | None = None) -> bool:
         """Name match (case-insensitive); arrow labels match an arrow alias after orienting."""
         if label in ARROWS:
-            return any(orient_side(ARROWS[a], rot, mirror) == ARROWS[label]
-                       for a in self.aliases if a in ARROWS)
+            return any(
+                orient_side(ARROWS[a], rot, mirror) == ARROWS[label]
+                for a in self.aliases
+                if a in ARROWS
+            )
         return label.casefold() in (n.casefold() for n in self.names())
 
 
 def dip_order(edge_ports) -> list[int]:
     """DIP numbers for ports given as (side, pos): W top->bottom, S left->right,
     E bottom->top, N right->left."""
-    key = {"W": lambda p: (0, p), "S": lambda p: (1, p), "E": lambda p: (2, -p), "N": lambda p: (3, -p)}
-    order = sorted(range(len(edge_ports)), key=lambda i: key[edge_ports[i][0]](edge_ports[i][1]))
+    key = {
+        "W": lambda p: (0, p),
+        "S": lambda p: (1, p),
+        "E": lambda p: (2, -p),
+        "N": lambda p: (3, -p),
+    }
+    order = sorted(
+        range(len(edge_ports)), key=lambda i: key[edge_ports[i][0]](edge_ports[i][1])
+    )
     dip = [0] * len(edge_ports)
     for n, i in enumerate(order):
         dip[i] = n
@@ -147,14 +202,20 @@ class OrientedBlock:
     mirror: str | None = None
 
     def rotated(self, deg: int) -> "OrientedBlock":
-        return OrientedBlock(self.block, *compose((deg % 360, None), (self.rot, self.mirror)))
+        return OrientedBlock(
+            self.block, *compose((deg % 360, None), (self.rot, self.mirror))
+        )
 
     def mirrored(self, axis: str) -> "OrientedBlock":
-        return OrientedBlock(self.block, *compose(_MIRROR[axis], (self.rot, self.mirror)))
+        return OrientedBlock(
+            self.block, *compose(_MIRROR[axis], (self.rot, self.mirror))
+        )
 
 
 class Block:
-    def __init__(self, name: str, canvas: str, port_attrs: dict | None = None, **bindings):
+    def __init__(
+        self, name: str, canvas: str, port_attrs: dict | None = None, **bindings
+    ):
         """port_attrs: {port key: {"aliases": [...]}}; a key is W0-style, D3-style or an alias."""
         self.name, self.text, self.bindings = name, canvas, bindings
         self.port_attrs = port_attrs or {}
@@ -165,12 +226,21 @@ class Block:
         cv = self.canvas
         for b in bindings:
             if b not in cv.comps:
-                glued = [c for c in cv.comps if c.casefold() in (f"v{b}".casefold(), f"{b}v".casefold())]
-                hint = (f"; {glued[0]!r} looks like {b} with a v arrow glued to its side — "
-                        "arrows ^/v go above or below a component, < / > beside it"
-                        if glued else "")
-                raise YasdlError(f"{name}: binding {b!r} has no component on the canvas "
-                                 f"(components: {sorted(cv.comps)}){hint}")
+                glued = [
+                    c
+                    for c in cv.comps
+                    if c.casefold() in (f"v{b}".casefold(), f"{b}v".casefold())
+                ]
+                hint = (
+                    f"; {glued[0]!r} looks like {b} with a v arrow glued to its side — "
+                    "arrows ^/v go above or below a component, < / > beside it"
+                    if glued
+                    else ""
+                )
+                raise YasdlError(
+                    f"{name}: binding {b!r} has no component on the canvas "
+                    f"(components: {sorted(cv.comps)}){hint}"
+                )
         self.unbound = sorted(set(cv.comps) - set(bindings))
         self.bound: dict[str, Bound] = {}
         for comp_name, obj in bindings.items():
@@ -180,7 +250,7 @@ class Block:
     def _make_ports(self) -> list[Port]:
         """Ports in canvas edge-port order, with DIP numbers and validated aliases."""
         cv = self.canvas
-        counters = {s: 0 for s in "NESW"}
+        counters: dict[str, int] = {"N": 0, "E": 0, "S": 0, "W": 0}
         index = []
         for p in cv.edge_ports:
             index.append(counters[p.side])
@@ -191,7 +261,7 @@ class Block:
         reexport = [self._reexport_candidate(p) for p in cv.edge_ports]
 
         def lookup(key):
-            for k, p in enumerate(cv.edge_ports):
+            for k, _port in enumerate(cv.edge_ports):
                 names = [defaults[k], f"D{dip[k]}", *explicit[k]]
                 if reexport[k]:
                     names.append(reexport[k])
@@ -202,32 +272,46 @@ class Block:
         for key, attrs in self.port_attrs.items():
             unknown = set(attrs) - PORT_ATTRS
             if unknown:
-                raise YasdlError(f"{self.name}: unsupported port attributes {sorted(unknown)} "
-                                 f"for {key!r} (supported: {sorted(PORT_ATTRS)})")
+                raise YasdlError(
+                    f"{self.name}: unsupported port attributes {sorted(unknown)} "
+                    f"for {key!r} (supported: {sorted(PORT_ATTRS)})"
+                )
             explicit[lookup(key)] += list(attrs.get("aliases", []))
         seen = {}
         for k, names in enumerate(explicit):
             for n in names:
                 if reserved(n):
-                    raise YasdlError(f"{self.name}: port alias {n!r} is reserved for a global net "
-                                     "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'")
+                    raise YasdlError(
+                        f"{self.name}: port alias {n!r} is reserved for a global net "
+                        "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'"
+                    )
                 if n not in SHORTCUT_ALIASES and not NAME.match(n):
-                    raise YasdlError(f"{self.name}: port alias {n!r}: names are letters, digits and _ "
-                                     "(or one of + < > ^ v)")
+                    raise YasdlError(
+                        f"{self.name}: port alias {n!r}: names are letters, digits and _ "
+                        "(or one of + < > ^ v)"
+                    )
                 if n in ARROWS:
                     side = cv.edge_ports[k].side
                     if (ARROWS[n] in "EW") != (side in "EW"):
-                        raise YasdlError(f"{self.name}: arrow alias {n!r} on the {side} side: "
-                                         "use < or > on W/E ports, ^ or v on N/S ports")
+                        raise YasdlError(
+                            f"{self.name}: arrow alias {n!r} on the {side} side: "
+                            "use < or > on W/E ports, ^ or v on N/S ports"
+                        )
                 if RESERVED_NAME.match(n):
-                    raise YasdlError(f"{self.name}: port alias {n!r} looks like a default port "
-                                     "name (W0, D3, ...); pick another")
+                    raise YasdlError(
+                        f"{self.name}: port alias {n!r} looks like a default port "
+                        "name (W0, D3, ...); pick another"
+                    )
                 if reserved(n):
-                    raise YasdlError(f"{self.name}: port alias {n!r} is reserved for a global net "
-                                     "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'")
+                    raise YasdlError(
+                        f"{self.name}: port alias {n!r} is reserved for a global net "
+                        "(GND, VCC, 0, ...); pick another, e.g. 'gnd_ret'"
+                    )
                 if n.casefold() in seen and seen[n.casefold()] != k:
-                    raise YasdlError(f"{self.name}: port alias {n!r} is used by two ports "
-                                     f"({defaults[seen[n.casefold()]]} and {defaults[k]})")
+                    raise YasdlError(
+                        f"{self.name}: port alias {n!r} is used by two ports "
+                        f"({defaults[seen[n.casefold()]]} and {defaults[k]})"
+                    )
                 seen[n.casefold()] = k
         # Re-exported names only when unambiguous: unique among all ports, not reserved.
         counts = {}
@@ -238,8 +322,14 @@ class Block:
         for k, p in enumerate(cv.edge_ports):
             aliases = list(dict.fromkeys(explicit[k]))
             r = reexport[k]
-            if (r and counts[r.casefold()] == 1 and r.casefold() not in seen
-                    and not RESERVED_NAME.match(r) and not reserved(r) and not aliases):
+            if (
+                r
+                and counts[r.casefold()] == 1
+                and r.casefold() not in seen
+                and not RESERVED_NAME.match(r)
+                and not reserved(r)
+                and not aliases
+            ):
                 aliases.append(r)
             name = next((a for a in aliases if a not in SHORTCUT_ALIASES), None)
             ports.append(Port(p.side, index[k], name, dip[k], tuple(aliases)))
@@ -254,14 +344,20 @@ class Block:
             if lab.kind not in ("local", "global"):
                 continue
             if not NAME.match(lab.text) and lab.text not in POWER_NETS:
-                raise YasdlError(f"{self.name}: net label [{lab.text}]: names are letters, digits "
-                                 "and _ (registered power nets like -12V are the exception)")
+                raise YasdlError(
+                    f"{self.name}: net label [{lab.text}]: names are letters, digits "
+                    "and _ (registered power nets like -12V are the exception)"
+                )
             if DEFAULT_PORT_NAME.match(lab.text):
-                raise YasdlError(f"{self.name}: label [{lab.text}] looks like a default port "
-                                 "name (W0, N1, ...); pick another")
+                raise YasdlError(
+                    f"{self.name}: label [{lab.text}] looks like a default port "
+                    "name (W0, N1, ...); pick another"
+                )
             if lab.text.casefold() in aliases:
-                raise YasdlError(f"{self.name}: label [{lab.text}] clashes with port "
-                                 f"{{{aliases[lab.text.casefold()]}}}")
+                raise YasdlError(
+                    f"{self.name}: label [{lab.text}] clashes with port "
+                    f"{{{aliases[lab.text.casefold()]}}}"
+                )
 
     def _reexport_candidate(self, edge_port) -> str | None:
         """The one pin name (atom pin name or sub-block port name) on the port's net, if any."""
@@ -302,7 +398,7 @@ class Block:
         return OrientedBlock(self).rotated(deg)
 
     def mirrored(self, axis: str) -> "OrientedBlock":
-        """"y" flips left/right, "x" flips top/bottom."""
+        """ "y" flips left/right, "x" flips top/bottom."""
         return OrientedBlock(self).mirrored(axis)
 
     @property
@@ -312,8 +408,12 @@ class Block:
     def side_ports(self, rot: int, mirror: str | None) -> dict[str, list]:
         """Port indices per side, in drawing order, after orienting the block."""
         big = 10_000.0
-        rep = {"W": lambda i: (0.0, i + 1.0), "E": lambda i: (big, i + 1.0),
-               "N": lambda i: (i + 1.0, 0.0), "S": lambda i: (i + 1.0, big)}
+        rep = {
+            "W": lambda i: (0.0, i + 1.0),
+            "E": lambda i: (big, i + 1.0),
+            "N": lambda i: (i + 1.0, 0.0),
+            "S": lambda i: (i + 1.0, big),
+        }
         out = {s: [] for s in "NESW"}
         for k, port in enumerate(self.ports):
             side, idx = port.side, port.index
@@ -331,25 +431,37 @@ class Block:
             target, fixed = obj, None
         elif isinstance(obj, Atom):
             target = obj
-            fixed = None if obj.rot is None and obj.mirror is None else (obj.rot or 0, obj.mirror)
+            fixed = (
+                None
+                if obj.rot is None and obj.mirror is None
+                else (obj.rot or 0, obj.mirror)
+            )
         else:
-            raise YasdlError(f"{self.name}: {comp.name} must be bound to an Atom or a Block")
+            raise YasdlError(
+                f"{self.name}: {comp.name} must be bound to an Atom or a Block"
+            )
         drawn = {s: len(comp.attachments[s]) for s in "NESW"}
         is_atom = isinstance(target, Atom)
         if is_atom and target.arrows:  # arrows point along their pin (spec 2.5)
             sides = {p.number: p.side for p in target.symbol.pins}
             for pin, arrow in target.arrows.items():
                 if (ARROWS[arrow] in "EW") != (sides[pin] in "EW"):
-                    raise YasdlError(f"{target.lib_id}: arrow {arrow!r} on pin {pin} must point "
-                                     f"along the pin ({sides[pin]} side)")
+                    raise YasdlError(
+                        f"{target.lib_id}: arrow {arrow!r} on pin {pin} must point "
+                        f"along the pin ({sides[pin]} side)"
+                    )
 
         def keys(rot, mirror):
             """Per side, in drawing order: (key, original side, labels it answers to)."""
             if is_atom:
-                return {s: [(p.number, p.side, p) for p in v]
-                        for s, v in target.side_pins(rot, mirror).items()}
-            return {s: [(k, target.ports[k].side, target.ports[k]) for k in v]
-                    for s, v in target.side_ports(rot, mirror).items()}
+                return {
+                    s: [(p.number, p.side, p) for p in v]
+                    for s, v in target.side_pins(rot, mirror).items()
+                }
+            return {
+                s: [(k, target.ports[k].side, target.ports[k]) for k in v]
+                for s, v in target.side_ports(rot, mirror).items()
+            }
 
         def answers(item, label, rot, mirror):
             if is_atom:
@@ -362,33 +474,48 @@ class Block:
                 return None
             pairs = []
             for s in "NESW":
-                pairs += [(att, item, s) for att, item in zip(comp.attachments[s], sp[s])]
-            if any(att.pin_label and not answers(item, att.pin_label, rot, mirror)
-                   for att, item, _ in pairs):
+                pairs += [
+                    (att, item, s) for att, item in zip(comp.attachments[s], sp[s])
+                ]
+            if any(
+                att.pin_label and not answers(item, att.pin_label, rot, mirror)
+                for att, item, _ in pairs
+            ):
                 return None
             return pairs
 
-        labelled = any(a.pin_label for s in "NESW" for a in comp.attachments[s])
         options = [fixed] if fixed else ORIENTATIONS
         fits = [(o, m) for o in options if (m := mapping(*o)) is not None]
         what = target.lib_id if is_atom else f"block {target.name}"
         if not fits:
             have = {s: len(v) for s, v in keys(*(fixed or (0, None))).items()}
-            raise YasdlError(f"{self.name}: {comp.name} ({what}) does not fit its drawing: "
-                             f"drawn {drawn}, has {have}"
-                             + (f" in orientation {fixed}" if fixed else " in any orientation"))
+            raise YasdlError(
+                f"{self.name}: {comp.name} ({what}) does not fit its drawing: "
+                f"drawn {drawn}, has {have}"
+                + (f" in orientation {fixed}" if fixed else " in any orientation")
+            )
+
         def reading_order(fit):
             """Pins that stay on a start side (N/W) or an end side (S/E): higher is better."""
-            return sum((orig in "NW") == (new in "NW") for _, (_, orig, _), new in fit[1])
+            return sum(
+                (orig in "NW") == (new in "NW") for _, (_, orig, _), new in fit[1]
+            )
 
         def axis_flips(fit):
             """How many of the two axes the orientation changes (mirror: 1, 180 deg: 2)."""
             rot, mirror = fit[0]
-            return (orient_side("E", rot, mirror) != "E") + (orient_side("S", rot, mirror) != "S")
+            return (orient_side("E", rot, mirror) != "E") + (
+                orient_side("S", rot, mirror) != "S"
+            )
 
-        best = max(fits, key=lambda f: (reading_order(f), -axis_flips(f), -ORIENTATIONS.index(f[0])))
+        best = max(
+            fits,
+            key=lambda f: (reading_order(f), -axis_flips(f), -ORIENTATIONS.index(f[0])),
+        )
         (rot, mirror), pairs = best
-        return Bound(comp.name, target, rot, mirror, [(a, item[0]) for a, item, _ in pairs])
+        return Bound(
+            comp.name, target, rot, mirror, [(a, item[0]) for a, item, _ in pairs]
+        )
 
     # --- JSON view -------------------------------------------------------------
     def local_nets(self) -> dict:
@@ -428,9 +555,14 @@ class Block:
                         entry["label"] = a.pin_label
                     if b:
                         k = key_of[id(a)]
-                        entry["pin"] = (k if isinstance(b.obj, Atom)
-                                        else (b.obj.ports[k].name or b.obj.ports[k].default))
-                        net_pins.setdefault(entry["net"], []).append(f"{name}.{entry['pin']}")
+                        entry["pin"] = (
+                            k
+                            if isinstance(b.obj, Atom)
+                            else (b.obj.ports[k].name or b.obj.ports[k].default)
+                        )
+                        net_pins.setdefault(entry["net"], []).append(
+                            f"{name}.{entry['pin']}"
+                        )
                     lst.append(entry)
                 if lst:
                     atts[side] = lst
@@ -438,40 +570,74 @@ class Block:
                 binding = None
             elif isinstance(b.obj, Atom):
                 rot, mir = display_orientation(b.rot, b.mirror)
-                binding = {"atom": b.obj.lib_id, "value": b.obj.value, "rot": rot, "mirror": mir}
+                binding = {
+                    "atom": b.obj.lib_id,
+                    "value": b.obj.value,
+                    "rot": rot,
+                    "mirror": mir,
+                }
             else:
                 if b.obj.name not in blocks:
                     blocks[b.obj.name] = None  # reserve (recursion guard)
                     blocks[b.obj.name] = b.obj.to_dict(blocks)
                 rot, mir = display_orientation(b.rot, b.mirror)
                 binding = {"block": b.obj.name, "rot": rot, "mirror": mir}
-            comps[name] = {"rect": {"row": comp.r0, "col": comp.c0, "rows": comp.r1 - comp.r0 + 1,
-                                    "cols": comp.c1 - comp.c0 + 1},
-                           "binding": binding, "attachments": atts}
+            comps[name] = {
+                "rect": {
+                    "row": comp.r0,
+                    "col": comp.c0,
+                    "rows": comp.r1 - comp.r0 + 1,
+                    "cols": comp.c1 - comp.c0 + 1,
+                },
+                "binding": binding,
+                "attachments": atts,
+            }
         labels = {}
         for i, lab in enumerate(cv.labels):
             if lab.pin_of is None:
                 labels.setdefault(net(("l", i)), []).append(
-                    {"text": lab.text, "row": lab.row, "col": lab.c0})
+                    {"text": lab.text, "row": lab.row, "col": lab.c0}
+                )
         nets = {}
         for n in sorted(set(net_of.values())):
-            nets[n] = {"pins": sorted(net_pins.get(n, [])),
-                       "ports": [port.name or port.default
-                                 for port, p in zip(self.ports, cv.edge_ports) if net(p.node) == n],
-                       "labels": labels.get(n, [])}
-        out = {"name": self.name, "size": {"cols": cv.W, "rows": cv.H}, "canvas": cv.g,
-               "components": comps, "unbound": self.unbound,
-               "ports": [{"side": port.side, "index": port.index, "dip": port.dip,
-                          "aliases": list(port.aliases), "net": net(p.node)}
-                         for port, p in zip(self.ports, cv.edge_ports)],
-               "nets": {k: v for k, v in nets.items() if v["pins"] or v["ports"] or v["labels"]}}
+            nets[n] = {
+                "pins": sorted(net_pins.get(n, [])),
+                "ports": [
+                    port.name or port.default
+                    for port, p in zip(self.ports, cv.edge_ports)
+                    if net(p.node) == n
+                ],
+                "labels": labels.get(n, []),
+            }
+        out = {
+            "name": self.name,
+            "size": {"cols": cv.W, "rows": cv.H},
+            "canvas": cv.g,
+            "components": comps,
+            "unbound": self.unbound,
+            "ports": [
+                {
+                    "side": port.side,
+                    "index": port.index,
+                    "dip": port.dip,
+                    "aliases": list(port.aliases),
+                    "net": net(p.node),
+                }
+                for port, p in zip(self.ports, cv.edge_ports)
+            ],
+            "nets": {
+                k: v for k, v in nets.items() if v["pins"] or v["ports"] or v["labels"]
+            },
+        }
         if top and blocks:
             out["blocks"] = blocks
         return out
 
     def __repr__(self):
-        return (f"Block({self.name}, {self.canvas.H}x{self.canvas.W}, ports={self.ports}, "
-                f"unbound={self.unbound})")
+        return (
+            f"Block({self.name}, {self.canvas.H}x{self.canvas.W}, ports={self.ports}, "
+            f"unbound={self.unbound})"
+        )
 
 
 # --- flat netlist ------------------------------------------------------------------
@@ -484,7 +650,9 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
     for i, port in enumerate(cv.edge_ports):
         if i in ext:
             uf.union(key(port.node), ext[i])
-    for i, lab in enumerate(cv.labels):  # global net labels join across the whole design
+    for i, lab in enumerate(
+        cv.labels
+    ):  # global net labels join across the whole design
         if lab.kind == "global":
             uf.union(key(("l", i)), ("global", lab.text))
     for name, b in block.bound.items():
@@ -518,8 +686,10 @@ class _Namer:
             return
         other = self.taken.get(name.casefold())
         if other is not None and other != root:
-            raise YasdlError(f"{self.where}: {what} {name!r} names two different nets "
-                             f"(already used as {self.names[other]!r})")
+            raise YasdlError(
+                f"{self.where}: {what} {name!r} names two different nets "
+                f"(already used as {self.names[other]!r})"
+            )
         self._set(root, name)
 
     def derived(self, root, name):

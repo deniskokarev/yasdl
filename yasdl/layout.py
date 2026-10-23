@@ -19,8 +19,14 @@ import math
 from dataclasses import dataclass, field
 
 from .block import Atom, Block
-from .kicad_lib import (compose, orient_vec, power_body_side, rot_with_pin_on, screen_bbox,
-                        to_screen)
+from .kicad_lib import (
+    compose,
+    orient_vec,
+    power_body_side,
+    rot_with_pin_on,
+    screen_bbox,
+    to_screen,
+)
 
 GRID = 1.27
 PITCH = 2.54
@@ -63,26 +69,53 @@ class Result:
         """The whole drawing rotated/mirrored about its origin (binding-time orientation)."""
         if (rot, mirror) == (0, None):
             return self
-        o = lambda p: tuple(round(v, 4) + 0.0 for v in orient_vec(p[0], p[1], rot, mirror))  # noqa: E731
-        corners = [o((x, y)) for x in (self.bbox[0], self.bbox[2]) for y in (self.bbox[1], self.bbox[3])]
+
+        def orient(point):
+            return tuple(
+                round(value, 4) + 0.0
+                for value in orient_vec(point[0], point[1], rot, mirror)
+            )
+
+        corners = [
+            orient((x, y))
+            for x in (self.bbox[0], self.bbox[2])
+            for y in (self.bbox[1], self.bbox[3])
+        ]
         return Result(
-            (min(c[0] for c in corners), min(c[1] for c in corners),
-             max(c[0] for c in corners), max(c[1] for c in corners)),
-            [o(p) for p in self.ports],
-            [(path, a, *o((x, y)), *compose((rot, mirror), (r, m)))
-             for path, a, x, y, r, m in self.symbols],
-            [(o(a), o(b)) for a, b in self.wires],
-            [(txt, o(p), scoped) for txt, p, scoped in self.labels],
+            (
+                min(c[0] for c in corners),
+                min(c[1] for c in corners),
+                max(c[0] for c in corners),
+                max(c[1] for c in corners),
+            ),
+            [orient(point) for point in self.ports],
+            [
+                (path, atom, *orient((x, y)), *compose((rot, mirror), (r, m)))
+                for path, atom, x, y, r, m in self.symbols
+            ],
+            [(orient(start), orient(end)) for start, end in self.wires],
+            [(text, orient(point), scoped) for text, point, scoped in self.labels],
         )
 
     def translated(self, dx, dy, prefix):
         t = lambda p: (round(p[0] + dx, 4), round(p[1] + dy, 4))  # noqa: E731
         return Result(
-            (self.bbox[0] + dx, self.bbox[1] + dy, self.bbox[2] + dx, self.bbox[3] + dy),
+            (
+                self.bbox[0] + dx,
+                self.bbox[1] + dy,
+                self.bbox[2] + dx,
+                self.bbox[3] + dy,
+            ),
             [t(p) for p in self.ports],
-            [(prefix + path, a, x + dx, y + dy, r, m) for path, a, x, y, r, m in self.symbols],
+            [
+                (prefix + path, a, x + dx, y + dy, r, m)
+                for path, a, x, y, r, m in self.symbols
+            ],
             [(t(a), t(b)) for a, b in self.wires],
-            [(prefix + txt if scoped else txt, t(p), scoped) for txt, p, scoped in self.labels],
+            [
+                (prefix + txt if scoped else txt, t(p), scoped)
+                for txt, p, scoped in self.labels
+            ],
         )
 
 
@@ -153,10 +186,15 @@ class Layout:
         self.children: dict[str, Result] = {}
         self.shapes: dict[str, Shape] = {}
         from .atoms import POWER_NETS  # registry of global nets drawn as power symbols
+
         # label index -> (Atom, rot, extent): dangling global labels drawn as power symbols
         self.power = {}
         for i, lab in enumerate(self.cv.labels):
-            if lab.kind == "global" and lab.text in POWER_NETS and len(lab.entries) == 1:
+            if (
+                lab.kind == "global"
+                and lab.text in POWER_NETS
+                and len(lab.entries) == 1
+            ):
                 atom = Atom(POWER_NETS[lab.text], lab.text)
                 rot = rot_with_pin_on(atom.symbol, lab.entries[0])
                 self.power[i] = (atom, rot, symbol_extent(atom, rot, None, ""))
@@ -183,7 +221,10 @@ class Layout:
 
     def run(self) -> Result:
         jogs = {name: {s: set() for s in "NESW"} for name in self.shapes}
-        self.sep = {"x": set(), "y": set()}  # extra pairwise separations (spilling shapes)
+        self.sep = {
+            "x": set(),
+            "y": set(),
+        }  # extra pairwise separations (spilling shapes)
         for _ in range(12):
             ys, oy = self._solve(jogs, "y")
             changed = self._find_jogs(jogs, ys, oy, "y")
@@ -220,7 +261,11 @@ class Layout:
                 lab = cv.labels[key]
                 x0, y0, x1, y1 = self.power[key][2]
                 if horiz:
-                    return var[("line", lab.vcol if lab.vcol is not None else lab.c0)], x0, x1
+                    return (
+                        var[("line", lab.vcol if lab.vcol is not None else lab.c0)],
+                        x0,
+                        x1,
+                    )
                 return var[("line", lab.row)], y0, y1
             if kind == "label":
                 lab = cv.labels[key]
@@ -276,7 +321,9 @@ class Layout:
                     eq = (var[("line", att.pos)], var[("comp", name)], off)
                     (must if first else maybe).append(eq)
                     first = False
-            if first:  # no pins on this axis: centre the component between its first/last line
+            if (
+                first
+            ):  # no pins on this axis: centre the component between its first/last line
                 lo_line, hi_line = (comp.c0, comp.c1) if horiz else (comp.r0, comp.r1)
                 x0, y0, x1, y1 = shape.bbox
                 mid = _down(((x0 + x1) if horiz else (y0 + y1)) / 2)
@@ -312,16 +359,32 @@ class Layout:
         cv = self.cv
         boxes: list[tuple] = []
         for name, comp in cv.comps.items():
-            boxes.append((("comp", name), (comp.r0, comp.r1), (comp.c0, comp.c1),
-                          self._comp_box(name, ox, oy, jogs)))
+            boxes.append(
+                (
+                    ("comp", name),
+                    (comp.r0, comp.r1),
+                    (comp.c0, comp.c1),
+                    self._comp_box(name, ox, oy, jogs),
+                )
+            )
         for i, lab in enumerate(cv.labels):
             if lab.pin_of is None:
-                boxes.append((("label", i), (lab.row, lab.row), (lab.c0, lab.c1),
-                              self._label_box(i, xs, ys)))
+                boxes.append(
+                    (
+                        ("label", i),
+                        (lab.row, lab.row),
+                        (lab.c0, lab.c1),
+                        self._label_box(i, xs, ys),
+                    )
+                )
         changed = False
         for (ia, ra, ca, ba), (ib, rb, cb, bb) in itertools.combinations(boxes, 2):
-            if not (ba[0] < bb[2] + GRID and bb[0] < ba[2] + GRID and
-                    ba[1] < bb[3] + GRID and bb[1] < ba[3] + GRID):
+            if not (
+                ba[0] < bb[2] + GRID
+                and bb[0] < ba[2] + GRID
+                and ba[1] < bb[3] + GRID
+                and bb[1] < ba[3] + GRID
+            ):
                 continue
             if ra[1] < rb[0] or rb[1] < ra[0]:
                 pair = (ia, ib) if ra[1] < rb[0] else (ib, ia)
@@ -341,11 +404,14 @@ class Layout:
         changed = False
         for name, comp in self.cv.comps.items():
             shape = self.shapes[name]
-            for side in ("NS" if horiz else "EW"):
+            for side in "NS" if horiz else "EW":
                 for att in comp.attachments[side]:
                     px, py = shape.pins[id(att)]
                     want = origin[name] + (px if horiz else py)
-                    if abs(pos[att.pos] - want) > 1e-6 and id(att) not in jogs[name][side]:
+                    if (
+                        abs(pos[att.pos] - want) > 1e-6
+                        and id(att) not in jogs[name][side]
+                    ):
                         jogs[name][side].add(id(att))
                         changed = True
         return changed
@@ -410,8 +476,11 @@ class Layout:
                         # A crossing may be the only cell between two symbols.
                         other = cv.comp_at[cell]
                         opposite = {"N": "S", "S": "N", "E": "W", "W": "E"}[side]
-                        target = next(a for a in cv.comps[other].attachments[opposite]
-                                      if a.pos == att.pos)
+                        target = next(
+                            a
+                            for a in cv.comps[other].attachments[opposite]
+                            if a.pos == att.pos
+                        )
                         tx, ty = self.shapes[other].pins[id(target)]
                         wire_point = (ox[other] + tx, oy[other] + ty)
                     else:
@@ -422,14 +491,20 @@ class Layout:
         # Edge ports.
         all_pts = [p for w in res.wires for p in w]
         boxes = [self._comp_box(n, ox, oy, jogs) for n in cv.comps]
-        boxes += [self._label_box(i, xs, ys) for i, lab in enumerate(cv.labels) if lab.pin_of is None]
+        boxes += [
+            self._label_box(i, xs, ys)
+            for i, lab in enumerate(cv.labels)
+            if lab.pin_of is None
+        ]
         x0 = min([p[0] for p in all_pts] + [b[0] for b in boxes] + xs)
         y0 = min([p[1] for p in all_pts] + [b[1] for b in boxes] + ys)
         x1 = max([p[0] for p in all_pts] + [b[2] for b in boxes] + xs)
         y1 = max([p[1] for p in all_pts] + [b[3] for b in boxes] + ys)
         for port in cv.edge_ports:
             p = node_point(port.cell)
-            edge = {"W": (x0, p[1]), "E": (x1, p[1]), "N": (p[0], y0), "S": (p[0], y1)}[port.side]
+            edge = {"W": (x0, p[1]), "E": (x1, p[1]), "N": (p[0], y0), "S": (p[0], y1)}[
+                port.side
+            ]
             res.wires.append((p, edge))
             res.ports.append(edge)
         # Net labels (block-scoped: prefixed when the block is nested).
@@ -437,9 +512,16 @@ class Layout:
             if i in self.power:  # drawn as its power symbol, pin on the label's point
                 atom, rot, _ = self.power[i]
                 x, y = node_point((lab.row, lab.c0))
-                res.symbols.append((f"[{lab.text}]@{lab.row}.{lab.c0}", atom, x, y, rot, None))
-            elif lab.kind in ("local", "global"):  # local names are block-scoped (prefixed)
-                res.labels.append((lab.text, node_point((lab.row, lab.c0)), lab.kind == "local"))
+                res.symbols.append(
+                    (f"[{lab.text}]@{lab.row}.{lab.c0}", atom, x, y, rot, None)
+                )
+            elif lab.kind in (
+                "local",
+                "global",
+            ):  # local names are block-scoped (prefixed)
+                res.labels.append(
+                    (lab.text, node_point((lab.row, lab.c0)), lab.kind == "local")
+                )
         res.wires = [w for w in res.wires if w[0] != w[1]]
         res.bbox = (x0, y0, x1, y1)
         return res
@@ -447,8 +529,12 @@ class Layout:
     def _comp_box(self, name, ox, oy, jogs):
         x0, y0, x1, y1 = self.shapes[name].bbox
         j = jogs[name]
-        return (ox[name] + x0 - PITCH * len(j["W"]), oy[name] + y0 - PITCH * len(j["N"]),
-                ox[name] + x1 + PITCH * len(j["E"]), oy[name] + y1 + PITCH * len(j["S"]))
+        return (
+            ox[name] + x0 - PITCH * len(j["W"]),
+            oy[name] + y0 - PITCH * len(j["N"]),
+            ox[name] + x1 + PITCH * len(j["E"]),
+            oy[name] + y1 + PITCH * len(j["S"]),
+        )
 
     def _label_box(self, i, xs, ys):
         lab = self.cv.labels[i]
@@ -456,8 +542,12 @@ class Layout:
             x0, y0, x1, y1 = self.power[i][2]
             x, y = xs[lab.vcol if lab.vcol is not None else lab.c0], ys[lab.row]
             return (x + x0, y + y0, x + x1, y + y1)
-        return (xs[lab.c0], ys[lab.row] - PITCH, xs[lab.c0] + _up(len(lab.text) * CHAR_W) + GRID,
-                ys[lab.row])
+        return (
+            xs[lab.c0],
+            ys[lab.row] - PITCH,
+            xs[lab.c0] + _up(len(lab.text) * CHAR_W) + GRID,
+            ys[lab.row],
+        )
 
 
 # --- ladder routing --------------------------------------------------------------------
@@ -468,10 +558,18 @@ def _route_side(side, items, where):
     jog on its own track in the gap between the wires and the pins.
     """
     # Normalise to "wires come from the left (small u), pins on the right"; v is across.
-    fwd = {"W": lambda p: (p[0], p[1]), "E": lambda p: (-p[0], p[1]),
-           "N": lambda p: (p[1], p[0]), "S": lambda p: (-p[1], p[0])}[side]
-    back = {"W": lambda u, v: (u, v), "E": lambda u, v: (-u, v),
-            "N": lambda u, v: (v, u), "S": lambda u, v: (v, -u)}[side]
+    fwd = {
+        "W": lambda p: (p[0], p[1]),
+        "E": lambda p: (-p[0], p[1]),
+        "N": lambda p: (p[1], p[0]),
+        "S": lambda p: (-p[1], p[0]),
+    }[side]
+    back = {
+        "W": lambda u, v: (u, v),
+        "E": lambda u, v: (-u, v),
+        "N": lambda u, v: (v, u),
+        "S": lambda u, v: (v, -u),
+    }[side]
     norm = [(fwd(a), fwd(b)) for a, b in items]
     straight = [(a, b) for a, b in norm if abs(a[1] - b[1]) < 1e-6]
     jog = [(a, b) for a, b in norm if abs(a[1] - b[1]) >= 1e-6]
@@ -480,9 +578,13 @@ def _route_side(side, items, where):
         u_pin = min(b[0] for _, b in jog)
         tracks = [round(u_pin - PITCH * (k + 1), 4) for k in range(len(jog))]
         for order in itertools.permutations(range(len(jog))):
-            paths = [[a, (tracks[t], a[1]), (tracks[t], b[1]), b]
-                     for (a, b), t in zip(jog, order)]
-            if not any(_crosses(p, q) for p, q in itertools.combinations(paths + out, 2)):
+            paths = [
+                [a, (tracks[t], a[1]), (tracks[t], b[1]), b]
+                for (a, b), t in zip(jog, order)
+            ]
+            if not any(
+                _crosses(p, q) for p, q in itertools.combinations(paths + out, 2)
+            ):
                 out += paths
                 break
         else:
@@ -508,7 +610,12 @@ def _seg_hit(a1, a2, b1, b2):
     ay0, ay1 = sorted((a1[1], a2[1]))
     bx0, bx1 = sorted((b1[0], b2[0]))
     by0, by1 = sorted((b1[1], b2[1]))
-    return ax0 <= bx1 + 1e-9 and bx0 <= ax1 + 1e-9 and ay0 <= by1 + 1e-9 and by0 <= ay1 + 1e-9
+    return (
+        ax0 <= bx1 + 1e-9
+        and bx0 <= ax1 + 1e-9
+        and ay0 <= by1 + 1e-9
+        and by0 <= ay1 + 1e-9
+    )
 
 
 def layout(block: Block) -> Result:

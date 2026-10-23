@@ -16,14 +16,24 @@ if __name__ == "__main__":
         (title, block, (sgen.BJT_MODELS,), True) for title, block in sgen.ALL.items()
     ]
     for title, block, spice_libs, spice_enabled in jobs:
-        info = render(
-            block, "out", spice_libs=spice_libs, spice=spice_enabled
+        info = render(block, "out", spice_libs=spice_libs, spice=spice_enabled)
+        status = (
+            "OK"
+            if info["roundtrip_ok"]
+            else f"MISMATCH missing={info['missing']} extra={info['extra']}"
         )
-        status = "OK" if info["roundtrip_ok"] else f"MISMATCH missing={info['missing']} extra={info['extra']}"
         erc = "clean" if not info["erc"] else f"{len(info['erc'])} violations"
-        spice = "" if "spice_ok" not in info else f"  SPICE {'OK' if info['spice_ok'] else info['spice_diff']}"
+        spice = (
+            ""
+            if "spice_ok" not in info
+            else f"  SPICE {'OK' if info['spice_ok'] else info['spice_diff']}"
+        )
         print(f"{title:18s} {info['schematic']}  round-trip {status}  ERC {erc}{spice}")
         for v in info["erc"]:
             print(f"    {v}")
-        failed |= not info["roundtrip_ok"] or bool(info["erc"]) or info.get("spice_ok") is False
+        failed |= (
+            not info["roundtrip_ok"]
+            or bool(info["erc"])
+            or info.get("spice_ok") is False
+        )
     sys.exit(1 if failed else 0)

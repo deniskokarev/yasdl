@@ -11,9 +11,15 @@ from pathlib import Path
 
 from .block import Block, flat_names, netlist, partition
 from .kicad_lib import KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR, to_screen
-from .kicad_sch import Schematic, export_netlist, export_svg, run_erc, snap
+from .kicad_sch import export_netlist, export_svg, run_erc, Schematic, snap
 from .layout import layout
-from .spice import model_library, parse_spice, spice_model, spice_netlist, spice_partition
+from .spice import (
+    model_library,
+    parse_spice,
+    spice_model,
+    spice_netlist,
+    spice_partition,
+)
 
 MARGIN = 25.4
 SVG_PAD = 12.7
@@ -37,13 +43,20 @@ def _paper_for_bbox(bbox) -> str:
 
 
 def _ref_prefix(lib_id: str, sym) -> str:
-    prop = next((c for c in sym.sexp if isinstance(c, list) and c[:2] == ["property", "Reference"]),
-                None)
+    prop = next(
+        (
+            c
+            for c in sym.sexp
+            if isinstance(c, list) and c[:2] == ["property", "Reference"]
+        ),
+        None,
+    )
     return str(prop[2]) if prop else "X"
 
 
-def to_kicad(block: Block, path, erc_helpers: bool = True,
-             spice_libs: tuple = ()) -> tuple[Path, dict[str, str]]:
+def to_kicad(
+    block: Block, path, erc_helpers: bool = True, spice_libs: tuple = ()
+) -> tuple[Path, dict[str, str]]:
     """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
@@ -58,14 +71,25 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
         sym = atom.symbol
         prefix = _ref_prefix(atom.lib_id, sym)
         if sym.is_power:
-            ref = sch.add_symbol(atom.lib_id, "#PWR", atom.value, *t((x, y)), rot, mirror)
+            ref = sch.add_symbol(
+                atom.lib_id, "#PWR", atom.value, *t((x, y)), rot, mirror
+            )
         else:
             counters[prefix] += 1
             ref = f"{prefix}{counters[prefix]}"
-            sch.add_symbol(atom.lib_id, ref, atom.value, *t((x, y)), rot, mirror,
-                           fields={"yasdl_path": ypath, **_sim_fields(atom, spice_libs)})
+            sch.add_symbol(
+                atom.lib_id,
+                ref,
+                atom.value,
+                *t((x, y)),
+                rot,
+                mirror,
+                fields={"yasdl_path": ypath, **_sim_fields(atom, spice_libs)},
+            )
         refmap[ref] = ypath
-        placed.append((sym, t((x, y)), rot, mirror, atom.value or atom.lib_id.split(":")[1]))
+        placed.append(
+            (sym, t((x, y)), rot, mirror, atom.value or atom.lib_id.split(":")[1])
+        )
     wires = [(t(a), t(b)) for a, b in res.wires]
     ends = Counter()
     for a, b in wires:
@@ -93,10 +117,15 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
             sch.add_text(alias, t(p), angle)
         port_points.append((port.side, t(p)))
     if erc_helpers:
-        for side, p in port_points:  # open interface: a test point gives the net a second pin
+        for (
+            side,
+            p,
+        ) in port_points:  # open interface: a test point gives the net a second pin
             counters["TP"] += 1
             ref = f"TP{counters['TP']}"
-            sch.add_symbol("Connector:TestPoint", ref, "", *p, _OUTWARD[side], helper=True)
+            sch.add_symbol(
+                "Connector:TestPoint", ref, "", *p, _OUTWARD[side], helper=True
+            )
             refmap[ref] = None
         for anchor, rot in _power_flags(placed, wires, labels):
             ref = sch.add_symbol(
@@ -105,8 +134,12 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
             refmap[ref] = None
     path = sch.save(path)
     _write_project(path)
-    _BBOX[str(path)] = (MARGIN, MARGIN, MARGIN + res.bbox[2] - res.bbox[0],
-                        MARGIN + res.bbox[3] - res.bbox[1])
+    _BBOX[str(path)] = (
+        MARGIN,
+        MARGIN,
+        MARGIN + res.bbox[2] - res.bbox[0],
+        MARGIN + res.bbox[3] - res.bbox[1],
+    )
     return path, refmap
 
 
@@ -115,7 +148,9 @@ def _sim_fields(atom, spice_libs) -> dict:
     Plain R/C/L need none: KiCad reads their value."""
     try:
         m = spice_model(atom)
-    except Exception:  # no SPICE mapping: the schematic is still valid, just not simulatable
+    except (
+        Exception
+    ):  # no SPICE mapping: the schematic is still valid, just not simulatable
         return {}
     if m is None or not m.model or atom.spice is None and not m.sim_pins:
         return {}
@@ -160,7 +195,9 @@ def _power_flags(placed, wires, labels):
             pt = (snap(x + sx), snap(y + sy))
             find(pt)
             pins.append((pt, p.etype, sym.is_power))
-            if sym.is_power:  # power symbols with one name are one net, wherever they are
+            if (
+                sym.is_power
+            ):  # power symbols with one name are one net, wherever they are
                 union(pt, ("label", value))
     for text, pt, _ in labels:
         union(pt, ("label", text))
@@ -192,8 +229,11 @@ def _write_project(sch_path: Path):
     if not table.exists():
         libs = sorted(f.stem for f in SYMBOL_DIR.glob("*.kicad_sym"))
         lines = ["(sym_lib_table", "  (version 7)"]
-        lines += [f'  (lib (name "{lib}")(type "KiCad")(uri "{SYMBOL_DIR / (lib + ".kicad_sym")}")'
-                  '(options "")(descr ""))' for lib in libs]
+        lines += [
+            f'  (lib (name "{lib}")(type "KiCad")(uri "{SYMBOL_DIR / (lib + ".kicad_sym")}")'
+            '(options "")(descr ""))'
+            for lib in libs
+        ]
         table.write_text("\n".join(lines + [")"]) + "\n")
 
 
@@ -219,9 +259,13 @@ def _crop_svg(svg_path: Path, bbox, pad: float = SVG_PAD, px_per_mm: float = 12.
     x0, y0, x1, y1 = bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad
     w, h = x1 - x0, y1 - y0
     text = svg_path.read_text()
-    text = re.sub(r'width="[^"]*mm" height="[^"]*mm" viewBox="[^"]*"',
-                  f'width="{w * px_per_mm:.0f}" height="{h * px_per_mm:.0f}" '
-                  f'viewBox="{x0:.4f} {y0:.4f} {w:.4f} {h:.4f}"', text, count=1)
+    text = re.sub(
+        r'width="[^"]*mm" height="[^"]*mm" viewBox="[^"]*"',
+        f'width="{w * px_per_mm:.0f}" height="{h * px_per_mm:.0f}" '
+        f'viewBox="{x0:.4f} {y0:.4f} {w:.4f} {h:.4f}"',
+        text,
+        count=1,
+    )
     text = "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
     svg_path.write_text(text)
 
@@ -230,12 +274,19 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     """Compare the KiCad netlist of `sch_path` with yasdl's netlist (power symbols excluded)."""
     kicad = export_netlist(sch_path)
     power_paths = {p for r, p in refmap.items() if r.startswith("#PWR")}
-    got = {frozenset(f"{refmap[r]}.{pin}" for r, pin in nodes
-                     if not r.startswith("#") and refmap.get(r) is not None)
-           for nodes in kicad.values()}
+    got = {
+        frozenset(
+            f"{refmap[r]}.{pin}"
+            for r, pin in nodes
+            if not r.startswith("#") and refmap.get(r) is not None
+        )
+        for nodes in kicad.values()
+    }
     got.discard(frozenset())
-    want = {frozenset(x for x in net if x.rsplit(".", 1)[0] not in power_paths)
-            for net in partition(netlist(block))}
+    want = {
+        frozenset(x for x in net if x.rsplit(".", 1)[0] not in power_paths)
+        for net in partition(netlist(block))
+    }
     want.discard(frozenset())
     return got == want, want - got, got - want
 
@@ -244,8 +295,22 @@ def export_kicad_spice(sch_path) -> str:
     """kicad-cli's own SPICE export of a schematic."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "net.cir"
-        subprocess.run([str(KICAD_CLI), "sch", "export", "netlist", "--format", "spice",
-                        "-o", str(out), str(sch_path)], check=True, capture_output=True, text=True)
+        subprocess.run(
+            [
+                str(KICAD_CLI),
+                "sch",
+                "export",
+                "netlist",
+                "--format",
+                "spice",
+                "-o",
+                str(out),
+                str(sch_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         return out.read_text()
 
 
@@ -258,17 +323,28 @@ def spice_roundtrip(block: Block, sch_path, refmap) -> tuple[bool, str]:
     norm = lambda s: {frozenset((e.replace(".", "_"), i) for e, i in net) for net in s}  # noqa: E731
     vals = lambda s: {(e.replace(".", "_"), v) for e, v in s}  # noqa: E731
     ok = norm(k_part) == norm(o_part) and vals(k_vals) == vals(o_vals)
-    return ok, "" if ok else f"kicad {sorted(map(sorted, norm(k_part) ^ norm(o_part)))[:4]}"
+    return (
+        ok,
+        "" if ok else f"kicad {sorted(map(sorted, norm(k_part) ^ norm(o_part)))[:4]}",
+    )
 
 
-def render(block: Block, out_dir, svg: bool = True, spice_libs: tuple = (),
-           spice: bool = False) -> dict:
+def render(
+    block: Block, out_dir, svg: bool = True, spice_libs: tuple = (), spice: bool = False
+) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    sch_path, refmap = to_kicad(block, out_dir / f"{block.name}.kicad_sch", spice_libs=spice_libs)
+    sch_path, refmap = to_kicad(
+        block, out_dir / f"{block.name}.kicad_sch", spice_libs=spice_libs
+    )
     ok, missing, extra = roundtrip(block, sch_path, refmap)
-    info: dict[str, object] = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra,
-            "erc": erc(sch_path)}
+    info: dict[str, object] = {
+        "schematic": sch_path,
+        "roundtrip_ok": ok,
+        "missing": missing,
+        "extra": extra,
+        "erc": erc(sch_path),
+    }
     if spice:
         info["spice_ok"], info["spice_diff"] = spice_roundtrip(block, sch_path, refmap)
     if svg:

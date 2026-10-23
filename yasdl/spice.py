@@ -53,7 +53,7 @@ def _instances(block: Block, prefix: str = ""):
     """(path, Bound) for every atom in the flattened design."""
     for name, b in block.bound.items():
         if isinstance(b.obj, Atom):
-            yield prefix + name, b
+            yield prefix + name, b, b.obj
         else:
             yield from _instances(b.obj, f"{prefix}{name}.")
 
@@ -121,8 +121,8 @@ def spice_netlist(block: Block, subckt: str | None = None, port_order: list[str]
     lines += [f".include {inc}" for inc in includes]
     if subckt:
         lines.append(f".subckt {subckt} {' '.join(port_nodes)}")
-    for path, b in _instances(block):
-        m = spice_model(b.obj)
+    for path, b, atom in _instances(block):
+        m = spice_model(atom)
         if m is None:
             continue
         by_pin = {}
@@ -134,7 +134,7 @@ def spice_netlist(block: Block, subckt: str | None = None, port_order: list[str]
                 raise YasdlError(f"{path}: pin {pin} is not drawn")
             nodes.append(node(pins[(path, pin)]))
         label = m.prefix + "_" + re.sub(r"[^A-Za-z0-9_]", "_", path)
-        lines.append(f"{label} {' '.join(nodes)} {m.model or b.obj.value}")
+        lines.append(f"{label} {' '.join(nodes)} {m.model or atom.value}")
     if subckt:
         lines.append(f".ends {subckt}")
     return "\n".join(lines) + "\n"

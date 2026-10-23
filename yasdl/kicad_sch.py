@@ -40,7 +40,9 @@ class Schematic:
         self.title = title
         self.paper = paper
         self.uuid = _uid()
-        self.symbols, self.items, self.lib_ids = [], [], []
+        self.symbols: list[list[object]] = []
+        self.items: list[list[object]] = []
+        self.lib_ids: list[str] = []
         self._pwr = 0
 
     def add_symbol(self, lib_id: str, ref: str, value: str, x: float, y: float,
@@ -53,7 +55,11 @@ class Schematic:
         if sym.is_power:
             self._pwr += 1
             ref = f"#PWR{self._pwr:03d}"
-        node = [Sym("symbol"), [Sym("lib_id"), lib_id], [Sym("at"), _num(x), _num(y), _num(rot)]]
+        node: list[object] = [
+            Sym("symbol"),
+            [Sym("lib_id"), lib_id],
+            [Sym("at"), _num(x), _num(y), _num(rot)],
+        ]
         if mirror:
             node.append([Sym("mirror"), Sym(mirror)])
         node += [[Sym("unit"), _num(1)], [Sym("exclude_from_sim"), Sym("yes" if helper else "no")],

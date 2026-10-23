@@ -310,7 +310,7 @@ class Layout:
         """Separate boxes (components, net labels) that overlap physically although they sit in
         different rows/columns: in Y if their canvas rows are disjoint, else in X."""
         cv = self.cv
-        boxes = []
+        boxes: list[tuple] = []
         for name, comp in cv.comps.items():
             boxes.append((("comp", name), (comp.r0, comp.r1), (comp.c0, comp.c1),
                           self._comp_box(name, ox, oy, jogs)))

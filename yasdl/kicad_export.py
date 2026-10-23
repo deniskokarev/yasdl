@@ -99,7 +99,9 @@ def to_kicad(block: Block, path, erc_helpers: bool = True,
             sch.add_symbol("Connector:TestPoint", ref, "", *p, _OUTWARD[side], helper=True)
             refmap[ref] = None
         for anchor, rot in _power_flags(placed, wires, labels):
-            ref = sch.add_symbol("power:PWR_FLAG", "#FLG", "", *anchor, rot, helper=True)
+            ref = sch.add_symbol(
+                "power:PWR_FLAG", "#FLG", "", anchor[0], anchor[1], rot=rot, helper=True
+            )
             refmap[ref] = None
     path = sch.save(path)
     _write_project(path)
@@ -265,7 +267,7 @@ def render(block: Block, out_dir, svg: bool = True, spice_libs: tuple = (),
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(block, out_dir / f"{block.name}.kicad_sch", spice_libs=spice_libs)
     ok, missing, extra = roundtrip(block, sch_path, refmap)
-    info = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra,
+    info: dict[str, object] = {"schematic": sch_path, "roundtrip_ok": ok, "missing": missing, "extra": extra,
             "erc": erc(sch_path)}
     if spice:
         info["spice_ok"], info["spice_diff"] = spice_roundtrip(block, sch_path, refmap)

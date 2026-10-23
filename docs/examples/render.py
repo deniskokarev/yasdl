@@ -4,14 +4,21 @@
 import sys
 
 from docs.examples import blocks, sgen
+from yasdl import Block
 from yasdl.kicad_export import render
 
 if __name__ == "__main__":
     failed = False
-    jobs = [(t, b, {}) for t, b in blocks.ALL.items()]
-    jobs += [(t, b, {"spice_libs": (sgen.BJT_MODELS,), "spice": True}) for t, b in sgen.ALL.items()]
-    for title, blk, opts in jobs:
-        info = render(blk, "out", **opts)
+    jobs: list[tuple[str, Block, tuple[str, ...], bool]] = [
+        (title, block, (), False) for title, block in blocks.ALL.items()
+    ]
+    jobs += [
+        (title, block, (sgen.BJT_MODELS,), True) for title, block in sgen.ALL.items()
+    ]
+    for title, block, spice_libs, spice_enabled in jobs:
+        info = render(
+            block, "out", spice_libs=spice_libs, spice=spice_enabled
+        )
         status = "OK" if info["roundtrip_ok"] else f"MISMATCH missing={info['missing']} extra={info['extra']}"
         erc = "clean" if not info["erc"] else f"{len(info['erc'])} violations"
         spice = "" if "spice_ok" not in info else f"  SPICE {'OK' if info['spice_ok'] else info['spice_diff']}"

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from .canvas import ARROWS, Canvas, CanvasError, _UF
 from .nets import DEFAULT_PORT_NAME, GROUND, POWER_NETS, reserved
 from .kicad_lib import ORIENTATIONS, compose, load, orient_side, orient_vec, pin_side, to_screen
+
+if TYPE_CHECKING:
+    from .spice import SpiceModel
 
 
 class YasdlError(ValueError):
@@ -25,7 +28,7 @@ class Atom:
     mirror: str | None = None
     symmetric: bool = False  # all pins interchangeable (R, C, L)
     aliases: dict = field(default_factory=dict)  # pin label -> pin number, e.g. {"+": "1"}
-    spice: object = None  # spice.SpiceModel override (default by lib_id)
+    spice: SpiceModel | None = None  # override for the default mapping by lib_id
     arrows: dict = field(default_factory=dict)  # pin number -> arrow (current direction, library frame)
 
     def __post_init__(self):
@@ -78,7 +81,7 @@ class Bound:
     """A component as resolved in a block: what it is and how its pins map to attachments."""
 
     name: str
-    obj: object  # Atom or Block
+    obj: Atom | Block
     rot: int = 0
     mirror: str | None = None
     pin_map: list = field(default_factory=list)  # [(Attachment, pin number or port index)]

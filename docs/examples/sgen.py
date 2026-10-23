@@ -18,11 +18,11 @@ BJT_MODELS = str(JELLYBEAN_MODEL)
 PHASE_SHIFT = Block(
     "PhaseShift",
     """
-    {in}──C1──┬──C2──┬──C3──{out}
-              │      │
-              R1     R2
-              │      │
-            [GND]  [GND]
+    {in, >}──C1──┬──C2──┬──C3──{out}
+                 │      │
+                 R1     R2
+                 │      │
+               [GND]  [GND]
 """,
     C1=C("2.5n"),
     C2=C("2.5n"),
@@ -45,6 +45,7 @@ OSCILLATOR = Block(
        ┌───┼──────[b]Q1Q1         │
        │   │         Q1Q1         │
        │   RB        Q1Q1         │
+       │   │        [e]           │
        │   │         │            │
        │ [GND]       REUP         │
        │             │            │
@@ -54,7 +55,7 @@ OSCILLATOR = Block(
        │             │      │     │
        │           [GND]  [GND]   │
        │                          │
-       └───────────PS[in]─────────┘
+       └───────────PS<────────────┘
 """,
     RA=R("300k"),
     RB=R("47k"),
@@ -63,8 +64,8 @@ OSCILLATOR = Block(
     REDN=R("910"),
     CE=C("100u"),
     Q1=NPN("2N3904"),
-    # The ladder runs from the collector (right) to the base (left). The [in] pin label on the
-    # right side is enough: of the two fits (180 deg turn, left/right mirror) yasdl picks the
+    # The ladder runs from the collector (right) to the base (left). The < arrow on the
+    # right names its input: of the two fits (180 deg turn, left/right mirror) yasdl picks the
     # mirror, which keeps the shunt legs hanging down (spec 3.2).
     PS=PHASE_SHIFT,
 )
@@ -77,6 +78,7 @@ OUTPUT_AMP = Block(
     {in}──CK──RBUF──┬──[b]Q2Q2
                     │     Q2Q2
                     RBIN  Q2Q2
+                    │    [e]
                     │     │
                   [GND]   ├──COUT──ROUT──┬──{out}
                           │              │

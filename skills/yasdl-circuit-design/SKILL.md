@@ -134,8 +134,9 @@ labels; the labels choose the orientation.
   emitter fixes it. Arrows: NPN base `>`, emitter `v`; PNP base `<`, emitter `^`.
 - The op-amp (`Simulation_SPICE:OPAMP`) has + above −. A `+` on its lower input flips it so −
   is on top, as in inverting stages.
-- Sub-block ports with names (`{in}`, `{a, anode}`) work as labels in the parent:
-  `PS[in]` puts PS's `in` port on that side.
+- Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
+  the right. Named ports also accept bracket labels: `PS[in]` names the `in` port on that
+  side.
 - If two orientations still fit, yasdl picks one deterministically: unrotated first, then the
   one that keeps reading order. That's fine when the choice doesn't matter electrically; when it
   does, add a label. Explicit `.rotated()`/`.mirrored()` exist as a last resort.

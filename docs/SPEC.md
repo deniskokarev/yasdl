@@ -512,9 +512,11 @@ emitter-follower buffer, composed from small blocks:
   bottom. The supply/output pin order (V+, V−, OUT) is given as `port_order=SGEN_PINS`.
 
 Each canvas is small and stands alone (each renders ERC-clean); yasdl composes the final
-planar schematic. Grounds are `[GND]` labels. The ladder is drawn as `PS[in]` and bound
-with no explicit orientation: the label puts its input on the right, and of the two fits (180°,
-left/right mirror) the mirror flips fewer axes (3.2), so the shunt legs keep hanging down.
+planar schematic. Grounds are `[GND]` labels. The ladder's input is declared `{in, >}` and
+drawn as `PS<` in the oscillator: the arrow puts its input on the right. Of the two fits (180°,
+left/right mirror), the mirror flips fewer axes (3.2), so the shunt legs keep hanging down.
+Both transistors label `[b]` and `[e]` explicitly, fixing their base/emitter connections
+and preventing a top/bottom mirror from swapping collector and emitter.
 The generated `.subckt sgen vp vm out` is structurally identical to the fixed test netlist.
 In ngspice, both the yasdl netlist and KiCad's export of the generated schematic oscillate
 at about 1967 Hz, matching the test circuit.

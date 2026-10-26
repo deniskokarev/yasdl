@@ -81,11 +81,16 @@ Square brackets always name nets. A net label needs at least one wire and must n
 touch a component; insert a wire between a net label and a component. Use braces to name a
 component pin (2.5).
 
-| Wires | Meaning |
+| Name | Meaning |
 |---|---|
-| one wire | **global net**: every `[name]` with the same text in the whole design is one net, in every block and every instance |
-| wires on both sides (`──[x]──`) | **local net name**: names a net inside this block only; it never connects across instances |
-| no wire | error |
+| starts with `A-Z`, e.g. `[Signal]` | **global net**: the same name connects across every block and instance |
+| starts with `a-z` or `_`, e.g. `[signal]`, `[_bias]` | **local net**: the same name connects within this block only |
+| registered power name, e.g. `[+5V]`, `[-12V]` | **global net**, regardless of its initial character |
+| starts with a digit, e.g. `[1]`, `[0]` | error; numeric names are permitted for brace pins/interfaces, not nets |
+
+Scope depends on the name, not the number of wires. `──[Signal]──` is global, and a terminal
+`──[signal]` is local. Every net label needs at least one wire. Registered power names must
+still use their exact registered spelling (`[GND]`, not `[gnd]`).
 
 Horizontal wires enter at the opening `[` or closing `]`. Vertical wires may enter at any
 column occupied by the label, including either delimiter; two vertical wires through one
@@ -285,9 +290,9 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
      `{b}`/`{c}` labels. A re-exported name that collides with another port's name, or looks
      like a default name, is silently dropped.
 - **Names**: aliases are letters, digits and `_`, or one of the shortcuts `+ < > ^ v`.
-  No `-` or spaces (SPICE node names can't carry them). Net labels follow the same grammar,
-  except registered power nets (`-12V`, `+5V`). Pin labels stay free-form, because they match
-  KiCad pin names such as the op-amp's `-`.
+  No `-` or spaces (SPICE node names can't carry them). Net names additionally require the
+  initial scope character from 2.4, except registered power nets (`-12V`, `+5V`). Pin labels
+  stay free-form, because they match KiCad pin names such as the op-amp's `-`.
 - **Uniqueness**: no two ports may share an alias (case-insensitive), within one `{}` list or
   across ports. `{<,>}──…──{>}` is an error. Aliases may not look like
   default names (`W0`, `D3`, ...) or use a reserved global name (`GND`, `VCC`, `0`, ...; 2.8).
@@ -303,6 +308,13 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
 One rule: **every net name in a design is unambiguous, everywhere it ends up** (yasdl's
 netlist, KiCad, SPICE). KiCad matches names case-sensitively and ngspice ignores case, so names
 are compared case-insensitively.
+
+Net names start with an uppercase ASCII letter for global scope, or a lowercase ASCII letter
+or `_` for local scope (2.4). Registered power names are exceptions. Names may contain letters,
+digits and `_` after the first character; leading digits are forbidden. Scope is distinct
+from uniqueness: different nets may not differ only in case, because SPICE treats those names
+as identical. For example, choose `[GlobalSig]` and `[local_sig]` rather than `[Sig]` and `[sig]`
+for two different nets in one block.
 
 1. **User-given names** (global labels, port aliases, local labels) must be unique across the
    design. Two different nets with one name are an error, never silently merged. That includes
@@ -384,7 +396,7 @@ with the block's.
 ## 4. Layout
 
 - **Grid-bag.** Every canvas row r gets a centreline `y[r]`, every column c a centreline
-  `x{c}`, every component an origin. Rows and columns stretch to their contents, and
+  `x[c]`, every component an origin. Rows and columns stretch to their contents, and
   stretching propagates through nested blocks: a bound sub-block is laid out first, then
   placed as a rigid shape.
 - **Only wires stretch.** KiCad symbols are rigid. They can be rotated or mirrored but not

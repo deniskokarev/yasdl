@@ -1,8 +1,8 @@
-"""Global net names: the power-net registry and the names reserved for global nets.
+"""Registered power nets and the names reserved for ground and supply rails.
 
-Global nets are design-wide, and a block can't know which parents will use it, so their names
-are reserved everywhere (spec 2.8): no port alias or local label may use them, and global labels
-must use them with the registered spelling. "0" is reserved too: KiCad's SPICE export and
+Registered power names are reserved everywhere (spec 2.8): no port alias or local label may
+use them, and global labels must use their registered spelling. Other net names use their
+initial character to select scope (spec 2.4). "0" is reserved too: KiCad's SPICE export and
 ngspice both treat a net named 0 as ground.
 """
 

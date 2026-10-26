@@ -84,7 +84,7 @@ Full reference: [docs/SPEC.md](docs/SPEC.md).
 | wire | `─ │ ┌ ┐ └ ┘` (or `-` `\|`) | connections, drawn as ASCII art |
 | junction | `├ ┤ ┬ ┴ ┼` | wires fork; `┼` always connects |
 | crossing | `───│───` | wires cross without connecting (the middle character is on top) |
-| net label | `[VCC]`, `[GND]` | names a net; same name, same net, without drawing the wire. Power names draw as power symbols |
+| net label | `[Signal]`, `[signal]`, `[VCC]` | uppercase initial = global; lowercase/underscore initial = block-local. Registered power names are global and draw as power symbols; leading digits are forbidden |
 | port | `{in}`, `{out}` on the canvas edge | a named external pin of the block |
 | pin label | `{b}`, `+`, `>`, `v` touching a component | which pin of the part this wire is; arrows also fix its orientation |
 

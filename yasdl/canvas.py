@@ -476,6 +476,13 @@ class Canvas:
                 continue
             if lab.pin_of is not None:
                 lab.kind = "pin"
+            elif lab.shortcut:
+                kind = "arrow" if lab.text in ARROWS else "pin shortcut"
+                self.err(
+                    f"{lab.text!r} is a one-character {kind} pin label and must touch a component",
+                    lab.row,
+                    lab.c0,
+                )
             elif lab.arms == 0:
                 self.err(f"[{lab.text}] is not connected to a wire", lab.row, lab.c0)
             elif reserved(
@@ -489,8 +496,17 @@ class Canvas:
                         lab.c0,
                     )
                 lab.kind = "global"
-            else:  # wire on one side only: global net; wires on both sides: local net name
-                lab.kind = "global" if lab.arms == 1 else "local"
+            elif "A" <= lab.text[0] <= "Z":
+                lab.kind = "global"
+            elif "a" <= lab.text[0] <= "z" or lab.text[0] == "_":
+                lab.kind = "local"
+            else:
+                self.err(
+                    f"[{lab.text}]: net names must start with an uppercase letter "
+                    "(global), a lowercase letter or _ (local); leading digits are not allowed",
+                    lab.row,
+                    lab.c0,
+                )
 
     def _label_has_wire(self, i):
         root = self.uf.find(("l", i))
@@ -503,14 +519,6 @@ class Canvas:
         by_text: dict[str, tuple] = {}
         for i, lab in enumerate(self.labels):
             if lab.pin_of is None and not lab.brace:
-                if lab.shortcut:
-                    kind = "arrow" if lab.text in ARROWS else "pin shortcut"
-                    self.err(
-                        f"'{lab.text}' is a one-character {kind} pin label and must touch a "
-                        "component",
-                        lab.row,
-                        lab.c0,
-                    )
                 node = ("l", i)
                 if lab.text in by_text:
                     self.uf.union(node, by_text[lab.text])

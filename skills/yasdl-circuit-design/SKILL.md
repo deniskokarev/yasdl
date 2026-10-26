@@ -107,8 +107,8 @@ data; rendering also uses the KiCad CLI. Whatever the task asks for (e.g. `/app/
 | pin label | `{b}Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
 | arrow pin label | `>D1` (beside), `v` above/below | conventional current; rotates with the part and picks its orientation: `──>D1──` anode left; NPN base `>`, emitter `v`. One arrow per pin; `<`/`>` only beside, `^`/`v` only above/below |
-| global net | `[VCC]` with a wire on one side only | connects across all blocks; `[GND]`, `[VCC]`, `[VEE]`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
-| local net | `──[x]──` (wires on both sides) | block-scoped name |
+| global net | `[Signal]`, `[VCC]` | uppercase initial connects across blocks; registered powers such as `+5V` are exceptions and draw as power symbols; `GND` = SPICE node 0. Reserved powers require exact spelling and cannot be port aliases |
+| local net | `[signal]`, `[_bias]` | lowercase or `_` initial; scope stays inside the block even with only one wire |
 
 Hard rules, all enforced with precise errors:
 - **Gap rule**: components never touch. Keep at least one cell, empty or wire, between them.
@@ -121,6 +121,8 @@ Hard rules, all enforced with precise errors:
   canvas edge. A pin label needs one wire opposite the component and must not touch two
   components. Vertically, any character of the brace may touch the part and any column may
   carry the wire. Square brackets name nets and need a wire between the label and component.
+- Net names cannot start with digits. The name determines scope regardless of the number of
+  wires; different nets still cannot differ only in case because SPICE ignores case.
 
 ## Orientation: let yasdl do it, label pins where order matters
 

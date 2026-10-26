@@ -268,6 +268,14 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
 
 ### 2.7 Ports (block interface)
 
+- **Naming convention**: prefer lowercase initials for pin/interface names (`{input}`,
+  `{b}`, `{collector}`). This is a convention, not a grammar rule: uppercase KiCad names
+  remain valid and pin matching is case-insensitive. Numeric names such as `{1}` and `{2}`
+  are allowed; ground `0` remains reserved as an interface name (2.8).
+- **Numeric pins require braces**. Alphanumeric text outside labels belongs to component
+  names: `─1U1─` contains the component `1U1`, not pin 1 of U1. Bare letter pin shorthand
+  is not part of the grammar; use braces or the existing `+ < > ^ v` shortcuts.
+
 - **Where**: a wire arm leaving the canvas, or a **brace label** `{name}` on the canvas edge.
   A brace label may list several aliases, comma-separated: `{c, collector}`,
   `{+, non_inv, noninverting, plus}`, `{>, A, Anode}`, `{<,>}`. Spaces around commas are

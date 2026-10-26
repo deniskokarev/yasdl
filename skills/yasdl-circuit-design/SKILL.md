@@ -123,6 +123,9 @@ Hard rules, all enforced with precise errors:
   carry the wire. Square brackets name nets and need a wire between the label and component.
 - Net names cannot start with digits. The name determines scope regardless of the number of
   wires; different nets still cannot differ only in case because SPICE ignores case.
+- Prefer lowercase pin/interface names as a convention. Uppercase names still match;
+  numeric pins/interfaces need braces (`{1}`). Bare letters and digits remain component
+  names, so `─1U1─` names component `1U1` rather than pin 1 of U1.
 
 ## Orientation: let yasdl do it, label pins where order matters
 

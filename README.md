@@ -92,6 +92,10 @@ Empty cells are spaces (`.` is reserved for future use). Components must not tou
 other; keep at least one cell between them. Wires can fork,
 cross and overlap freely. Buses (bundles of wires) are specified and will be supported later.
 
+Prefer lowercase pin/interface names (`{input}`, `{b}`); uppercase names are still accepted.
+Numeric names use braces (`{1}`, `{2}`). Outside a label, letters and digits form component
+names: `─1U1─` names component `1U1`, with no implicit pin abbreviation.
+
 Reading the inverting amplifier above:
 - `IN` and `FB` are **holes**: unbound components with one wire on each side. Any 2-terminal
   part or sub-circuit fits; here the `SERIES` and `PARALLEL` blocks.

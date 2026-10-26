@@ -10,7 +10,7 @@ def test_comma_aliases():
         """
                          {c, collector}
                               │
-        {b, base}──────────[b]Q1Q1
+        {b, base}──────────{b}Q1Q1
                               Q1Q1
                               Q1Q1
                               │
@@ -38,10 +38,10 @@ def test_diode_block_with_arrow_and_names():
     dio = Block("Dio", "{>,A,Anode}──D1──{K,Cathode}", D1=D("1N4148").mirrored("y"))
     assert dio.port("Anode").name == "A"
     Block("H", "{x}──>DX──{y}", DX=dio)  # arrow form
-    Block("H", "{x}──[Anode]DX──{y}", DX=dio)  # name form
+    Block("H", "{x}──{Anode}DX──{y}", DX=dio)  # name form
     with pytest.raises(YasdlError, match="does not fit"):
         Block(
-            "H", "{x}──[Cathode]DX──{y}", DX=dio.rotated(90)
+            "H", "{x}──{Cathode}DX──{y}", DX=dio.rotated(90)
         )  # a vertical block in a row
 
 
@@ -85,7 +85,7 @@ def test_pin_labels_stay_free_form():
         """
              [VEE]
                │
-        ──[-]U1U1
+        ──{-}U1U1
              U1U1──
           ┌─+U1U1
           │    │
@@ -93,7 +93,7 @@ def test_pin_labels_stay_free_form():
     """,
         U1=OPAMP(),
     )
-    # [-] matches pin 2 (named "-") on top, + matches pin 1 below: the op-amp is mirrored
+    # {-} matches pin 2 (named "-") on top, + matches pin 1 below: the op-amp is mirrored
     assert [pin for att, pin in amp.bound["U1"].pin_map if att.side == "W"] == [
         "2",
         "1",

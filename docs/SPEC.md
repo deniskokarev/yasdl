@@ -28,9 +28,9 @@ The full language and tool reference. For an overview and a first example, see
 | component | `A-Z a-z 0-9 _` | see 2.2 |
 | single wire | `─ -` `│ \|` `┌ ┐ └ ┘` `├ ┤ ┬ ┴` `┼` | ASCII `-` `\|` equal `─` `│` |
 | bus | `═ ║ ╔ ╗ ╚ ╝`, taps `╟ ╢ ╤ ╧` | section 2.6 (specified, not implemented yet) |
-| bracket label | `[text]` on one row | pin label, global net or local net name (2.4–2.5) |
+| bracket label | `[text]` on one row | global or local net name (2.4) |
 | arrows | `<` `>` `^`, and a lone `v`/`V` | reserved for directional pin labels (2.5) |
-| brace label | `{text}` on one row | external port name, only on the block edge (2.7) |
+| brace label | `{text}` on one row | adjacent component pin (2.5), otherwise an interface on the block edge (2.7) |
 | pin shortcut | `+` | a one-character pin label |
 
 Any other character is an error. Whatever isn't explicitly allowed below is forbidden.
@@ -75,19 +75,22 @@ Any other character is an error. Whatever isn't explicitly allowed below is forb
 - A wire that ends on a straight wire from one side only (an implied T) is an error; use a
   tee.
 
-### 2.4 Bracket labels: pins and nets
+### 2.4 Bracket labels: nets
 
-What a bracket label `[name]` means depends on what it touches:
+Square brackets always name nets. A net label needs at least one wire and must not directly
+touch a component; insert a wire between a net label and a component. Use braces to name a
+component pin (2.5).
 
-| Touches | Meaning |
+| Wires | Meaning |
 |---|---|
-| a component edge (and a wire on its other side) | **pin label**, see 2.5 |
-| a wire on one side only | **global net**: every `[name]` with the same text in the whole design is one net, in every block and every instance. This is the escape hatch for non-planar circuits and long loops, and the way to reach supplies (`[VCC]`, `[VEE]`). Power symbols (`GND()`, `VCC()`) join the global net with their value as name. |
-| wires on both sides (`──[x]──`) | **local net name**: names the net inside this block only. Same-named local labels in one block are connected; they never connect across blocks or instances. |
-| nothing | error |
+| one wire | **global net**: every `[name]` with the same text in the whole design is one net, in every block and every instance |
+| wires on both sides (`──[x]──`) | **local net name**: names a net inside this block only; it never connects across instances |
+| no wire | error |
 
-- Horizontal wires enter a label only at its `[` or `]` end. Vertical wires pass through one
-  column inside the label.
+Horizontal wires enter at the opening `[` or closing `]`. Vertical wires may enter at any
+column occupied by the label, including either delimiter; two vertical wires through one
+label must use the same column.
+
 - **Power nets**: a global label whose name is in the power-net registry (`GND`, `GNDA`, `VCC`,
   `VEE`, `VDD`, `VSS`, `+5V`, `+3V3`, `+12V`, `-12V`; extend with
   `register_power_net("+15V", "power:+15V")`) is drawn as that KiCad power symbol. The symbol's
@@ -103,25 +106,72 @@ What a bracket label `[name]` means depends on what it touches:
 
 ### 2.5 Pins
 
-- A pin **attachment** is a wire arm, or a pin label, that touches a component edge.
+Migration: replace old component pin labels such as `[b]` and `PS[in]` with `{b}` and
+`PS{in}`. Square-bracket net labels such as `[GND]` keep their meaning.
+
+- A pin **attachment** is a wire arm, a brace label, or a shortcut touching a component edge.
 - Pins on a side are ordered: **W and E sides top to bottom, N and S sides left to right**.
-- **Pin labels**: a label touching a component edge names the pin. For atoms it matches
-  the symbol's pin name or number; for sub-blocks, any of the port's names (2.7). Matching
-  is case-insensitive. Pin labels filter orientations (3.2): `[c]` and `[b]` together fix a
-  transistor completely; `[b]` alone leaves the unrotated one. A pin label must have a wire
-  on its other side, and it never names a net.
+- **Brace pin labels**: `{name}` adjacent to exactly one component edge names its pin. For
+  atoms, it matches a KiCad pin name or number, case-insensitively; for sub-blocks, one of the
+  port names or aliases (2.7). `{b}` and `{e}` on an NPN fix its base/emitter connections;
+  `{1}` may identify a numbered pin. The label needs exactly one wire on the side opposite
+  the component. It is an orientation constraint and never names a net.
+- **Adjacency decides usage**, even at the canvas edge. A brace touching a component is a
+  pin label; a brace touching no component is an interface declaration and must obey 2.7.
+  These meanings do not depend on the spelling or case of the name.
+- **Horizontal adjacency**: the opening `{` or closing `}` must immediately touch the
+  component. The wire enters through the other delimiter.
+- **Vertical adjacency**: any character of the brace label, including `{` and `}`, may be
+  directly above or below the component. Any column of the label, including either brace,
+  may carry the vertical wire. The wire column need not overlap the component: the label
+  connects its wire to the nearest column shared by the label and the component. All wire
+  segments remain orthogonal when laid out.
   ```
-  {input}────[b]Q1Q1      the wire ends on Q1's base; {input} names the block port (2.7)
+  {input}────{b}Q1Q1      the wire ends on Q1's base; {input} names the block interface (2.7)
                 Q1Q1
   ```
+
+Both vertical layouts are valid:
+
+```
+Q1Q1Q1          Q1
+ {e}             {e}
+  │                │
+```
+
+In the second layout, `{` touches the component and the wire enters through `}`. Above a
+component the same rule applies. A label touching two components or two sides of one
+component is an error, including `Q1{b}Q2` and:
+
+```
+Q1 Q2
+ {e}
+```
+
+A brace after a wire bend is an interface if it does not touch the component:
+
+```
+   [VCC]
+      │
+     {c}
+{b}─Q1
+     └{e}
+```
+
+Here `{c}` names Q1's collector; `{b}` and `{e}` declare W0 and E0 interfaces. Removing the
+bend leaves `{e}` with neither component adjacency nor a wire, which is an error. Pin labels
+may contain a KiCad pin's literal name (for example `{-}`); comma-separated aliases are
+interface declarations, not a list of component pins.
+
   ```
    │
-  [c]
+  {c}
   Q1Q1          collector on top, base on the right: the NPN is mirrored
-  Q1Q1[b]─
+  Q1Q1{b}─
   Q1Q1
    │
   ```
+
 - `+` is a one-character pin label (`──+C1──`, or `+` on the op-amp's non-inverting input
   above). Atoms can declare aliases, e.g. `C_POL` maps `+` to pin 1.
 
@@ -138,7 +188,7 @@ right (`v1v1v1` is a component named `v1`), which is why no component may be nam
   - `NPN`: base `>` (in), emitter `v` (out, like the symbol's own arrow);
   - `PNP`: base `<` (out), emitter `^` (in).
 - **One pin per arrow.** On atoms and on block ports alike, an arrow names exactly one pin, so
-  `{>}──…──{>}` is an error (two ports with one alias). Name other pins in brackets (`[c]`).
+  `{>}──…──{>}` is an error (two ports with one alias). Name other pins with braces (`{c}`).
 - **Placement**: `<` and `>` only beside a component (W/E sides), `^` and `v` only above or below
   it (N/S). An arrow touching nothing, or on the wrong axis, is an error. This also keeps arrows
   from merging into names: `──vQ1` would be a component `vQ1`, and the error says so.
@@ -179,7 +229,7 @@ Block("H", "{a}──<RX>──{b}", RX=TWO_R.mirrored("y"))  # a–R2 … R1–
 ```
 That's fine for parts that don't care (a resistor network, a fuse). When direction matters, give
 the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way) or name the ports
-(`[a]`/`[k]` labels in the host). Arrows are optional: `──R1──` needs none.
+(`{a}`/`{k}` labels in the host). Arrows are optional: `──R1──` needs none.
 
 ### 2.6 Buses (specified, not implemented)
 
@@ -219,7 +269,8 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
   ignored. The first alias that is a name (not `+` or an arrow) is the port's display name.
   The brace label has exactly one wire, going inward, and sits on the side opposite that wire
   (`{in}───` on the W edge, `───{out}` on the E edge, top/bottom rows for vertical wires).
-  A `{}` label anywhere else, or touching a component, is an error.
+  A brace touching a component is a pin label (2.5); an interface declaration anywhere
+  else in the interior is an error.
 - A component sitting on the canvas edge exports nothing. Ports must be drawn as wires.
 - **Order and default names**: per side, ordered as in 2.5, named `W0`, `W1`, `N0`, ...
 - **DIP number**: each port also gets a unique number `D0`, `D1`, ..., counting
@@ -231,7 +282,7 @@ the block one arrow (`{>}──D1──{k}`: `──>DX──` fits only one way
   3. **re-export**: if the port has neither, and its net reaches exactly one distinct pin name
      (an atom pin name other than `~`, or a sub-block port name), that name becomes the alias.
      The Darlington's ports become `B`, `C` and `E` this way, and a host can orient it with
-     `[b]`/`[c]` labels. A re-exported name that collides with another port's name, or looks
+     `{b}`/`{c}` labels. A re-exported name that collides with another port's name, or looks
      like a default name, is silently dropped.
 - **Names**: aliases are letters, digits and `_`, or one of the shortcuts `+ < > ^ v`.
   No `-` or spaces (SPICE node names can't carry them). Net labels follow the same grammar,
@@ -315,7 +366,7 @@ top/bottom mirror (`"y"` is accepted and equals `"x"` plus 180°).
    - The horizontal PARALLEL block in a vertical slot turns so that its left port is on top
      (example `SHUNT`). `PARALLEL.oriented(90)` puts it at the bottom.
 
-Inconsistent labels, like `[e]` where only C or B could go, are errors. When the electrical
+Inconsistent labels, like `{e}` where only C or B could go, are errors. When the electrical
 direction matters but nothing in the drawing pins it down, e.g. a non-symmetric 2-port in a
 vertical slot, rule 3 still decides, deterministically. Label a pin or orient explicitly if
 the default isn't what you want.
@@ -333,7 +384,7 @@ with the block's.
 ## 4. Layout
 
 - **Grid-bag.** Every canvas row r gets a centreline `y[r]`, every column c a centreline
-  `x[c]`, every component an origin. Rows and columns stretch to their contents, and
+  `x{c}`, every component an origin. Rows and columns stretch to their contents, and
   stretching propagates through nested blocks: a bound sub-block is laid out first, then
   placed as a rigid shape.
 - **Only wires stretch.** KiCad symbols are rigid. They can be rotated or mirrored but not
@@ -515,7 +566,7 @@ Each canvas is small and stands alone (each renders ERC-clean); yasdl composes t
 planar schematic. Grounds are `[GND]` labels. The ladder's input is declared `{in, >}` and
 drawn as `PS<` in the oscillator: the arrow puts its input on the right. Of the two fits (180°,
 left/right mirror), the mirror flips fewer axes (3.2), so the shunt legs keep hanging down.
-Both transistors label `[b]` and `[e]` explicitly, fixing their base/emitter connections
+Both transistors label `{b}` and `{e}` explicitly, fixing their base/emitter connections
 and preventing a top/bottom mirror from swapping collector and emitter.
 The generated `.subckt sgen vp vm out` is structurally identical to the fixed test netlist.
 In ngspice, both the yasdl netlist and KiCad's export of the generated schematic oscillate

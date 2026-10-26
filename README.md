@@ -86,7 +86,7 @@ Full reference: [docs/SPEC.md](docs/SPEC.md).
 | crossing | `───│───` | wires cross without connecting (the middle character is on top) |
 | net label | `[VCC]`, `[GND]` | names a net; same name, same net, without drawing the wire. Power names draw as power symbols |
 | port | `{in}`, `{out}` on the canvas edge | a named external pin of the block |
-| pin label | `[b]`, `+`, `>`, `v` touching a component | which pin of the part this wire is; arrows also fix its orientation |
+| pin label | `{b}`, `+`, `>`, `v` touching a component | which pin of the part this wire is; arrows also fix its orientation |
 
 Empty cells are spaces (`.` is reserved for future use). Components must not touch each
 other; keep at least one cell between them. Wires can fork,

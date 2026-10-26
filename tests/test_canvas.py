@@ -74,9 +74,9 @@ def test_pin_labels_set_orientation():
         "Mirrored",
         """
          │
-        [c]
+        {c}
         Q1Q1
-        Q1Q1[b]─
+        Q1Q1{b}─
         Q1Q1
          │
     """,
@@ -93,9 +93,9 @@ def test_inconsistent_pin_labels_rejected():
             "Bad",
             """
              │
-            [c]
+            {c}
             Q1Q1
-            Q1Q1[e]─
+            Q1Q1{e}─
             Q1Q1
              │
         """,

@@ -104,7 +104,7 @@ data; rendering also uses the KiCad CLI. Whatever the task asks for (e.g. `/app/
 | junction | `├ ┤ ┬ ┴ ┼` | `┼` is always a junction (dot) |
 | crossing | straight wire with perpendicular wires on both sides: `─│─` | the middle character is the wire on top; no connection |
 | port | `{name}` on the canvas edge, wire going inward | aliases: `{c, collector}`, `{>, A, Anode}`; names are letters/digits/_ or `+ < > ^ v`; or a bare wire leaving the canvas (`W0`, ...) |
-| pin label | `[b]Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
+| pin label | `{b}Q1Q1`: label touching a component edge | names the pin; orients the part, or checks an explicit orientation |
 | pin shortcut | `+` touching a component | e.g. op-amp non-inverting input |
 | arrow pin label | `>D1` (beside), `v` above/below | conventional current; rotates with the part and picks its orientation: `──>D1──` anode left; NPN base `>`, emitter `v`. One arrow per pin; `<`/`>` only beside, `^`/`v` only above/below |
 | global net | `[VCC]` with a wire on one side only | connects across all blocks; `[GND]`, `[VCC]`, `[VEE]`, `+5V`, ... draw as power symbols; `GND` = SPICE node 0. Reserved names: exact spelling only, never as port aliases (`{GND}`/`{0}` are errors) |
@@ -117,6 +117,10 @@ Hard rules, all enforced with precise errors:
 - A component's pin count per side must match the bound part exactly. An op-amp with supply
   pins needs wires on its top and bottom, e.g. to `[VCC]`/`[VEE]`.
 - Pins on a side map in order: W/E top to bottom, N/S left to right.
+- A brace touching one component names its pin; otherwise it declares an interface on the
+  canvas edge. A pin label needs one wire opposite the component and must not touch two
+  components. Vertically, any character of the brace may touch the part and any column may
+  carry the wire. Square brackets name nets and need a wire between the label and component.
 
 ## Orientation: let yasdl do it, label pins where order matters
 
@@ -129,13 +133,13 @@ labels; the labels choose the orientation.
 - **2-terminal directional parts** (diodes, polarised caps, directional sub-blocks): one label
   is enough. `──>D1──` puts the anode left; `+` marks a polarised cap's positive pin.
 - **3+ pin parts** (transistors, op-amps, sub-blocks with several ports): label **two pins on
-  different sides** whenever one label leaves a choice. For example, `[b]` alone on an NPN still
-  allows a top/bottom mirror that swaps collector and emitter; `[b]` plus `v` under the
+  different sides** whenever one label leaves a choice. For example, `{b}` alone on an NPN still
+  allows a top/bottom mirror that swaps collector and emitter; `{b}` plus `v` under the
   emitter fixes it. Arrows: NPN base `>`, emitter `v`; PNP base `<`, emitter `^`.
 - The op-amp (`Simulation_SPICE:OPAMP`) has + above −. A `+` on its lower input flips it so −
   is on top, as in inverting stages.
 - Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
-  the right. Named ports also accept bracket labels: `PS[in]` names the `in` port on that
+  the right. Named ports also accept brace labels: `PS{in}` names the `in` port on that
   side.
 - If two orientations still fit, yasdl picks one deterministically: unrotated first, then the
   one that keeps reading order. That's fine when the choice doesn't matter electrically; when it

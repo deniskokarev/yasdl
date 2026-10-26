@@ -64,7 +64,7 @@ class Label:
     c0: int
     c1: int  # inclusive; for a 1-char shortcut c0 == c1
     shortcut: bool = False
-    brace: bool = False  # {name}: external port alias, only on the block edge
+    brace: bool = False  # {name}: component pin when adjacent, otherwise an interface
     pin_of: str | None = None  # component name when this is a pin label
     vcol: int | None = None  # column where a vertical wire passes through
     arms: int = 0  # wire arms that end on this label
@@ -326,7 +326,7 @@ class Canvas:
                     lab = self.labels[i]
                     if arm == "E" and nc != lab.c0 or arm == "W" and nc != lab.c1:
                         self.err(
-                            "a horizontal wire must enter a label at its '[' or ']' end",
+                            "a horizontal wire must enter a label at its opening or closing delimiter",
                             r,
                             c,
                         )
@@ -365,15 +365,17 @@ class Canvas:
             names = {t[0] for t in touches}
             if not names:
                 continue
-            if lab.brace:
+            if not lab.brace and not lab.shortcut:
                 self.err(
-                    f"{{{lab.text}}} is a block port; it must not touch a component",
+                    f"[{lab.text}] touches a component: square brackets name nets; "
+                    f"use {{{lab.text}}} for a pin, or add a wire between the net label and component",
                     lab.row,
                     lab.c0,
                 )
+            spelling = f"{{{lab.text}}}" if lab.brace else repr(lab.text)
             if len(names) > 1 or len({t[1] for t in touches}) > 1:
                 self.err(
-                    f"label [{lab.text}] touches several component edges",
+                    f"pin label {spelling} touches several component edges",
                     lab.row,
                     lab.c0,
                 )
@@ -388,30 +390,31 @@ class Canvas:
                     lab.row,
                     lab.c0,
                 )
+            if lab.brace and lab.entries != [side]:
+                self.err(
+                    f"pin label {spelling} needs exactly one wire on the side opposite its component",
+                    lab.row,
+                    lab.c0,
+                )
             if side in "EW":
                 pos = lab.row
             else:
                 if lab.vcol is None and not lab.shortcut:
                     self.err(
-                        f"pin label [{lab.text}] needs a vertical wire through it",
+                        f"pin label {spelling} needs a vertical wire through it",
                         lab.row,
                         lab.c0,
                     )
                 pos = lab.c0 if lab.shortcut else lab.vcol
-                if not comp.c0 <= pos <= comp.c1:
-                    self.err(
-                        f"the wire through [{lab.text}] misses {comp.name}",
-                        lab.row,
-                        pos,
-                    )
+                pos = min(max(pos, comp.c0), comp.c1)
             if not self._label_has_wire(i):
                 hint = (
-                    " (old-style label? labels are written [name] now)"
+                    " (old-style label? use {name} for pins or [name] for nets)"
                     if lab.text in "<>"
                     else ""
                 )
                 self.err(
-                    f"pin label [{lab.text}] of {comp.name} is not connected to a wire"
+                    f"pin label {spelling} of {comp.name} is not connected to a wire"
                     + hint,
                     lab.row,
                     lab.c0,
@@ -428,7 +431,7 @@ class Canvas:
     def _brace_ports(self):
         """{name} labels are external ports: on the canvas edge, with one wire going inward."""
         for i, lab in enumerate(self.labels):
-            if not lab.brace:
+            if not lab.brace or lab.pin_of is not None:
                 continue
             if lab.arms != 1:
                 self.err(f"{{{lab.text}}} needs exactly one wire", lab.row, lab.c0)

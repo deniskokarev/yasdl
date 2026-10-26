@@ -116,7 +116,7 @@ def test_reserved_pin_names_not_reexported():
         "F",
         """
                       │
-        {input}────[b]Q1Q1
+        {input}────{b}Q1Q1
                       Q1Q1
                       Q1Q1
                       │

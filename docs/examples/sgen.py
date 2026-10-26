@@ -42,10 +42,10 @@ OSCILLATOR = Block(
            │         │
            │         ├────────────┬───{osc}
            │         │            │
-       ┌───┼──────[b]Q1Q1         │
+       ┌───┼──────{b}Q1Q1         │
        │   │         Q1Q1         │
        │   RB        Q1Q1         │
-       │   │        [e]           │
+       │   │        {e}           │
        │   │         │            │
        │ [GND]       REUP         │
        │             │            │
@@ -75,10 +75,10 @@ OUTPUT_AMP = Block(
     """
                          {vp}
                           │
-    {in}──CK──RBUF──┬──[b]Q2Q2
+    {in}──CK──RBUF──┬──{b}Q2Q2
                     │     Q2Q2
                     RBIN  Q2Q2
-                    │    [e]
+                    │    {e}
                     │     │
                   [GND]   ├──COUT──ROUT──┬──{out}
                           │              │

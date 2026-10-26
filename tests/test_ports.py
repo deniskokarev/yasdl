@@ -9,7 +9,7 @@ def net_of(nets, pin):
 
 FOLLOWER = """
                   │
-    {input}────[b]Q1Q1
+    {input}────{b}Q1Q1
                   Q1Q1
                   Q1Q1
                   │
@@ -73,7 +73,7 @@ def test_brace_label_rules():
         Block("Inline", "──R1──{x}──", R1=R())
     with pytest.raises(YasdlError, match="two ports"):
         Block("Dup", "{x}──R1──{x}", R1=R())
-    with pytest.raises(YasdlError, match="must not touch"):
+    with pytest.raises(YasdlError, match="exactly one wire"):
         Block("Touch", "{x}R1──", R1=R())
     with pytest.raises(YasdlError, match="default port"):
         Block("Reserved", "{W1}──R1──", R1=R())
@@ -140,9 +140,9 @@ def test_pin_labels_match_subblock_port_names():
         "Host",
         """
              │
-            [c]
+            {c}
             DDDD
-            DDDD[b]──
+            DDDD{b}──
             DDDD
              │
     """,
@@ -178,7 +178,7 @@ def test_label_orientation_prefers_mirror_over_rotation():
     from docs.examples.sgen import PHASE_SHIFT
 
     host = Block(
-        "H", "──PS[in]──", PS=PHASE_SHIFT
+        "H", "──PS{in}──", PS=PHASE_SHIFT
     )  # 'in' on the right: 180 deg or mirror y
     b = host.bound["PS"]
     assert (b.rot, b.mirror) == (180, "x")  # mirror y: one axis flipped, legs stay down
@@ -192,9 +192,9 @@ def test_explicit_orientation_checked_against_labels():
         180,
         "x",
     )  # mirrored y
-    Block("H", "──PS[in]──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
+    Block("H", "──PS{in}──", PS=PHASE_SHIFT.mirrored("y"))  # label agrees
     with pytest.raises(YasdlError, match="does not fit"):
-        Block("H", "──PS[out]──", PS=PHASE_SHIFT.mirrored("y"))  # label contradicts
+        Block("H", "──PS{out}──", PS=PHASE_SHIFT.mirrored("y"))  # label contradicts
 
 
 def test_rotated_mirrored_api():

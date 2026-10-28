@@ -174,7 +174,8 @@ class Canvas:
         if r is not None:
             where = (
                 f" at row {r}, col {c} (canvas string line {r + self.src_row0 + 1}, "
-                f"column {c + self.src_col0 + 1})"
+                f"column {c + self.src_col0 + 1}); original source "
+                f"{r + self.src_row0 + 1}:{c + self.src_col0 + 1}"
             )
         raise CanvasError(f"{self.name}: {msg}{where}" + self.excerpt(r, c, rows))
 
@@ -192,6 +193,7 @@ class Canvas:
         return "".join(out) + (
             f"\n  canvas row {r}, col {c} = source line {r + self.src_row0 + 1}, column {c + self.src_col0 + 1}"
             f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
+            f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
         )
 
     def inside(self, r, c):

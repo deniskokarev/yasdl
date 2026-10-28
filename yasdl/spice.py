@@ -5,8 +5,14 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from .block import Atom, Block, flat_names, ground_root, YasdlError
+from .kicad_lib import YasdlDependencyError
+
+
+class MissingModelResource(YasdlDependencyError, YasdlError):
+    """A SPICE model file the export needs does not exist."""
 
 
 @dataclass(frozen=True)
@@ -26,6 +32,22 @@ class SpiceModel:
     sim_pins: str | None = None
     library: str | None = None  # file defining `model`; spice_netlist .includes it
     params: str | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "prefix", str(self.prefix).upper())
+        object.__setattr__(self, "pins", tuple(str(p) for p in self.pins))
+        if self.library is not None:
+            object.__setattr__(self, "library", str(self.library))
+        if len(self.prefix) != 1 or self.prefix not in "RCLDQMXVI":
+            raise YasdlError(
+                f"SpiceModel: unsupported element prefix {self.prefix!r} (R C L D Q M X V I)"
+            )
+        if not self.pins or len(set(self.pins)) != len(self.pins):
+            raise YasdlError("SpiceModel: pins must be nonempty and unique")
+        if self.params and any(ch in self.params for ch in "\n\r"):
+            raise YasdlError("SpiceModel: params must be a single-line instance specification")
+        if self.params and self.prefix != "X":
+            raise YasdlError("SpiceModel: instance params are supported for X subcircuits")
 
 
 # Defaults by KiCad lib_id. Model-based parts take the model name from the atom's value.
@@ -137,17 +159,24 @@ def spice_netlist(
     """
     uf, pins, names = flat_names(block)
     gnd = ground_root(uf)
+    global_roots = {uf.find(k) for k in list(uf.parent) if k[0] == "global"}
     cv = block.canvas
     spice_names, used = {}, {}
 
     def node(n):
-        """SPICE node of a flattened node: the global ground is 0; every other net keeps its
-        yasdl name, sanitised and unique case-insensitively (ngspice ignores case)."""
+        """SPICE node of a flattened node: the global ground is 0; a global net keeps its
+        exact name (+12V, VCC), so a testbench source of that name reaches it; every other
+        net keeps its yasdl name, sanitised; all unique case-insensitively (ngspice ignores
+        case)."""
         root = uf.find(n)
         if root == gnd:
             return "0"
         if root not in spice_names:
-            base = re.sub(r"[^A-Za-z0-9_]", "_", names[root])
+            base = (
+                names[root]
+                if root in global_roots
+                else re.sub(r"[^A-Za-z0-9_]", "_", names[root])
+            )
             cand, i = base, 2
             while used.get(cand.casefold(), root) != root or cand.casefold() in (
                 "0",
@@ -211,15 +240,20 @@ def spice_netlist(
         lib = pkg.package.descriptor.library
         if pkg.package.descriptor.model and lib and lib not in libs:
             libs.append(lib)
-    from pathlib import Path
-    from .kicad_lib import YasdlDependencyError
-    for lib in [*libs, *includes]:
+    for lib in dict.fromkeys([*libs, *includes]):
         if Path(lib).is_absolute() and not Path(lib).is_file():
             models = [spice_model(a).model for _, _, a in _instances(block)
                       if spice_model(a) is not None and spice_model(a).library == lib]
-            raise YasdlDependencyError(f"SPICE export: library {lib} does not exist (model {models[0]!r})"
-                                       if models else f"SPICE export: library {lib} does not exist")
-    lines += [f".include {inc}" for inc in [*libs, *includes]]
+            raise MissingModelResource(
+                f"SPICE export of {block.name}: required model resource missing: {lib}"
+                + (f" (SPICE model resource for model {models[0]!r})" if models else "")
+                + "; restore the file or supply SpiceModel(library=...) / includes with an "
+                "existing path"
+            )
+    lines += [
+        f'.include "{inc}"' if any(c.isspace() for c in str(inc)) else f".include {inc}"
+        for inc in dict.fromkeys([*libs, *includes])
+    ]
     wrappers = []
     for pkg in pkgs:  # whole-package wrappers around single-amplifier models
         if not pkg.package.sim:
@@ -247,19 +281,27 @@ def spice_netlist(
         if globals_:
             lines.append(f".global {' '.join(globals_)}")
         lines.append(f".subckt {subckt} {' '.join(port_nodes)}")
+    labels = set()
+
+    def element_name(label, path):
+        if label.casefold() in labels:  # e.g. paths "A.B1" and "A_B1"
+            raise YasdlError(
+                f"{block.name}: SPICE instance name collision: {label} ({path}); rename a "
+                "component so the sanitised paths differ"
+            )
+        labels.add(label.casefold())
+        return label
+
     for path, b, atom in _instances(block):
         m = spice_model(atom)
         if m is None:
             continue
-        by_pin = {}
-        for att, pin in b.pin_map:
-            by_pin[pin] = att
         nodes = []
         for pin in m.pins:
             if (path, pin) not in pins:
                 raise YasdlError(f"{path}: pin {pin} is not drawn")
             nodes.append(node(pins[(path, pin)]))
-        label = m.prefix + "_" + re.sub(r"[^A-Za-z0-9_]", "_", path)
+        label = element_name(m.prefix + "_" + re.sub(r"[^A-Za-z0-9_]", "_", path), path)
         if not m.model and validate_values:
             check_value(path, m.prefix, atom.value)
         lines.append(
@@ -276,7 +318,7 @@ def spice_netlist(
             )
         model, order = d.spice_element()
         nodes = [node(pins[pkg.pin_path[pin], pin]) for pin in order]
-        name = re.sub(r"[^A-Za-z0-9_]", "_", pkg.name)
+        name = element_name("X_" + re.sub(r"[^A-Za-z0-9_]", "_", pkg.name), pkg.name)[2:]
         params = getattr(d, 'spice', None)
         lines.append(f"X_{name} {' '.join(nodes)} {model} {params.params or ''}".rstrip() if params else f"X_{name} {' '.join(nodes)} {model}")
     if subckt:
@@ -311,8 +353,9 @@ def packages(block: Block) -> list[PlacedPackage]:
         placed = found.setdefault(id(pkg), PlacedPackage(pkg, {}, {}))
         if key in placed.unit_paths:
             raise YasdlError(
-                f"package {pkg.name}: unit {key} is bound twice ({placed.unit_paths[key]} "
-                f"and {path}); each unit of one physical package is placed once"
+                f"package {pkg.name}: duplicate package unit {key}: unit {key} is bound twice "
+                f"(unit used twice at {placed.unit_paths[key]} and {path}); each unit of one "
+                "physical package is placed once; create another Package for another chip"
             )
         placed.unit_paths[key] = path
         for pin in atom.symbol.pins:
@@ -322,8 +365,10 @@ def packages(block: Block) -> list[PlacedPackage]:
         if missing:
             letters = [chr(65 + placed.package.units.index(u)) for u in missing]
             raise YasdlError(
-                f"package {placed.package.name}: units {missing} are not bound; place every "
-                f"unit (unbound units {', '.join(letters)}); place every "
+                f"package {placed.package.name}: missing units {missing}: units {missing} are "
+                f"not bound (unbound units {', '.join(letters)}); the package requires "
+                f"{'/'.join(chr(65 + i) for i in range(len(placed.package.units)))} each once; "
+                "place every "
                 "unit (terminate an unused amplifier, e.g. as a grounded follower, and bind "
                 "the power unit once with chip.power())"
             )
@@ -347,15 +392,17 @@ def model_library(name: str, libs) -> str | None:
     )
     for lib in libs:
         try:
-            if pat.search(open(lib).read()):
-                return str(lib)
-        except OSError:
-            continue
+            text = Path(lib).read_text(errors="replace")
+        except OSError as e:
+            raise YasdlError(
+                f"finding SPICE model {name}: cannot read {lib}; supply a readable model library"
+            ) from e
+        if pat.search(text):
+            return str(lib)
     return None
 
 
-_N_NODES = {"R": 2, "C": 2, "L": 2, "D": 2, "Q": 3, "V": 2, "I": 2,
-            "M": 4, "J": 3, "B": 2, "E": 4, "G": 4, "F": 2, "H": 2}
+_N_NODES = {"R": 2, "C": 2, "L": 2, "D": 2, "Q": 3, "M": 4, "V": 2, "I": 2}
 
 
 def spice_lines(text: str) -> list[str]:
@@ -365,7 +412,9 @@ def spice_lines(text: str) -> list[str]:
         line = raw.strip()
         if not line or line[0] == "*":
             continue
-        if line[0] == "+" and out:
+        if line[0] == "+":
+            if not out:
+                raise YasdlError(f"SPICE continuation without a preceding line: {line}")
             out[-1] += " " + line[1:].strip()
         else:
             out.append(line)
@@ -373,14 +422,17 @@ def spice_lines(text: str) -> list[str]:
 
 
 def parse_spice(text: str, subckt: str | None = None) -> list[tuple[str, list[str], str]]:
-    """(name, nodes, value) for the top-level R/C/L/D/Q, V/I and X lines of a netlist.
+    """(name, nodes, value) for the top-level R/C/L/D/Q/M, V/I and X lines of a netlist, or
+    with `subckt` for the lines of that named subcircuit body.
 
-    Lines inside .subckt definitions, dot cards and comments are skipped; continuation lines
-    are joined. The value is everything after the nodes: the R/C/L value, the D/Q model, the
+    Other subcircuit bodies, dot cards and comments are skipped; continuation lines are
+    joined. The value is everything after the nodes: the R/C/L value, the D/Q/M model, the
     complete V/I source specification, or for X the subcircuit name followed by its instance
-    parameters. Node names GND/gnd become 0 (ngspice treats them alike).
+    parameters. Node names GND/gnd become 0 (ngspice treats them alike). Element kinds yasdl
+    never exports, duplicate names, malformed instances and unbalanced .subckt/.ends are
+    errors, so nothing passes a comparison unnoticed.
     """
-    out, depth, selected = [], 0, False
+    out, depth, selected, seen = [], 0, False, set()
     for line in spice_lines(text):
         low = line.lower()
         if low.startswith(".subckt"):
@@ -390,8 +442,10 @@ def parse_spice(text: str, subckt: str | None = None) -> list[tuple[str, list[st
             continue
         if low.startswith(".ends"):
             depth -= 1
+            if depth < 0:
+                raise YasdlError("SPICE .ends without .subckt")
             continue
-        if (depth != 0 if subckt is None else depth != 1 or not selected) or line[0] == ".":
+        if (depth != 0 if subckt is None else depth != 1 or not selected) or line[0] in ".;":
             continue
         kind = line[0].upper()
         parts = line.split()
@@ -400,14 +454,23 @@ def parse_spice(text: str, subckt: str | None = None) -> list[tuple[str, list[st
             params = [t for t in parts[1:] if "=" in t]
             if rest and rest[-1].lower() == "params:":
                 rest.pop()
+            if len(rest) < 2:
+                raise YasdlError(f"Malformed SPICE X instance: {line}")
             nodes, value = rest[:-1], " ".join(rest[-1:] + params)
         elif kind in _N_NODES:
             k = _N_NODES[kind]
+            if len(parts) < k + 2:
+                raise YasdlError(f"Malformed SPICE instance: {line}")
             nodes, value = parts[1 : 1 + k], " ".join(parts[1 + k :])
-        else:
-            nodes, value = [], " ".join(parts[1:])
+        else:  # an element yasdl never exports must not pass unnoticed
+            raise YasdlError(f"Unsupported SPICE comparison element: {line}")
+        if parts[0].casefold() in seen:
+            raise YasdlError(f"Duplicate SPICE instance {parts[0]}")
+        seen.add(parts[0].casefold())
         nodes = ["0" if n.casefold() == "gnd" else n for n in nodes]
         out.append((parts[0], nodes, value))
+    if depth > 0:
+        raise YasdlError("Unterminated SPICE .subckt")
     return out
 
 
@@ -476,3 +539,11 @@ def compare_spice(ours, theirs, rename_ours=None, rename_theirs=None, named=()):
             f"only theirs {fmt(t_part - o_part)[:4]}"
         )
     return diff
+
+
+def portable_model_library(source, directory) -> str:
+    """Copy a model library and its .include closure into `directory` (see
+    `resources.copy_model_resource`); return the copied file name."""
+    from .resources import copy_model_resource
+
+    return copy_model_resource(source, directory).name

@@ -32,24 +32,47 @@ BJT_ROLES = ("C", "B", "E")
 OPAMP_ROLES = ("+", "-", "out", "V+", "V-")
 
 
-def _pin_map(name: str, pins: dict, roles) -> dict[str, str]:
-    """Validate a complete, one-to-one role -> physical pin map; values as strings."""
-    if len({str(r).casefold() for r in pins}) != len(pins):
-        raise YasdlError(f"{name}: the pin map needs exactly the roles {list(roles)} once")
+# Role spellings accepted in pin maps (case-insensitive) for the canonical roles.
+_ROLE_ALIASES = {"inp": "+", "inn": "-", "vp": "V+", "vm": "V-", "v+": "V+", "v-": "V-"}
+
+
+def _role(key, roles) -> str:
+    k = str(key).casefold()
     canonical = {r.casefold(): r for r in roles}
-    pins = {canonical.get(str(k).casefold(), str(k)): str(v) for k, v in pins.items()}
-    missing, extra = set(roles) - set(pins), set(pins) - set(roles)
+    if k in canonical:
+        return canonical[k]
+    alias = _ROLE_ALIASES.get(k)
+    return alias if alias in roles else str(key)
+
+
+def _pin_map(name: str, pins: dict, roles) -> dict[str, str]:
+    """Validate a complete, one-to-one role -> physical pin map; values as strings. Role
+    keys are case-insensitive; op-amp roles also accept inp/inn/vp/vm."""
+    if pins is None:
+        raise YasdlError(f"{name}: complete role map required: {list(roles)}")
+    out = {}
+    for key, value in dict(pins).items():
+        role = _role(key, roles)
+        if role in out:
+            raise YasdlError(
+                f"{name}: the pin map names role {role!r} twice; the map needs exactly the "
+                f"roles {list(roles)} once"
+            )
+        out[role] = str(value)
+    missing, extra = set(roles) - set(out), set(out) - set(roles)
     if missing or extra:
         raise YasdlError(
             f"{name}: the pin map needs exactly the roles {list(roles)}"
             + (f"; missing {sorted(missing)}" if missing else "")
             + (f"; unknown {sorted(extra)}" if extra else "")
         )
-    if len(set(pins.values())) != len(pins):
-        raise YasdlError(f"{name}: two roles share a physical pin; pins must be distinct: {pins}")
-    if any(not re.fullmatch(r"[A-Za-z0-9]+", v) for v in pins.values()):
-        raise YasdlError(f"{name}: physical pins are numbers or names: {pins}")
-    return pins
+    if len(set(out.values())) != len(out):
+        raise YasdlError(f"{name}: two roles share a physical pin; pins must be distinct: {out}")
+    if any(not re.fullmatch(r"[A-Za-z]*[1-9][0-9]*", v) for v in out.values()):
+        raise YasdlError(
+            f"{name}: physical pins are positive numbers (or grid names such as A1): {out}"
+        )
+    return out
 
 
 def _metadata(footprint: str, datasheet: str, description: str = "") -> dict:
@@ -84,8 +107,9 @@ def subckt_pins(model: str, library) -> list[str]:
 def _bjt(kind: str, name, pins, model, library, footprint, datasheet, value):
     base = {"NPN": "Device:Q_NPN", "PNP": "Device:Q_PNP"}[kind]
     p = _pin_map(name, pins, BJT_ROLES)
-    lib_id = derive_symbol(base, name, {r: p[r] for r in BJT_ROLES}, _metadata(footprint, datasheet))
+    lib_id = derive_symbol(base, name, {r: p[r] for r in BJT_ROLES})
     arrows = {"NPN": {p["B"]: ">", p["E"]: "v"}, "PNP": {p["B"]: "<", p["E"]: "^"}}[kind]
+    aliases = {r.lower(): p[r] for r in BJT_ROLES}
     spice = SpiceModel(
         "Q",
         (p["C"], p["B"], p["E"]),
@@ -96,6 +120,7 @@ def _bjt(kind: str, name, pins, model, library, footprint, datasheet, value):
     return Atom(
         lib_id,
         value or name,
+        aliases=aliases,
         arrows=arrows,
         spice=spice,
         footprint=footprint,
@@ -103,22 +128,27 @@ def _bjt(kind: str, name, pins, model, library, footprint, datasheet, value):
     )
 
 
-def AtomNPN(name, pins, model=None, library=None, footprint="", datasheet="", value=None):
+def AtomNPN(name, pins=None, library=None, model=None, *, model_name=None, footprint="",
+            datasheet="", value=None):
     """An NPN part on the generic Device:Q_NPN shape. pins: {"E": 1, "B": 2, "C": 3}, the
-    physical pin of each role. SPICE: a Q element, nodes C B E, model `model` (default
-    `name`) from `library` (default: found in render(spice_libs=...))."""
-    return _bjt("NPN", name, pins, model, library, footprint, datasheet, value)
+    physical pin of each role (keys in any case). SPICE: a Q element, nodes C B E, model
+    `model` (or `model_name`; default `name`) from `library` (default: found in
+    render(spice_libs=...))."""
+    return _bjt("NPN", name, pins, model or model_name, library, footprint, datasheet, value)
 
 
-def AtomPNP(name, pins, model=None, library=None, footprint="", datasheet="", value=None):
+def AtomPNP(name, pins=None, library=None, model=None, *, model_name=None, footprint="",
+            datasheet="", value=None):
     """A PNP part on the generic Device:Q_PNP shape; see AtomNPN."""
-    return _bjt("PNP", name, pins, model, library, footprint, datasheet, value)
+    return _bjt("PNP", name, pins, model or model_name, library, footprint, datasheet, value)
 
 
-def AtomDiode(name, pins=None, model=None, library=None, footprint="", datasheet=""):
+def AtomDiode(name, pins=None, library=None, model=None, *, model_name=None, footprint="",
+              datasheet=""):
     """A diode on the generic Device:D shape (K left, A right). pins: {"K": 1, "A": 2}."""
+    model = model or model_name
     p = _pin_map(name, pins or {"K": 1, "A": 2}, ("K", "A"))
-    lib_id = derive_symbol("Device:D", name, {"1": p["K"], "2": p["A"]}, _metadata(footprint, datasheet))
+    lib_id = derive_symbol("Device:D", name, {"1": p["K"], "2": p["A"]})
     return Atom(
         lib_id,
         name,
@@ -133,13 +163,33 @@ def AtomDiode(name, pins=None, model=None, library=None, footprint="", datasheet
 
 
 # --- single op-amps -------------------------------------------------------------------------
-def _opamp_spice(name, p, model, library, model_pins):
+def _opamp_spice(name, p, model, library, model_pins, spice=None):
+    """The X element of an op-amp: an explicit SpiceModel (pins in model order), or a model
+    from `library` with `model_pins` listing the roles (or physical pins) in node order."""
+    if spice is not None:
+        if model is not None or library is not None:
+            raise YasdlError(f"{name}: give either spice=SpiceModel(...) or library/model_name")
+        if sorted(spice.pins) != sorted(p.values()) or len(spice.pins) != len(p):
+            raise YasdlError(
+                f"{name}: opamp SpiceModel must list all physical signal/supply pins exactly "
+                f"once: {sorted(p.values())}"
+            )
+        return spice
     if model is None:
         return None
-    roles = tuple(model_pins)
+    roles = tuple(_role(r, tuple(p)) for r in model_pins)
+    roles = tuple(next((k for k, v in p.items() if v == str(r)), r) if r not in p else r
+                  for r in roles)
     if set(roles) != set(p) or len(roles) != len(p):
-        raise YasdlError(f"{name}: model_pins must list every role exactly once: {tuple(p)}")
-    nodes = subckt_pins(model, library) if library else [str(i + 1) for i in range(len(roles))]
+        count = {3: "three", 5: "five"}.get(len(p), str(len(p)))
+        raise YasdlError(
+            f"{name}: model_pins/model_order must list every role exactly once (all {count} "
+            f"opamp roles {tuple(p)}), got {tuple(model_pins)}"
+        )
+    if library and Path(library).is_file():
+        nodes = subckt_pins(model, library)
+    else:  # the file is supplied later: KiCad maps by terminal position
+        nodes = [str(i + 1) for i in range(len(roles))]
     if len(nodes) != len(roles):
         raise YasdlError(
             f"{name}: .subckt {model} has {len(nodes)} pins {nodes}, model_pins lists "
@@ -154,35 +204,42 @@ def _opamp_spice(name, p, model, library, model_pins):
     )
 
 
+def _opamp_aliases(p) -> dict:
+    """Role aliases of an op-amp part: out, and inp/inn/vp/vm for +, -, V+, V-."""
+    names = {"+": "inp", "-": "inn", "V+": "vp", "V-": "vm"}
+    return {"out": p["out"], **{names[r]: v for r, v in p.items() if r in names}}
+
+
 def AtomOpamp5(
-    name, pins, model=None, library=None, model_pins=("+", "-", "V+", "V-", "out"),
-    footprint="", datasheet="",
+    name, pins=None, library=None, model_name=None, model_order=None, *, model=None,
+    model_pins=None, spice=None, footprint="", datasheet="",
 ):
     """A single op-amp with supply pins on the generic Simulation_SPICE:OPAMP shape:
     + above -, output right, V+ on top, V- at the bottom. pins: physical pin per role
-    ("+", "-", "out", "V+", "V-"). model_pins: the roles in the subcircuit's node order."""
+    ("+", "-", "out", "V+", "V-"; inp/inn/vp/vm accepted). Simulation: spice=SpiceModel(...)
+    with the physical pins in model order, or `library` + `model_name` (alias `model`) with
+    `model_order` (alias `model_pins`) listing the roles in the subcircuit's node order."""
     p = _pin_map(name, pins, OPAMP_ROLES)
     base = {"+": "1", "-": "2", "V+": "3", "V-": "4", "out": "5"}
-    lib_id = derive_symbol(
-        "Simulation_SPICE:OPAMP", name, {base[r]: p[r] for r in OPAMP_ROLES},
-        _metadata(footprint, datasheet),
-    )
+    lib_id = derive_symbol("Simulation_SPICE:OPAMP", name, {base[r]: p[r] for r in OPAMP_ROLES})
+    order = model_order or model_pins or ("+", "-", "V+", "V-", "out")
     return Atom(
-        lib_id, name, aliases={"out": p["out"]},
-        spice=_opamp_spice(name, p, model, library, model_pins),
+        lib_id, name, aliases=_opamp_aliases(p),
+        spice=_opamp_spice(name, p, model or model_name, library, order, spice),
         footprint=footprint, datasheet=datasheet,
     )
 
 
-def AtomOpamp3(name, pins=None, model=None, library=None, model_pins=("+", "-", "out"),
-               footprint="", datasheet="", value=None):
-    """A supply-less op-amp on the yasdl:OPAMP_IDEAL shape (+ above -, output right)."""
+def AtomOpamp3(name, pins=None, library=None, model_name=None, model_order=None, *,
+               model=None, model_pins=None, spice=None, footprint="", datasheet="", value=None):
+    """A supply-less op-amp on the yasdl:OPAMP_IDEAL shape (+ above -, output right).
+    pins default to {"+": 1, "-": 2, "out": 3}; simulation as for AtomOpamp5."""
     p = _pin_map(name, pins or {"+": 1, "-": 2, "out": 3}, ("+", "-", "out"))
-    lib_id = derive_symbol("yasdl:OPAMP_IDEAL", name, {"1": p["+"], "2": p["-"], "3": p["out"]},
-                           _metadata(footprint, datasheet))
+    lib_id = derive_symbol("yasdl:OPAMP_IDEAL", name, {"1": p["+"], "2": p["-"], "3": p["out"]})
+    order = model_order or model_pins or ("+", "-", "out")
     return Atom(
-        lib_id, value or name, aliases={"out": p["out"]}, footprint=footprint, datasheet=datasheet,
-        spice=_opamp_spice(name, p, model, library, model_pins),
+        lib_id, value or name, aliases=_opamp_aliases(p), footprint=footprint, datasheet=datasheet,
+        spice=_opamp_spice(name, p, model or model_name, library, order, spice),
     )
 
 
@@ -221,7 +278,10 @@ class OpampPackage:
         power = _pin_map(f"{self.name} power", self.power, ("V+", "V-"))
         physical = [v for m in maps.values() for v in m.values()] + list(power.values())
         if len(set(physical)) != len(physical):
-            raise YasdlError(f"{self.name}: a physical pin is used twice: {sorted(physical)}")
+            raise YasdlError(
+                f"{self.name}: duplicate physical pins across package units: a physical pin "
+                f"is used twice: {sorted(physical)}"
+            )
         if self.model:
             expected = set(OPAMP_ROLES) if self.scope == 'unit' else set(physical)
             order = self.model_pins if self.scope == 'unit' else tuple(str(p) for p in self.model_pins)
@@ -239,7 +299,7 @@ class OpampPackage:
                 renumber[pin.number] = m[role]
         for pin in load(base.lib_id, base.unit_count).pins:
             renumber[pin.number] = power[pin.name]
-        lib_id = derive_symbol(base.lib_id, self.name, renumber, _metadata(self.footprint, self.datasheet))
+        lib_id = derive_symbol(base.lib_id, self.name, renumber)
         object.__setattr__(self, "lib_id", lib_id)
 
     def __call__(self, name=None, **kwargs):
@@ -318,12 +378,81 @@ class PackageType:
         return Package(self, name=name, **kwargs)
 
 
+STANDARD_DUAL_OPAMPS = ("LM358", "TL072")
+
+
+def _dual_package_type(device, units, power, spice, library, model_name, model_order, sim,
+                       footprint, datasheet) -> PackageType:
+    """A dual op-amp from role maps: generic Device:Opamp_Dual units A/B, power unit C, and
+    one whole-device subcircuit over every physical pin (default: the bundled generic
+    yasdl_dual_opamp in the DIP-8 terminal order A+ A- Aout B+ B- Bout V+ V-)."""
+    short = str(device).split(":")[-1]
+    if units is None:
+        if short not in STANDARD_DUAL_OPAMPS:
+            raise YasdlError(
+                f"Package {device}: supply explicit units and power maps for this device "
+                f"(defaults exist for {', '.join(STANDARD_DUAL_OPAMPS)})"
+            )
+        units = DUAL_DIP8["units"]
+        power = DUAL_DIP8["power"] if power is None else power
+    if set(units) != {"A", "B"}:
+        raise YasdlError("Package: supported signal units are A and B; C is the shared power unit")
+    maps = {u: _pin_map(f"{short} unit {u}", m, ("+", "-", "out")) for u, m in units.items()}
+    pw = _pin_map(f"{short} power", power or {}, ("V+", "V-"))
+    allpins = [m[r] for u in ("A", "B") for m in [maps[u]] for r in ("+", "-", "out")]
+    allpins += [pw["V+"], pw["V-"]]
+    if len(set(allpins)) != len(allpins):
+        raise YasdlError(
+            f"Package {short}: duplicate physical pins across package units: {sorted(allpins)}"
+        )
+    descriptor = OpampPackage(short, units=maps, power=pw)
+    if spice is None:
+        if library is not None and model_name is None:
+            raise YasdlError("Package: library= needs model_name=")
+        order = tuple(str(x) for x in (model_order or allpins))
+        if len(order) != len(allpins) or set(order) != set(allpins):
+            raise YasdlError(f"Package: model_order must list every package pin once, got {order}")
+        spice = SpiceModel(
+            "X", order, model_name or "yasdl_dual_opamp",
+            " ".join(f"{x}={i}" for i, x in enumerate(order, 1)),
+            str(library or BUNDLED_MODELS),
+        )
+    elif library is not None or model_name is not None or model_order is not None:
+        raise YasdlError("Package: give either spice= or library/model_name/model_order")
+    if sorted(spice.pins) != sorted(allpins) or len(spice.pins) != len(allpins):
+        raise YasdlError(
+            "Package: a whole-device SpiceModel must list every physical pin exactly once"
+        )
+    return PackageType(descriptor.lib_id, short, spice, footprint, datasheet, sim)
+
+
 class Package:
     """One physical multi-unit device. Its unit views bind into ordinary op-amp holes; every
-    unit, including the power unit, must be bound exactly once in the design."""
+    unit, including the power unit, must be bound exactly once in the design.
 
-    def __init__(self, descriptor: OpampPackage | PackageType | str, name: str | None = None, *,
-                 spice=None, value=None, footprint=None, datasheet=None, sim=None):
+    Package(descriptor, name=None): an OpampPackage or PackageType descriptor.
+    Package("Library:Symbol"): an installed multi-unit root symbol (see PackageType).
+    Package("TL072"), Package() (LM358) or Package(units=..., power=...): a dual op-amp from
+    role maps, with a whole-device model given by spice=, or library + model_name (+
+    model_order, physical pins), or the bundled generic yasdl_dual_opamp; units A, B, and C
+    (power). Packages are immutable once made."""
+
+    def __init__(self, descriptor: OpampPackage | PackageType | str | None = None,
+                 name: str | None = None, *, units=None, power=None, library=None,
+                 model_name=None, model_order=None, spice=None, value=None, footprint=None,
+                 datasheet=None, sim=None):
+        dual_form = descriptor is None or units is not None or power is not None or any(
+            x is not None for x in (library, model_name, model_order)
+        ) or (isinstance(descriptor, str) and ":" not in descriptor)
+        if dual_form:
+            if descriptor is not None and not isinstance(descriptor, str):
+                raise YasdlError("Package: units/power/model arguments describe a dual op-amp by name")
+            descriptor = _dual_package_type(
+                descriptor or "Amplifier_Operational:LM358", units, power, spice, library,
+                model_name, model_order, True if sim is None else sim, footprint or "",
+                datasheet or "",
+            )
+            spice = sim = footprint = datasheet = None
         if isinstance(descriptor, str):
             try:
                 load(descriptor)
@@ -355,6 +484,12 @@ class Package:
         self.footprint = descriptor.footprint if footprint is None else footprint
         self.datasheet = descriptor.datasheet if datasheet is None else datasheet
         self._units = {}
+        self._locked = True
+
+    def __setattr__(self, key, value):
+        if getattr(self, "_locked", False):
+            raise AttributeError("Package objects are immutable; create another Package")
+        object.__setattr__(self, key, value)
 
     def __repr__(self):
         return f"Package({self.descriptor.name}, {self.name!r})"
@@ -362,10 +497,16 @@ class Package:
     def _atom(self, key: str, unit_no: int, aliases: dict) -> Atom:
         if key not in self._units:
             d = self.descriptor
+            roles = {"+": "inp", "-": "inn", "~": "out", "V+": "vp", "V-": "vm"}
+            aliases = {
+                **{roles[pin.name]: pin.number for pin in load(d.lib_id, unit_no).pins
+                   if pin.name in roles},
+                **aliases,
+            }
             self._units[key] = Atom(
                 d.lib_id, self.value, unit=unit_no, aliases=aliases, package=self,
                 footprint=self.footprint, datasheet=self.datasheet,
-                sim=self.sim,
+                sim=self.sim, spice=getattr(d, "spice", None),
             )
         return self._units[key]
 
@@ -382,7 +523,11 @@ class Package:
             if isinstance(letter, str):
                 letter = letter.upper()
             if letter not in names:
-                raise YasdlError(f"{self.name}: unit {letter!r} does not exist")
+                raise YasdlError(
+                    f"{self.name or d.name}: unknown unit {letter!r}; unit {letter!r} does not "
+                    f"exist (units {names}"
+                    + (f", power {chr(64 + power_unit)})" if power_unit else ")")
+                )
             out = [p.number for p in load(d.lib_id, ord(letter) - 64).pins if p.name == '~']
             return self._atom(letter, ord(letter) - 64, {'out': out[0]} if len(out) == 1 else {})
         if letter not in names:
@@ -468,3 +613,8 @@ def dual_opamp(
 IDEAL_DUAL = dual_opamp(
     "IDEAL_DUAL", "yasdl_ideal_opamp5", BUNDLED_MODELS, ("+", "-", "V+", "V-", "out")
 )
+
+
+def AtomOpampPackage(name, *, units, power, spice=None, **kwargs) -> Package:
+    """A dual op-amp package from explicit role maps (see Package)."""
+    return Package(name, units=units, power=power, spice=spice, **kwargs)

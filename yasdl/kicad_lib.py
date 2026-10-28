@@ -55,6 +55,21 @@ DependencyError = YasdlDependencyError
 class SymbolNotFound(YasdlDependencyError, KeyError):
     """A missing library symbol, catchable as either a dependency error or KeyError."""
 
+    def __str__(self):  # KeyError would quote the message
+        return str(self.args[0]) if self.args else ""
+
+
+class LibraryNotFound(SymbolNotFound, FileNotFoundError):
+    """A missing symbol library file (also a FileNotFoundError)."""
+
+
+class KiCadNotFound(YasdlDependencyError, FileNotFoundError):
+    """kicad-cli is missing (also a FileNotFoundError)."""
+
+
+class KiCadCommandFailed(YasdlDependencyError):
+    """kicad-cli ran and exited with an error; the message holds its command and output."""
+
 
 def kicad_candidates():
     return list(KICAD_CANDIDATES)
@@ -73,6 +88,11 @@ def find_kicad_root() -> tuple[Path, list[Path]]:
     return KICAD_CANDIDATES[0], list(KICAD_CANDIDATES)
 
 
+def discover_kicad() -> Path:
+    """The KiCad installation root yasdl uses: YASDL_KICAD, else a normal installation."""
+    return find_kicad_root()[0]
+
+
 KICAD_ROOT, KICAD_SEARCHED = find_kicad_root()
 KICAD_CLI, SYMBOL_DIR, TEMPLATE_DIR = _resolve_kicad_layout(KICAD_ROOT)
 
@@ -86,13 +106,34 @@ def _remedy() -> str:
     )
 
 
-def require_cli(operation: str) -> Path:
-    """kicad-cli, or a YasdlDependencyError saying which operation needed it."""
-    if not Path(KICAD_CLI).exists():
-        raise YasdlDependencyError(
+def require_cli(operation: str = "KiCad schematic export/ERC") -> Path:
+    """kicad-cli of KiCad 9, checked when an operation needs it (never at import). A missing
+    CLI raises KiCadNotFound (a FileNotFoundError); another major version, RuntimeError."""
+    if not Path(KICAD_CLI).is_file():
+        raise KiCadNotFound(
             f"{operation} needs kicad-cli, not found at {KICAD_CLI}. {_remedy()}."
         )
+    _check_cli_version(str(KICAD_CLI))
     return Path(KICAD_CLI)
+
+
+@lru_cache(maxsize=None)
+def _check_cli_version(path: str) -> None:
+    """Reject a kicad-cli that reports another major version. A CLI that can't report a
+    version is left to fail (with its own output) in the operation that runs it."""
+    import re
+    import subprocess
+
+    try:
+        result = subprocess.run([path, "version"], capture_output=True, text=True)
+    except OSError:
+        return
+    m = re.match(r"\s*(\d+)\.\d+", result.stdout)
+    if result.returncode == 0 and m and m.group(1) != "9":
+        raise YasdlDependencyError(
+            f"KiCad 9 is required; {path} reports version {result.stdout.strip()!r}. Install "
+            "KiCad 9 and set YASDL_KICAD to its installation root"
+        )
 
 
 def run_cli(operation: str, args: list, check: bool = True, cwd=None):
@@ -103,7 +144,7 @@ def run_cli(operation: str, args: list, check: bool = True, cwd=None):
     cmd = [str(require_cli(operation)), *map(str, args)]
     run = subprocess.run(cmd, capture_output=True, text=True, **({'cwd': cwd} if cwd else {}))
     if check and run.returncode != 0:
-        raise YasdlDependencyError(
+        raise KiCadCommandFailed(
             f"{operation} failed: {' '.join(cmd)} exited with {run.returncode}\n"
             f"{(run.stderr or run.stdout).strip()}"
         )
@@ -125,11 +166,11 @@ def library_path(lib: str) -> Path:
 def _missing_library(lib: str) -> YasdlDependencyError:
     where = f"{BUNDLED_DIR / (lib + '.kicad_sym')} and {SYMBOL_DIR / (lib + '.kicad_sym')}"
     if not SYMBOL_DIR.is_dir():
-        return SymbolNotFound(
+        return LibraryNotFound(
             f"symbol library {lib!r}: KiCad's symbol directory {SYMBOL_DIR} does not exist. "
             f"{_remedy()}."
         )
-    return SymbolNotFound(
+    return LibraryNotFound(
         f"symbol library {lib!r} not found (searched {where}); {_remedy()}; check the library name "
         "in the lib_id 'Library:Symbol'"
     )
@@ -159,15 +200,47 @@ class LibPin:
     )
 
 
+class _FrozenList(list):
+    """An S-expression list that refuses in-place edits (cached library definitions)."""
+
+    def _blocked(self, *args, **kwargs):
+        raise TypeError("symbol definitions are immutable; derive a new definition")
+
+    __setitem__ = __delitem__ = append = extend = insert = pop = remove = _blocked
+    clear = reverse = sort = __iadd__ = __imul__ = _blocked
+
+    def __deepcopy__(self, memo):
+        import copy
+
+        return [copy.deepcopy(x, memo) for x in self]
+
+
+def _freeze(value):
+    return _FrozenList(_freeze(x) for x in value) if isinstance(value, list) else value
+
+
 @dataclass(frozen=True)
 class LibSymbol:
     lib_id: str
-    sexp: list  # the (symbol ...) definition, embedded into schematics' lib_symbols
+    definition: list  # the (symbol ...) definition, embedded into schematics' lib_symbols
     pins: tuple[LibPin, ...]  # pins of this unit (plus pins common to all units)
     bbox: tuple[float, float, float, float]  # xmin, ymin, xmax, ymax (library coords)
     is_power: bool
     unit: int = 1
     unit_count: int = 1
+
+    def __post_init__(self):
+        object.__setattr__(self, "definition", _freeze(self.definition))
+
+    @property
+    def sexp(self) -> list:
+        """The definition. KiCad library symbols are shared and immutable; a derived
+        definition hands out a fresh copy, so editing it never changes the registered one."""
+        if self.lib_id.startswith(DERIVED_LIB + ":"):
+            import copy
+
+            return copy.deepcopy(self.definition)
+        return self.definition
 
 
 # --- derived symbol definitions (spec 6.3) -----------------------------------------
@@ -195,6 +268,8 @@ def _symbol_sexp(lib_id: str) -> list:
         raise SymbolNotFound(
             f"symbol {lib_id} not found; searched {library_path(lib)}"
             + (f"; did you mean {', '.join(close)}?" if close else "")
+            + "; check the symbol name, or install the standard KiCad 9 libraries and set "
+            "YASDL_KICAD to their installation root"
         )
     return sym
 

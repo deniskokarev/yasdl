@@ -8,10 +8,11 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .block import Block, flat_names, netlist, partition
+from .block import Block, flat_names, netlist, partition, YasdlError
 from .kicad_lib import (
     BUNDLED_DIR,
     DERIVED_LIB,
+    KiCadCommandFailed,
     derived_symbols,
     write_derived_library,
     library_names,
@@ -24,7 +25,7 @@ from .kicad_lib import (
 from .kicad_sch import export_netlist, export_svg, run_erc, Schematic, snap
 from .layout import layout
 from .spice import (
-    compare_spice,
+    compare_spice as _compare_spice,
     model_library,
     parse_spice,
     spice_model,
@@ -111,6 +112,7 @@ def to_kicad(
             leaf[unit_path] = pp.name
     pkg_refs: dict[int, str] = {}
     packages_used = []
+    copies: dict = {}  # model files copied into the project by this export
     for ypath, atom, x, y, rot, mirror in res.symbols:
         sym = atom.symbol
         prefix = _ref_prefix(atom.lib_id, sym)
@@ -136,7 +138,7 @@ def to_kicad(
                 if pkg.sim and pkg.descriptor not in packages_used:
                     packages_used.append(pkg.descriptor)
             if bundle_models and "Sim.Library" in fields:
-                fields["Sim.Library"] = _bundle(Path(path).parent, fields["Sim.Library"])
+                fields["Sim.Library"] = _bundle(Path(path).parent, fields["Sim.Library"], copies)
             sch.add_symbol(
                 atom.lib_id,
                 ref,
@@ -170,12 +172,19 @@ def to_kicad(
             sch.add_junction(p)
     for p in res.nc:
         sch.add_no_connect(t(p))
+    uf, _, names = flat_names(block)
+    # A child's local label can be joined through its ports to a differently named net (a
+    # supply, a parent label): the electrical label carries the flattened net name, so KiCad
+    # sees one name per net; the drawn name stays beside it as text.
+    canonical = _label_net_names(block, uf, names)
     labels = []  # (text, point, global?)
     for text, p, scoped in res.labels:
-        sch.add_label(text, t(p))
-        labels.append((text, t(p), not scoped))
+        name = canonical.get(text, text)
+        sch.add_label(name, t(p))
+        if name != text:
+            sch.add_text(text, (t(p)[0], snap(t(p)[1] - 2.54)))
+        labels.append((name, t(p), not scoped))
     port_points = []
-    uf, _, names = flat_names(block)
     for port, edge, p in zip(block.ports, block.canvas.edge_ports, res.ports):
         alias = port.name or port.default
         root = uf.find(("", block.canvas.uf.find(edge.node)))
@@ -222,6 +231,23 @@ def to_kicad(
     return path, refmap
 
 
+def _label_net_names(block: Block, uf, names) -> dict[str, str]:
+    """{label text as laid out ("A1.bus" for a child's local label): flattened net name}."""
+    out = {}
+
+    def visit(current, prefix):
+        for i, lab in enumerate(current.canvas.labels):
+            if lab.kind in ("local", "global"):
+                root = uf.find((prefix, current.canvas.uf.find(("l", i))))
+                out[prefix + lab.text if lab.kind == "local" else lab.text] = names[root]
+        for name, b in current.bound.items():
+            if isinstance(b.obj, Block):
+                visit(b.obj, f"{prefix}{name}.")
+
+    visit(block, "")
+    return out
+
+
 class PackageRef(str):
     """refmap value of a multi-unit reference: the package name, plus the yasdl path of the
     unit view carrying each physical pin (pin_path)."""
@@ -263,26 +289,23 @@ def _package_sim_fields(pkg, out_dir: Path, spice_libs=()) -> dict:
     return fields
 
 
-def _bundle(out_dir: Path, lib) -> str:
-    """Copy model library `lib` into out_dir/models (once; another file with the same name
-    gets a numbered copy) and return its project-relative path."""
+MODEL_DIR = "spice_models"
+
+
+def _bundle(out_dir: Path, lib, cache=None, relative: bool = False) -> str:
+    """Copy model library `lib` and its .include closure into out_dir/spice_models (see
+    resources.copy_model_resource) and return its project-relative path,
+    spice_models/<file>. A relative path also resolves for a schematic exported without its
+    .kicad_pro (a renamed copy), where ${KIPRJMOD} is undefined."""
+    from .resources import copy_model_resource
+
     lib = Path(lib)
     if not lib.is_absolute():
         lib = (out_dir / lib).resolve()
     if lib.parent == out_dir.resolve():  # generated next to the schematic already
         return lib.name
-    models = out_dir / "models"
-    models.mkdir(exist_ok=True)
-    text = lib.read_text(errors="replace")
-    stem, suffix, k = lib.stem, lib.suffix, 1
-    while True:
-        target = models / (f"{stem}{suffix}" if k == 1 else f"{stem}_{k}{suffix}")
-        if not target.exists() or target.read_text(errors="replace") == text:
-            break
-        k += 1
-    if not target.exists():
-        target.write_text(text)
-    return f"models/{target.name}"
+    copied = copy_model_resource(lib, out_dir / MODEL_DIR, cache)
+    return f"{MODEL_DIR}/{copied.name}"
 
 
 def _write_package_lib(out_dir: Path, descriptors, bundle: bool = True, spice_libs=()) -> None:
@@ -297,7 +320,7 @@ def _write_package_lib(out_dir: Path, descriptors, bundle: bool = True, spice_li
     text = path.read_text() if path.exists() else "* yasdl package wrappers\n"
     for d in wanted:
         source = d.library or model_library(d.model, spice_libs)
-        lib = (_bundle(out_dir, source) if bundle else source) if source else None
+        lib = (_bundle(out_dir, source, relative=True) if bundle else source) if source else None
         block = (f".include {lib}\n" if lib else "") + d.wrapper()
         m = _re.search(
             rf"(?ms)^(\.include [^\n]*\n)?\.subckt {d.wrapper_name()} .*?^\.ends {d.wrapper_name()}\n",
@@ -579,7 +602,35 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
         for net in partition(netlist(block))
     }
     want.discard(frozenset())
-    return got == want, want - got, got - want
+    # Global nets (supplies, ground, global labels) also keep their names: the same pin
+    # groups on a renamed supply are a different circuit.
+    uf, pins, _ = flat_names(block)
+    globals_ = {uf.find(k): k[1] for k in uf.parent if k[0] == "global"}
+    want_named = set()
+    for root, name in globals_.items():
+        members = frozenset(
+            f"{path}.{pin}"
+            for (path, pin), n in pins.items()
+            if uf.find(n) == root and path not in power_paths
+        )
+        if members:
+            want_named.add((name.casefold(), members))
+    global_names = {n for n, _ in want_named}
+    got_named = set()
+    for net, nodes in kicad.items():
+        name = str(net).removeprefix("/").casefold()  # one flat sheet: labels are "/name"
+        members = frozenset(
+            ypin(r, pin)
+            for r, pin in nodes
+            if not r.startswith("#") and refmap.get(r) is not None
+        )
+        wanted = {n for n, m in want_named if m == members}
+        if members and (name in global_names or wanted):
+            got_named.add((name, members))
+    named_missing = {("@" + n, m) for n, m in want_named - got_named}
+    named_extra = {("@" + n, m) for n, m in got_named - want_named}
+    ok = got == want and not named_missing and not named_extra
+    return ok, (want - got) | named_missing, (got - want) | named_extra
 
 
 def export_kicad_spice(sch_path) -> str:
@@ -660,21 +711,50 @@ def spice_roundtrip(block: Block, sch_path, refmap, *, kicad_text=None, yasdl_te
     """
     # One flat sheet: yasdl draws net names as KiCad labels, which kicad-cli qualifies with
     # the root sheet path ("/Vref"). Strip it so global identity survives the comparison.
-    kicad = [
-        (name, [n[1:] if n.startswith("/") else n for n in nodes], value)
-        for name, nodes, value in parse_spice(export_kicad_spice(sch_path) if kicad_text is None else kicad_text)
-    ]
-    ours = parse_spice(spice_netlist(block, validate_values=False) if yasdl_text is None else yasdl_text)
+    if kicad_text is None:
+        try:
+            kicad_text = export_kicad_spice(sch_path)
+        except KiCadCommandFailed as e:  # e.g. a model KiCad cannot load: not equal
+            return False, f"KiCad SPICE export failed: {e}"
+    try:
+        kicad = [
+            (name, [n[1:] if n.startswith("/") else n for n in nodes], value)
+            for name, nodes, value in parse_spice(kicad_text)
+        ]
+        ours = parse_spice(
+            spice_netlist(block, validate_values=False) if yasdl_text is None else yasdl_text
+        )
+    except YasdlError as e:  # a deck the comparison can't read is not equal
+        return False, f"unreadable SPICE deck: {e}"
     named = user_net_names(kicad, ours)
-    theirs = spice_partition(
-        kicad, lambda n: _eid(kicad_element_name(n, refmap)), named
-    )
+    theirs = spice_partition(kicad, lambda n: _kicad_eid(n, refmap), named)
     mine = spice_partition(ours, lambda n: _eid(n.split("_", 1)[1]), named)
-    diff = compare_spice(mine, theirs)
+    diff = _compare_spice(mine, theirs)
     if diff:
         diff.append('raw values: ours ' + repr([(n, v.casefold()) for n, _, v in ours])
                     + '; KiCad ' + repr([(n, v.casefold()) for n, _, v in kicad]))
     return not diff, "; ".join(diff)
+
+
+def compare_spice(ours, theirs, *args, **kwargs):
+    """compare_spice(block, kicad_text, refmap) -> (ok, diff): a SPICE text, such as a
+    (possibly edited) KiCad export, against `block`'s own netlist, with the same rules as
+    spice_roundtrip. Other arguments are spice.compare_spice's texts or partitions."""
+    if isinstance(ours, Block):
+        if len(args) != 1 or kwargs:
+            raise TypeError("compare_spice(block, text, refmap)")
+        return spice_roundtrip(ours, None, args[0], kicad_text=theirs)
+    return _compare_spice(ours, theirs, *args, **kwargs)
+
+
+def _kicad_eid(name, refmap):
+    """Element id of a KiCad SPICE element: its yasdl path; an element of no yasdl part
+    (an added instance) keeps a distinct id, so it is reported as extra."""
+    path = kicad_element_name(name, refmap)
+    if path is None:
+        key = name if name in refmap else name[1:]
+        return None if key in refmap else "?" + name  # ERC helpers map to None
+    return _eid(path)
 
 
 def _eid(path):
@@ -701,8 +781,16 @@ def render(
     render side by side: render(upper, "out", export_name="DarlN")."""
     check_models(block, spice_libs, require=spice)
     stem = block.name if export_name is None else export_name
-    if not stem or Path(stem).name != stem or stem in (".", ".."):
-        raise ValueError(f"export_name must be a plain file stem, not {stem!r}")
+    if (
+        not isinstance(stem, str)
+        or not stem
+        or Path(stem).name != stem
+        or stem in (".", "..")
+        or "\\" in stem
+    ):
+        raise ValueError(
+            f"export_name must be a plain file stem (a filename stem without directories), not {stem!r}"
+        )
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(

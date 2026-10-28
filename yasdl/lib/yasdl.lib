@@ -8,17 +8,18 @@
 B1 out 0 V={GAIN}*(V(inp)-V(inn))
 .ends yasdl_ideal_opamp
 
-* Potentiometer (symbol Device:R_Potentiometer; yasdl POT()). Pins: ccw (pin 1), wiper
-* (pin 2), cw (pin 3). POS is the shaft position, 0 = fully counterclockwise (wiper at
-* ccw), 1 = fully clockwise (wiper at cw). F = fraction of R between ccw and the wiper:
+* Potentiometer (symbol Device:R_Potentiometer; yasdl POT()/Pot()). Pins: ccw (pin 1),
+* wiper (pin 2), cw (pin 3). POS is the shaft position, 0 = fully counterclockwise (wiper
+* at ccw), 1 = fully clockwise (wiper at cw). F = fraction of R between ccw and the wiper:
 *   TAPER=0 linear:            F = POS
 *   TAPER=1 audio/log ("A"):   F = (81^POS - 1)/80   (10 % at mid rotation)
 *   TAPER=2 reverse log ("C"): F = 1 - (81^(1-POS) - 1)/80
-* 1 mOhm in series with each section keeps the end positions finite.
-.subckt yasdl_pot ccw w cw params: R=10k POS=0.5 TAPER=0
-.param F = {TAPER == 1 ? (pow(81, POS) - 1)/80 : (TAPER == 2 ? 1 - (pow(81, 1 - POS) - 1)/80 : POS)}
-R1 ccw w {R*F + 1m}
-R2 w cw {R*(1 - F) + 1m}
+* P, when given (0..1), is the electrical fraction F directly (linear setting).
+* 1 uOhm in series with each section keeps the end positions finite.
+.subckt yasdl_pot ccw w cw params: R=10k POS=0.5 TAPER=0 P=-1
+.param F = {P >= 0 ? P : (TAPER == 1 ? (pow(81, POS) - 1)/80 : (TAPER == 2 ? 1 - (pow(81, 1 - POS) - 1)/80 : POS))}
+R1 ccw w {R*F + 1u}
+R2 w cw {R*(1 - F) + 1u}
 .ends yasdl_pot
 
 * Ideal op-amp with supply pins (inp inn vp vn out): like yasdl_ideal_opamp, linear
@@ -36,3 +37,11 @@ XA inpa inna outa yasdl_ideal_opamp
 XB inpb innb outb yasdl_ideal_opamp
 RS vcc vee 1MEG
 .ends yasdl_ideal_opamp_dual
+
+* Generic bounded dual op-amp: the default whole-package model of Package() for the
+* DIP-8 dual pinout. Terminals: A+ A- Aout B+ B- Bout V+ V- (physical 3 2 1 5 6 7 8 4).
+* Behavioural, gain 1e6, output limited 0.1 V inside the rails; not a vendor model.
+.subckt yasdl_dual_opamp ap an ao bp bn bo vp vm
+B1 ao 0 V={limit(1e6*(V(ap)-V(an)),V(vm)+0.1,V(vp)-0.1)}
+B2 bo 0 V={limit(1e6*(V(bp)-V(bn)),V(vm)+0.1,V(vp)-0.1)}
+.ends yasdl_dual_opamp

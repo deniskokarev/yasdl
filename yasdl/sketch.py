@@ -73,18 +73,34 @@ class Sketch:
     def text(self, row: int, col: int, s: str) -> Sketch:
         """Place a string left to right: component names, [labels], {ports}, glyphs. Spaces
         are transparent (they leave the cell as it is)."""
+        if not isinstance(s, str) or "\n" in s or "\r" in s:
+            raise SketchError(f"Sketch.text: expected single-line text, not {s!r}")
+        _point((row, col))
         plan = {(row, col + i): ch for i, ch in enumerate(s) if ch != " "}
         self._commit(f"text({row}, {col}, {s!r})", plan, set(), 0)
         return self
 
     def box(self, row: int, col: int, name: str, rows: int = 1) -> Sketch:
         """A component rectangle: `name` repeated on `rows` rows (e.g. a 3-row transistor)."""
+        _point((row, col))
+        if (
+            type(rows) is not int
+            or rows < 1
+            or not isinstance(name, str)
+            or not name
+            or not all(ch.isalnum() or ch == "_" for ch in name)
+        ):
+            raise SketchError(
+                f"Sketch.box: a nonempty component name and a positive integer row count are "
+                f"required, not {name!r}, rows={rows!r}"
+            )
         plan = {(row + r, col + i): ch for r in range(rows) for i, ch in enumerate(name)}
         self._commit(f"box({row}, {col}, {name!r}, rows={rows})", plan, set(), 0)
         return self
 
     def hline(self, row: int, c0: int, c1: int, ch: str = "─", cross: int = 0) -> Sketch:
         """A straight horizontal wire over columns c0..c1 (inclusive)."""
+        _point((row, c0)), _point((row, c1))
         cells = [(row, c) for c in range(min(c0, c1), max(c0, c1) + 1)]
         what = f"hline({row}, {c0}, {c1})"
         self._straight(what, cells, "EW", ch, cross)
@@ -92,6 +108,7 @@ class Sketch:
 
     def vline(self, col: int, r0: int, r1: int, ch: str = "│", cross: int = 0) -> Sketch:
         """A straight vertical wire over rows r0..r1 (inclusive)."""
+        _point((r0, col)), _point((r1, col))
         cells = [(r, col) for r in range(min(r0, r1), max(r0, r1) + 1)]
         what = f"vline({col}, {r0}, {r1})"
         self._straight(what, cells, "NS", ch, cross)
@@ -105,7 +122,7 @@ class Sketch:
         junction with an arm pointing into the route. The anchor is not drawn; the route
         attaches to it, so `wire([(4, 18), (4, 17), (7, 17)])` from a `{b}` at (4, 18)
         draws a ┌ at (4, 17)."""
-        pts = [tuple(p) for p in points]
+        pts = [_point(p) for p in points]
         what = f"wire({pts})"
         if len(pts) < 2:
             raise SketchError(f"{what}: a route needs at least two points")
@@ -196,7 +213,11 @@ class Sketch:
         ends: the end cells of a wire operation (None for text)."""
         route = ends is not None
         ends = ends or set()
+        if type(cross) is not int or cross < 0:
+            raise SketchError(f"{what}: cross must be a nonnegative integer, not {cross!r}")
         for cell in plan:
+            if any(type(v) is not int for v in cell):
+                raise SketchError(f"{what}: coordinates must be integers, not {cell}")
             if cell[0] < 0 or cell[1] < 0:
                 raise SketchError(f"{what}: negative coordinate {cell}")
         for cell, glyph in list(plan.items()):
@@ -227,7 +248,8 @@ class Sketch:
                           'an elbow, tee or junction is never crossed' if old in ARMS else
                           'components, labels or text are never overwritten')
                 raise SketchError(
-                    f"Sketch.{what}: row {cell[0]}, col {cell[1]} already holds {kind}; {reason}; {detail}. "
+                    f"Sketch.{what}: collision at row {cell[0]}, col {cell[1]}: "
+                    f"row {cell[0]}, col {cell[1]} already holds {kind}; {reason}; {detail}. "
                     + ('text never overwrites. ' if not route else '') + "Nothing was drawn.\n"
                     f"cell (row {cell[0]}, col {cell[1]}) already holds {kind} from {self.origin.get(cell)}"
                     + (
@@ -267,7 +289,9 @@ class Sketch:
         if len(crossing) != cross:
             at = ", ".join(f"({r}, {c})" for r, c in sorted(crossing)) or "none"
             raise SketchError(
-                f"{what}: creates {len(crossing)} crossing(s) at {at}, expected cross={cross}; "
+                f"{what}: expected cross={cross}, found {len(crossing)} (created "
+                f"{len(crossing)} new crossings at {at}); canvas unchanged; "
+                f"creates {len(crossing)} crossing(s) at {at}, expected cross={cross}; "
                 f"creates {len(crossing)} crossing(s) at {sorted(crossing)}, but cross={cross} was given"
             )
         self.cells.update(plan)
@@ -283,6 +307,14 @@ class Sketch:
         for (r, c), ch in self.cells.items():
             rows[r][c] = ch
         return "\n".join("".join(row).rstrip() for row in rows)
+
+
+def _point(p) -> tuple[int, int]:
+    """A (row, col) of nonnegative integers."""
+    p = tuple(p)
+    if len(p) != 2 or any(type(v) is not int or v < 0 for v in p):
+        raise SketchError(f"Sketch: expected a nonnegative integer (row, col), got {p!r}")
+    return p
 
 
 def _direction(a, b) -> str:

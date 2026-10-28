@@ -12,29 +12,34 @@ from .atoms import (
     OPAMP_IDEAL,
     PNP,
     POT,
+    Pot,
     POWER_NETS,
     R,
     register_power_net,
+    transistor,
     V,
     VCC,
     VEE,
 )
 from .block import Atom, Block, NC, netlist, partition, YasdlError
 from .canvas import CanvasError, minimal_period
-from .sketch import Sketch
+from .sketch import Sketch, SketchError
 from .spice import spice_netlist, SpiceModel
 from .kicad_lib import YasdlDependencyError as DependencyError
 from .atoms import pot_position
 
 
 def __getattr__(name):
-    if name in {'AtomNPN', 'AtomPNP', 'AtomDiode', 'AtomOpamp3', 'AtomOpamp5', 'OpampPackage', 'Package', 'PackageType'}:
+    if name in {'AtomNPN', 'AtomPNP', 'AtomDiode', 'AtomOpamp3', 'AtomOpamp5', 'AtomOpampPackage',
+                'OpampPackage', 'Package', 'PackageType', 'Q2N3904', 'Q2N3906', 'D1N4148',
+                'BD139', 'BD140'}:
         from . import parts
         return getattr(parts, name)
     raise AttributeError(name)
 
 __all__ = [
-    "AtomNPN", "AtomPNP", "AtomDiode", "AtomOpamp3", "AtomOpamp5",
+    "AtomNPN", "AtomPNP", "AtomDiode", "AtomOpamp3", "AtomOpamp5", "AtomOpampPackage",
+    "Q2N3904", "Q2N3906", "D1N4148", "BD139", "BD140", "Pot", "SketchError", "transistor",
     "OpampPackage", "Package", "PackageType", "DependencyError", "pot_position",
     "Atom",
     "Block",

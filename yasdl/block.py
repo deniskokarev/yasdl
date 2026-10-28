@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import NamedTuple, TYPE_CHECKING
 
 from .canvas import _UF, ARROWS, Canvas, CanvasError, minimal_period
@@ -49,6 +50,11 @@ class Atom:
     package: object = field(default=None, compare=False)  # shared Package of a unit view
 
     def __post_init__(self):
+        # Descriptors are shared: their alias and arrow maps are read-only copies.
+        object.__setattr__(self, "aliases", MappingProxyType(dict(self.aliases)))
+        object.__setattr__(self, "arrows", MappingProxyType(dict(self.arrows)))
+        if type(self.sim) is not bool:
+            raise YasdlError(f"{self.lib_id}: Atom.sim must be True or False")
         arrows = list(self.arrows.values())
         if len(arrows) != len(set(arrows)):
             raise YasdlError(
@@ -122,10 +128,17 @@ class Atom:
                 and orient_side(ARROWS[arrow], rot, mirror) == ARROWS[label]
             )
         lab = label.casefold()
-        return (
-            lab in (pin.name.casefold(), pin.number.casefold())
-            or self.aliases.get(label) == pin.number
+        return lab in (pin.name.casefold(), pin.number.casefold()) or any(
+            str(alias).casefold() == lab and number == pin.number
+            for alias, number in self.aliases.items()
         )
+
+
+class CrossingCount(int):
+    """An integer crossing count that may also be called: n == n() == int(n)."""
+
+    def __call__(self) -> int:
+        return int(self)
 
 
 @dataclass
@@ -268,7 +281,7 @@ class Block:
                 if not hint and short != b and short in cv.comps:
                     hint = (
                         f"; a component drawn as {b!r} is named {short!r}: names reduce to "
-                        "their minimal period (spec 2.2); bind it as "
+                        f"their minimal period ({b!r} reduces to {short!r}, spec 2.2); bind it as "
                         f"{short}=..., or draw a non-repeating name such as {b[0]}1"
                     )
                 raise YasdlError(
@@ -445,10 +458,13 @@ class Block:
     def symmetric(self) -> bool:
         return False
 
-    def crossing_count(self) -> int:
-        """Deliberate crossings drawn in this block and, per instance, in its sub-blocks."""
-        return len(self.canvas.crossings) + sum(
-            b.obj.crossing_count() for b in self.bound.values() if isinstance(b.obj, Block)
+    @property
+    def crossing_count(self) -> "CrossingCount":
+        """Deliberate crossings drawn in this block and, per instance, in its sub-blocks.
+        An int; calling it (`block.crossing_count()`) returns the same number."""
+        return CrossingCount(
+            len(self.canvas.crossings)
+            + sum(b.obj.crossing_count for b in self.bound.values() if isinstance(b.obj, Block))
         )
 
     def side_ports(self, rot: int, mirror: str | None) -> dict[str, list]:
@@ -478,7 +494,7 @@ class Block:
             labelled = [a.pin_label for a in atts if a.pin_label]
             if labelled:
                 raise YasdlError(
-                    f"{self.name}: NC {comp.name} takes plain wires, not pin labels {labelled}; NC markers have no pins"
+                    f"{self.name}: NC {comp.name} takes plain wires, not pin labels {labelled}; NC endpoints take no pin labels; NC markers have no pins"
                 )
             return Bound(comp.name, obj, 0, None, [(a, i) for i, a in enumerate(atts)])
         if isinstance(obj, OrientedBlock):
@@ -549,6 +565,9 @@ class Block:
                 f"{self.name}: {comp.name} ({what}) does not fit its drawing: "
                 f"drawn {drawn}, has {have}"
                 + (f" in orientation {fixed}" if fixed else " in any orientation")
+                + "; pin labels "
+                + str([(a.side, a.pos, a.pin_label) for s in "NESW" for a in comp.attachments[s] if a.pin_label])
+                + "; candidate pins per orientation below"
                 + self._fit_report(comp, options, keys, answers)
             )
 
@@ -674,14 +693,16 @@ class Block:
             namer.auto(r)
         return namer.names
 
-    def to_dict(self, _blocks: dict | None = None) -> dict:
+    def to_dict(self, _blocks: dict | None = None, _block_keys: dict | None = None) -> dict:
         """Source (canvas + bindings) and the parsed view: components, attachments, nets, ports.
 
         Sub-block definitions are listed once under "blocks" (top level only) and referenced by
-        name, so shared sub-circuits are not duplicated.
+        key (the block name; Name_2, ... for differently bound blocks of the same name), so
+        shared sub-circuits are not duplicated.
         """
         top = _blocks is None
         blocks = {} if top else _blocks
+        block_keys = {} if _block_keys is None else _block_keys
         cv = self.canvas
         net_of = self.local_nets()
         net = lambda node: net_of[cv.uf.find(node)]  # noqa: E731
@@ -725,11 +746,27 @@ class Block:
                     "mirror": mir,
                 }
             else:
-                if b.obj.name not in blocks:
-                    blocks[b.obj.name] = None  # reserve (recursion guard)
-                    blocks[b.obj.name] = b.obj.to_dict(blocks)
+                # Differently bound blocks may share a name: each distinct definition gets
+                # its own key (Name, Name_2, ...); equal definitions share one entry.
+                identity = id(b.obj)
+                if identity not in block_keys:
+                    child = b.obj.to_dict(blocks, block_keys)
+                    key = next(
+                        (
+                            k
+                            for k, v in blocks.items()
+                            if v == child and (k == b.obj.name or k.startswith(b.obj.name + "_"))
+                        ),
+                        None,
+                    )
+                    if key is None:
+                        key, suffix = b.obj.name, 2
+                        while key in blocks:
+                            key, suffix = f"{b.obj.name}_{suffix}", suffix + 1
+                        blocks[key] = child
+                    block_keys[identity] = key
                 rot, mir = display_orientation(b.rot, b.mirror)
-                binding = {"block": b.obj.name, "rot": rot, "mirror": mir}
+                binding = {"block": block_keys[identity], "rot": rot, "mirror": mir}
             comps[name] = {
                 "rect": {
                     "row": comp.r0,
@@ -905,7 +942,8 @@ def check_nc(block: Block, uf, pins, nc) -> None:
         if len(members) != 1:
             raise YasdlError(
                 f"{where} must end a net with exactly one device pin; it reaches "
-                f"{len(members)}: {sorted(members)}. A no-connect marks one unused pin; "
+                f"{len(members)}: {sorted(members)}. NC requires one isolated device pin; "
+                "a no-connect marks one unused pin; "
                 "it never disconnects or prunes wires; "
                 + ("no device pin" if not members else "several device pins: " + ', '.join(sorted(members)))
             )

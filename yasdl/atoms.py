@@ -117,6 +117,49 @@ def POT(value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotati
     )
 
 
+def Pot(resistance: str = "10k", *, position: float = 0.5, taper: str = "linear") -> Atom:
+    """Keyword form of POT with the same pins and model: Pot("100k", position=0.25).
+    A linear setting is written as the electrical fraction P ("R=100k P=0.25"); "log" and
+    "rlog" tapers emit POS and TAPER exactly as POT does."""
+    import math
+
+    if (
+        isinstance(position, bool)
+        or not isinstance(position, (int, float))
+        or not math.isfinite(position)
+        or not 0 <= position <= 1
+    ):
+        raise YasdlError(f"Pot: position must be a finite number within 0..1, not {position!r}")
+    if taper not in ("linear", "lin", "log", "rlog"):
+        raise YasdlError(f"Pot: taper must be 'linear', 'log' or 'rlog', not {taper!r}")
+    resistance = str(resistance)
+    pot = POT(resistance, position, "lin" if taper == "linear" else taper)
+    from .spice import ngspice_number
+
+    if not ngspice_number(resistance) or ngspice_number(resistance) <= 0:
+        raise YasdlError(f"Pot: resistance {resistance!r} must be positive (use MEG for mega)")
+    if taper in ("linear", "lin"):
+        from dataclasses import replace
+
+        pot = replace(pot, spice=replace(pot.spice, params=f"R={resistance} P={float(position):g}"))
+    return pot
+
+
+def transistor(name: str) -> Atom:
+    """A verified standard transistor descriptor by part name: "2N3904", "2N3906", "BD139"
+    or "BD140" (see yasdl.parts)."""
+    from . import parts
+
+    found = {"2N3904": parts.Q2N3904, "2N3906": parts.Q2N3906, "BD139": parts.BD139,
+             "BD140": parts.BD140}
+    if name not in found:
+        raise YasdlError(
+            f"no verified standard transistor {name!r}; choose one of {sorted(found)} or "
+            "build a descriptor with AtomNPN/AtomPNP"
+        )
+    return found[name]()
+
+
 def V(value: str = "") -> Atom:
     """Independent voltage source (Simulation_SPICE:VDC), + on top. The value is the SPICE
     source specification, e.g. "1", "dc 0 ac 1", "pulse(0 1 0 1n 1n 1m 2m)"."""
@@ -158,7 +201,8 @@ def VEE() -> Atom:
 
 
 def __getattr__(name):
-    if name in {'AtomNPN', 'AtomPNP', 'AtomDiode', 'AtomOpamp3', 'AtomOpamp5', 'OpampPackage'}:
+    if name in {'AtomNPN', 'AtomPNP', 'AtomDiode', 'AtomOpamp3', 'AtomOpamp5', 'OpampPackage',
+                'Q2N3904', 'Q2N3906', 'D1N4148', 'BD139', 'BD140'}:
         from . import parts
         return getattr(parts, name)
     if name == 'NC':

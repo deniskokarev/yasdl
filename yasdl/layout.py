@@ -661,4 +661,4 @@ def wire_crossings(res: Result) -> list[tuple[float, float]]:
 
 def drawn_crossings(block: Block) -> int:
     """Crossings authored on the parent canvas and each child instance, recursively."""
-    return block.crossing_count()
+    return int(block.crossing_count)

@@ -46,8 +46,8 @@ def test_moved_project_still_checks_and_simulates(tmp_path):
     assert info["roundtrip_ok"] and info["erc"] == [] and info["spice_ok"], info
     sch_text = (a / "Portable.kicad_sch").read_text()
     assert str(BUNDLED_DIR) not in sch_text and str(a) not in sch_text
-    assert re.search(r'"Sim.Library" "models/jellybean.lib"', sch_text)
-    assert re.search(r'"Sim.Library" "models/yasdl.lib"', sch_text)
+    assert re.search(r'"Sim.Library" "spice_models/jellybean.lib"', sch_text)
+    assert re.search(r'"Sim.Library" "spice_models/yasdl.lib"', sch_text)
     assert re.search(r'"Sim.Library" "yasdl_packages.lib"', sch_text)
     assert "${KIPRJMOD}/yasdl.kicad_sym" in (a / "sym-lib-table").read_text()
     b = tmp_path / "moved"

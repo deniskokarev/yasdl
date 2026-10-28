@@ -72,7 +72,12 @@ class KiCadCommandFailed(YasdlDependencyError):
 
 
 def kicad_candidates():
-    return list(KICAD_CANDIDATES)
+    """Normal installation roots, then the prefix of a kicad-cli found on PATH."""
+    import shutil
+
+    found = shutil.which("kicad-cli")
+    extra = [Path(found).resolve().parent.parent] if found else []
+    return list(KICAD_CANDIDATES) + [p for p in extra if p not in KICAD_CANDIDATES]
 
 
 def find_kicad_root() -> tuple[Path, list[Path]]:
@@ -81,11 +86,12 @@ def find_kicad_root() -> tuple[Path, list[Path]]:
     env = os.environ.get("YASDL_KICAD")
     if env:
         return Path(env).expanduser(), [Path(env).expanduser()]
-    for root in KICAD_CANDIDATES:
+    candidates = kicad_candidates()
+    for root in candidates:
         cli, symbols, _ = _resolve_kicad_layout(root)
         if cli.exists() or symbols.is_dir():
-            return root, list(KICAD_CANDIDATES)
-    return KICAD_CANDIDATES[0], list(KICAD_CANDIDATES)
+            return root, candidates
+    return KICAD_CANDIDATES[0], candidates
 
 
 def discover_kicad() -> Path:
@@ -136,19 +142,24 @@ def _check_cli_version(path: str) -> None:
         )
 
 
-def run_cli(operation: str, args: list, check: bool = True, cwd=None):
-    """Run kicad-cli; a missing CLI or (with check) a failing command raises
-    YasdlDependencyError with the command, exit status and kicad-cli's output."""
+def run_cli(operation, args=None, check: bool = True, cwd=None, ok=(0,)):
+    """Run kicad-cli: run_cli("SVG export", [args...]) or run_cli([args...], cwd=..., ok=(0,)).
+    A missing CLI raises KiCadNotFound; with `check`, an exit status outside `ok` raises
+    KiCadCommandFailed with the command, exit status and kicad-cli's output."""
     import subprocess
 
+    if args is None and not isinstance(operation, str):  # run_cli([args...])
+        args = list(operation)
+        operation = "kicad-cli " + " ".join(map(str, args[:2]))
     cmd = [str(require_cli(operation)), *map(str, args)]
     run = subprocess.run(cmd, capture_output=True, text=True, **({'cwd': cwd} if cwd else {}))
-    if check and run.returncode != 0:
+    if check and run.returncode not in ok:
         raise KiCadCommandFailed(
             f"{operation} failed: {' '.join(cmd)} exited with {run.returncode}\n"
             f"{(run.stderr or run.stdout).strip()}"
         )
     return run
+
 
 # Libraries shipped with yasdl (symbols KiCad lacks, e.g. the supply-less ideal op-amp) and
 # their simulation models. A bundled library shadows a KiCad library of the same name.

@@ -66,3 +66,16 @@ def test_standard_topologies_are_literal_canvases():
         source = (Path(yasdl.__file__).parent / module).read_text()
         assert "Sketch" not in source, module
 
+
+
+@pytest.mark.integration
+def test_run_cli_accepts_operation_and_argument_list_forms():
+    from yasdl.kicad_lib import KICAD_CLI, KiCadCommandFailed, run_cli
+
+    if not KICAD_CLI.exists():
+        pytest.skip("KiCad CLI unavailable")
+    assert run_cli("version check", ["version"]).stdout.startswith("9.")
+    assert run_cli(["version"]).stdout.startswith("9.")
+    with pytest.raises(KiCadCommandFailed, match="exited with"):
+        run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"])
+    assert run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"], ok=(0, 1, 2, 3)).returncode

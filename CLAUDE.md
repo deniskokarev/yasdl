@@ -24,11 +24,21 @@ changes.
 ## Code
 
 - Python 3.12, stdlib only (no runtime dependencies).
-- Modules: `canvas.py` (parsing), `block.py` (binding, netlist), `layout.py` (grid-bag),
-  `kicad_lib.py` (library symbols, orientation), `kicad_sch.py` (file writer, kicad-cli),
-  `kicad_export.py` (block → schematic, ERC helpers, round trips), `spice.py` (SPICE export).
+- Modules: `canvas.py` (parsing), `block.py` (binding, netlist, NC markers), `layout.py`
+  (grid-bag), `kicad_lib.py` (library symbols, derived definitions, orientation, KiCad
+  discovery and CLI), `kicad_sch.py` (file writer, kicad-cli), `kicad_export.py` (block →
+  schematic, ERC helpers, round trips), `spice.py` (SPICE export, comparison parser),
+  `sketch.py` (atomic canvas construction), `atoms.py` (atom factories, pots), `parts.py`
+  (generic part factories, standard parts, packages), `resources.py` (portable model copies),
+  `std.py` (standard blocks), `circuits.py` (reusable circuits) and `standard.py` (positional
+  entry points to them).
+- Standard topologies are literal ASCII canvases in the source; parameterized families repeat
+  small literal cells or strips. Don't generate them with `Sketch`.
+- Standard-part pin maps are checked against an independent reference (the exact KiCad
+  symbol or the datasheet), never against the factory that produced them.
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
-- `docs/examples/blocks.py` (and `sgen.py`) are the fixtures for tests. Each new feature gets an
+- `docs/examples/blocks.py` (and `sgen.py`) are the fixtures for tests; `features.py` and
+  `standard.py` render the parts, packages and reusable circuits. Each new feature gets an
   example and a test.
 - `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
   ~/.claude/skills). Keep it in sync with the API and spec.

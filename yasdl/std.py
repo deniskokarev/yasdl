@@ -476,7 +476,7 @@ def parallel(device, n: int, re: str = "1", name: str | None = None) -> Block:
     """n identical transistor-like devices in parallel, each with an emitter ballast resistor.
 
     Three-terminal parts in parallel are not planar: the base bus crosses n-1 emitter stubs
-    (deliberate crossings, spec 7.1). The canvas repeats one literal strip per device (#
+    (deliberate crossings, spec 7). The canvas repeats one literal strip per device (#
     becomes the device number)."""
     if not 2 <= n <= 9:
         raise YasdlError(f"parallel(): n must be 2..9, got {n}")

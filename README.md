@@ -89,8 +89,8 @@ Full reference: [docs/SPEC.md](docs/SPEC.md).
 | pin label | `{b}`, `+`, `>`, `v` touching a component | which pin of the part this wire is; arrows also fix its orientation |
 
 Empty cells are spaces (`.` is reserved for future use). Components must not touch each
-other; keep at least one cell between them. Wires can fork,
-cross and overlap freely. Buses (bundles of wires) are specified and will be supported later.
+other; keep at least one cell between them. Wires fork at tees and cross only where a
+crossing is drawn. Buses (bundles of wires) are specified and will be supported later.
 
 Prefer lowercase pin/interface names (`{input}`, `{b}`); uppercase names are still accepted.
 Numeric names use braces (`{1}`, `{2}`). Outside a label, letters and digits form component
@@ -134,7 +134,11 @@ a single KiCad sheet; hierarchical sheets will come later.
   points on open ports) are added automatically. A round trip checks that KiCad reads back
   exactly the netlist yasdl generated.
 - **SPICE**: `spice_netlist(block, subckt="name")` writes an ngspice (sub)circuit from the same
-  design. For simulatable designs, KiCad's own SPICE export is checked against it too.
+  design. Subcircuits declare `.global` for the supplies they use internally. For simulatable
+  designs, KiCad 9's own SPICE export is checked against it: every element, its terminals,
+  ground/global identity and its complete value, model, parameter or source text.
+- Model libraries are copied into the project (`spice_models/`), so a generated project can
+  move. `render(..., export_name="Variant")` names the files independently of the Block.
 
 ```python
 from yasdl import spice_netlist
@@ -144,23 +148,47 @@ render(amp, "out")                                   # out/InvAmp.kicad_sch + .s
 print(spice_netlist(PARALLEL, subckt="parallel"))
 ```
 
+Conventions worth knowing:
+- **USE MEG FOR MEGA; USE lowercase m FOR MILLI** (`R("1MEG")`, `R("1m")`). KiCad and
+  ngspice disagree about `1M`; direct SPICE generation rejects such values and rendering
+  reports the mismatch. yasdl never rewrites values.
+- Mirroring a five-pin op-amp moves its supply pins too. Label `{V+}`/`{V-}`, or use a
+  three-port wrapper with the supplies wired inside (`std.powered`, `circuits.PoweredOpamp`).
+- **NGSPICE EXIT CODE 0 DOES NOT GUARANTEE SUCCESSFUL ANALYSES OR MEASUREMENTS.** Check
+  the log and every required measurement. Testbenches belong with the design.
+
 Full callable interfaces and parameter conventions: [docs/API.md](docs/API.md).
 
 ### Parts, packages and standard blocks
 
-- `yasdl.parts`: parts on KiCad's generic shapes with explicit, verified pin maps
-  (`Q2N3904`, `Q2N3906`, `BD139`, `BD140`, `D1N4148`, `AtomNPN(...)`, `AtomOpamp5(...)`), and
-  multi-unit packages: `chip = Package(dual_opamp("TL072", ...), "U1")`, `chip.unit("A")`,
-  `chip.power()`; one reference, footprint and SPICE element per chip.
-- `yasdl.std`: reusable blocks with consistent interfaces: a powered op-amp wrapper,
-  follower/inverting/non-inverting stages, RC and Sallen-Key filters, Darlington/Sziklai/
-  parallel compound transistors, current mirrors, differential pairs and a class-AB push-pull
-  stage whose bias string matches its output devices.
-- `NC()` no-connect markers, `POT()` potentiometers with documented ccw/wiper/cw pins and
-  tapers, `Atom(..., sim=False)` for connectors, `render(..., export_name=...)`.
-- SPICE values: **use `Meg` for mega and lowercase `m` for milli**; values KiCad and ngspice
-  read differently are rejected by direct SPICE generation and reported as mismatches by rendering. The SPICE round trip compares R/C/L/D/Q, sources and
-  subcircuit instances with their parameters and the identity of ground and named nets.
+```python
+from yasdl import AtomNPN, Block, NC, Package, Pot, Q2N3904, R
+from yasdl.circuits import NonInverting, SallenKey
+
+q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, "models.lib")   # verify maps yourself
+chip = Package("TL072", library="tl072_dual.lib", model_name="TL072_DUAL")
+pre = NonInverting(opamp=chip.unit("A"))       # one chip, units in different blocks;
+flt = SallenKey(opamp=chip.unit("B"))          # its power unit chip.unit("C") is bound once
+unused = Block("Unused", "NC1─R1─{out}", NC1=NC(), R1=R("10k"))
+```
+
+- `yasdl.parts`: parts on KiCad's generic shapes with explicit pin maps and a separate SPICE
+  terminal order (`AtomNPN`, `AtomPNP`, `AtomDiode`, `AtomOpamp3`, `AtomOpamp5`), verified
+  standard parts (`Q2N3904`, `Q2N3906`, `BD139`, `BD140`, `D1N4148`, `transistor("2N3904")`)
+  and multi-unit packages (`Package("TL072")`, `Package(dual_opamp("TL072", ...), "U1")`,
+  `chip.unit("A")`, `chip.power()`): one reference, footprint and SPICE element per chip.
+  Pin maps of new parts are yours to verify against the datasheet: round trips and
+  simulation can't detect a wrong lead number.
+- Two families of reusable blocks, all written as literal ASCII canvases: `yasdl.std`
+  (construction functions and templates: powered op-amp wrapper, op-amp stages, RC and
+  Sallen-Key filters, Darlington/Sziklai/parallel compound transistors, mirrors,
+  differential pairs, class-AB push-pull stages driven at the string center or bottom) and
+  `yasdl.circuits` with its positional shortcuts `yasdl.standard` (compound devices,
+  push-pull output stages and self-biased followers, mirrors, sinks, differential pairs,
+  filters, op-amp circuits).
+- `NC()` no-connect markers, one per drawn wire end, without removing wires;
+  `Atom(..., sim=False)` for connectors; `POT()`/`Pot()` potentiometers (pin 1 ccw, 2 wiper,
+  3 cw) with linear and log tapers.
 
 ## 6. Skill
 
@@ -179,6 +207,7 @@ guide and common errors.
 | LM386 with no-connect marker groups on unused pins | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/LM386NC.png) |
 | Dual op-amp package, units in two standard blocks | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/DualOpamp.png) |
 | Class-AB push-pull stage from `yasdl.std` | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/PushPull_bjt.png) |
+| Every reusable circuit of `yasdl.circuits`, NC markers, a shared package | [docs/examples/standard.py](docs/examples/standard.py) | `python -m docs.examples.standard out/standard` |
 
 ## 8. Tests
 

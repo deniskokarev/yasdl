@@ -78,8 +78,9 @@ def to_kicad(
     """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
 
     bundle_models: copy every SPICE model library the schematic references into
-    `<dir>/models/` and point Sim.Library at the copies with project-relative paths, so
-    the project still simulates after it is moved (spec 6.5). False keeps absolute paths.
+    `<dir>/spice_models/` (with their .include closure) and point Sim.Library at the copies
+    with project-relative paths, so the project still simulates after it is moved (spec 6.6).
+    False keeps absolute paths.
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
     references: "annotate" numbers parts per prefix (R1, R2, ...); "names" uses each

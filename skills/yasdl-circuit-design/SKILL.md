@@ -51,7 +51,9 @@ them in a tiny top-level block where each stage is just a short name:
 
 `$YASDL_PATH/docs/examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside
 OSCILLATOR (gain stage), then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN.
-More examples in `$YASDL_PATH/docs/examples/blocks.py`. The full spec is
+More examples in `$YASDL_PATH/docs/examples/blocks.py`; ready-made stages are in `yasdl.std`
+and `yasdl.circuits` (Darlington and Sziklai pairs, push-pull outputs, mirrors, differential
+pairs, filters, op-amp circuits; `$YASDL_PATH/docs/examples/standard.py`). The full spec is
 `$YASDL_PATH/docs/SPEC.md` (overview: `$YASDL_PATH/README.md`); read the parts you need.
 
 ## Setup
@@ -153,8 +155,13 @@ labels; the labels choose the orientation.
   bottom**. A `+` on its lower input flips it so − is on top, as in inverting stages, **and
   the flip moves the supply pins too**: `[VCC]` drawn above then reaches V−. Either wrap it,
   `std.powered(opamp)` (a three-port block with V+ on `[VCC]` and V− on `[VEE]` inside; any
-  rotation carries the supplies along; fits every op-amp hole), or label `{V+}` above and
-  `{V-}` below so a wrong flip fails at binding.
+  rotation carries the supplies along; fits every op-amp hole; `circuits.PoweredOpamp(atom)`
+  is the same idea), or label `{V+}` above and `{V-}` below so a wrong flip fails at binding.
+  `[VCC]` names a net; `{V+}` asserts a pin.
+- Mirroring a stage moves its parts but doesn't redesign it: an NPN stage mirrored into a
+  PNP one keeps its diode bias the wrong way round. Use the complementary standard stages
+  (`std.push_pull_*`, `circuits.PushPull`, `circuits.FollowerPushPull`) whose halves and bias
+  are designed together.
 - Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
   the right. Named ports also accept brace labels: `PS{in}` names the `in` port on that
   side.
@@ -174,7 +181,9 @@ labels; the labels choose the orientation.
   canvas edge (column 3 in `sgen.py`).
 - **Align**: the parts of one chain share a row; a component's vertical legs share its
   column. The layout stretches wires, never symbols. Rows and columns cost nothing.
-- **Avoid crossings.** Prefer re-routing or a global net label. Crossings are legal, though.
+- **Avoid crossings.** Prefer re-routing or a global net label. Crossings are legal, though;
+  in a Sketch each one is declared (`cross=N`), and `block.crossing_count` counts them through
+  every child instance.
 - **Name ports** with `{}` labels and put them where they belong physically (power on N).
   `spice_netlist` orders subcircuit pins in DIP order (W top→bottom, S, E bottom→top, N), which
   rarely matches a task's required order once power is on top. Pass the task's order:
@@ -225,17 +234,24 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
   `AtomNPN("BC547", pins={"C": 1, "B": 2, "E": 3}, library=...)`, `AtomPNP`, `AtomDiode`,
   `AtomOpamp5(name, pins={"+":3,"-":2,"out":6,"V+":7,"V-":4}, model=, library=, model_pins=)`.
   Check the pin map against the datasheet yourself; neither yasdl nor SPICE can.
-- **Dual op-amps** are one package: `chip = Package(dual_opamp("TL072", "TL072", lib), "U1")`;
-  bind `chip.unit("A")` and `chip.unit("B")` into op-amp holes (any blocks) and
-  `chip.power()` (V+ top, V− bottom, between `[VCC]` and `[VEE]`) once. Every unit must be
-  placed; tie an unused amplifier as a grounded follower.
+- **Dual op-amps** are one package: `chip = Package(dual_opamp("TL072", "TL072", lib), "U1")`
+  (per-channel model) or `chip = Package("TL072", library=lib, model_name="TL072_DUAL")`
+  (whole-device model; without one, the bundled generic `yasdl_dual_opamp`, not a vendor
+  model); bind `chip.unit("A")` and `chip.unit("B")` into op-amp holes (any blocks) and
+  `chip.power()` / `chip.unit("C")` (V+ top, V− bottom, between `[VCC]` and `[VEE]`) once.
+  Every unit must be placed; tie an unused amplifier as a grounded follower; a second chip is
+  a second `Package`.
 - **Unused pins**: draw a wire to a component bound to `NC()` (`──X1`). Never leave a pin
   undrawn (binding fails) and never NC a net with two pins (error).
 - **Non-simulated parts** (jacks, speaker terminals, connectors): `Atom(lib_id, value,
   sim=False)`; they stay in the schematic and BOM and leave SPICE.
-- **Potentiometer**: `POT("10k", position=0.3, taper="log")`; pins `{ccw}` (1), `{w}` wiper
-  (2), `{cw}` (3); position 0 = fully counterclockwise; input on `cw`, `ccw` to ground means
-  clockwise is louder. Each pot keeps its setting as SPICE instance parameters.
+- **Potentiometer**: `POT("10k", position=0.3, taper="log")` or `Pot("10k", position=0.3)`;
+  pins `{ccw}` (1), `{w}`/`{wiper}` (2), `{cw}` (3); position 0 = fully counterclockwise;
+  input on `cw`, `ccw` to ground means clockwise is louder. Each pot keeps its setting as SPICE
+  instance parameters. Check a real pot's lead numbers against its datasheet.
+- **Op-amp pin maps** accept `inp`/`inn`/`vp`/`vm` for `+`/`-`/`V+`/`V-`, and those names
+  work as canvas labels (`{inp}`, `{vp}`). `AtomOpamp5(name, pins, library, model_name,
+  model_order)` or `spice=SpiceModel("X", physical pins in model order, ...)`.
 - A subcircuit that uses `[VCC]`/`[VEE]` without supply ports gets a `.global VCC VEE` card;
   drive those nets by name in the testbench, or expose `{vp}`/`{vn}` ports instead.
 - `includes` adds top-level `.include` cards. For a component-only library whose verifier
@@ -258,10 +274,14 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 | filters | `std.rc_lowpass`, `std.rc_highpass`, `std.sallen_key_lowpass`, `std.sallen_key_highpass` |
 | compound transistors (`{c}` N, `{b}` W, `{e}` S) | `std.darlington`, `std.sziklai`, `std.parallel(q, n, re)` |
 | mirrors, differential pairs | `std.mirror`, `std.wilson`, `std.diff_pair`, `std.diff_active` |
+| keyword-configured stages | `circuits.Darlington(pnp=, output=, turnoff=)`, `Sziklai`, `PushPull(variant=, parallel=, ballast=)` (driven at `{hi}`/`{lo}`), `FollowerPushPull`, `CurrentMirror(degeneration=, rail=)`, `CurrentSink`, `DifferentialPair`, `LongTailedPair`, `LowPass`/`HighPass`/`BandPass`, `SallenKey`, `NonInverting`, `Inverting`, `Integrator`; positional shortcuts in `yasdl.standard` |
 | class-AB output stage | `std.push_pull_buffer(kind, upper, lower)` or `std.push_pull_vas(kind, npn, pnp, rb=)`, kind `bjt`/`darlington`/`sziklai` (bias string sized for the kind) |
 | adjustable output bias | `std.push_pull(qn=..., qp=..., bias=std.vbe_multiplier(q, r1, r2))`: V = Vbe (1 + r1/r2), for when no whole number of diodes gives the wanted quiescent current |
 
-They are verified (KiCad round trips and ngspice characterisation). Bind your own parts into
+They are literal ASCII canvases in the library source (read them to see the topology) and
+verified (KiCad round trips and ngspice characterisation). `yasdl.std` and
+`yasdl.standard` are different families: check argument order (`std.noninverting(rf, rg)`
+vs `standard.noninverting(rg, rf)`). Bind your own parts into
 them; for a PNP-equivalent compound, bind PNPs and let the host's `{e}` label orient it.
 
 Sallen-Key arguments put the shunt-to-ground component before feedback: low-pass
@@ -321,6 +341,9 @@ repeated parts. Print `s.render()` and read it before binding.
 | `NC ... must end a net with exactly one device pin` | the NC wire reaches several pins (or a global/port); NC marks one unused pin |
 | `package U1: units [...] are not bound` | bind every unit once, power unit included |
 | `SPICE model '...' is not defined in spice_libs` | pass the model file in `render(spice_libs=...)` |
-| `YasdlDependencyError: ... needs kicad-cli` | install KiCad 9 or set `YASDL_KICAD` |
+| `YasdlDependencyError: ... needs kicad-cli` / `KiCad 9 is required` | install KiCad 9 or set `YASDL_KICAD` |
+| `expected cross=0, found 1` (Sketch) | the operation crosses a wire; reroute, or declare it with `cross=1` |
+| `required model resource missing` | fix the model library path (resolve it relative to your script's `__file__`) |
+| `SPICE instance name collision` | two paths sanitise to one element name (`A.B1`, `A_B1`); rename one |
 | `already holds ...` (Sketch) | the cell is taken; route elsewhere, or declare a clean crossing with `cross=` |
 | ERC violations | shouldn't happen (helpers are automatic); report them as a yasdl bug |

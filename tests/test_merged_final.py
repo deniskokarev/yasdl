@@ -79,3 +79,25 @@ def test_run_cli_accepts_operation_and_argument_list_forms():
     with pytest.raises(KiCadCommandFailed, match="exited with"):
         run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"])
     assert run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"], ok=(0, 1, 2, 3)).returncode
+
+
+@pytest.mark.integration
+def test_schematic_with_an_unloadable_model_is_a_mismatch_not_a_crash(tmp_path):
+    # kicad-cli exits with status 2 when a Sim.Library file is gone; the round trip reports
+    # a difference instead of raising.
+    from yasdl import Atom, SpiceModel
+    from yasdl.kicad_export import to_kicad
+    from yasdl.kicad_lib import KICAD_CLI
+
+    if not KICAD_CLI.exists():
+        pytest.skip("KiCad CLI unavailable")
+    lib = tmp_path / "trim.lib"
+    lib.write_text(".subckt trim a b params: r=1k\nR1 a b {r}\n.ends\n")
+    trim = Atom("Device:R", "trim",
+                spice=SpiceModel("X", ("1", "2"), "trim", "1=a 2=b", str(lib), "r=2.2k"))
+    b = Block("Trim", "{a}─X1─{b}", X1=trim)
+    sch, refs = to_kicad(b, tmp_path / "Trim.kicad_sch", bundle_models=False)
+    assert spice_roundtrip(b, sch, refs)[0]
+    lib.unlink()
+    ok, why = spice_roundtrip(b, sch, refs)
+    assert not ok and "KiCad SPICE export failed" in why, why

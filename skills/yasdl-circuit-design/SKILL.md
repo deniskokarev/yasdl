@@ -31,8 +31,9 @@ them in a tiny top-level block where each stage is just a short name:
 ```
 
 - You only ever reason about one small canvas at a time: its parts, its wires, its ports.
-  Blocks are tested on their own: `netlist()`, `spice_netlist()`, and `render()` of a single
-  block are ERC-clean standalone.
+  Test each block with `netlist()`, `spice_netlist()` and `render()` when it contains
+  every unit of each package it uses. Test a partial-package block inside its complete
+  containing design.
 - yasdl does the composition. It lays out every level (grid-bag, wires stretch, symbols
   never do) and nests the sub-drawings. **Composition adds no crossings**: blocks are
   rectangles meeting only through ports, so the result has exactly the crossings you drew
@@ -75,7 +76,8 @@ data; rendering also uses the KiCad CLI. Whatever the task asks for (e.g. `/app/
    each block's interface first: port names and the side each goes on (N supplies, W in,
    E out, S returns). The top block is just the stages wired port to port.
 3. **Sketch each block bottom-up** (rules below), smallest first. Check each one alone
-   (`netlist`, `spice_netlist`, `render`) before using it in a parent. Use `Sketch` for anything
+   (`netlist`, `spice_netlist`, `render`) before using it in a parent; package-unit blocks
+   are checked in a parent containing the complete package. Use `Sketch` for anything
    wider than about 30 columns.
 4. **Bind** atoms and sub-blocks. Let yasdl orient them; add pin labels where pin order
    matters (rules below).
@@ -156,8 +158,8 @@ labels; the labels choose the orientation.
 - Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
   the right. Named ports also accept brace labels: `PS{in}` names the `in` port on that
   side.
-- If two orientations still fit, yasdl picks one deterministically: unrotated first, then the
-  one that keeps reading order. That's fine when the choice doesn't matter electrically; when it
+- If two orientations still fit, yasdl picks one deterministically: reading order, then the
+  fewest axis flips, then orientation order. That's fine when the choice doesn't matter electrically; when it
   does, add a label. Explicit `.rotated()`/`.mirrored()` exist as a last resort.
 
 ## Making it look good

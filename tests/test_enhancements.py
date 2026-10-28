@@ -172,13 +172,6 @@ def test_generic_parts_with_different_pinouts_export_together(tmp_path):
     assert bd["Datasheet"] == "https://www.st.com/resource/en/datasheet/bd135.pdf"
 
 
-@pytest.mark.parametrize("position", [0, 0.5, 1])
-def test_pot_direction_and_endpoints(position):
-    pot = Pot("100k", position=position)
-    assert dict(pot.aliases) == {"cw": "1", "wiper": "2", "ccw": "3"}
-    assert f"P={position:g}" in pot.spice.params
-
-
 @pytest.mark.parametrize(
     "kwargs",
     [

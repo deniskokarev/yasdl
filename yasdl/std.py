@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from .atoms import C, D, NPN, OPAMP_IDEAL, PNP, R
 from .block import Atom, Block, YasdlError
-from .sketch import Sketch
 
 # --- op-amp interface ---------------------------------------------------------------------
 POWERED = """
@@ -161,16 +160,20 @@ def _sziklai_simple(driver: Atom, output: Atom, name: str = "Sziklai") -> Block:
 
 
 
+# A diode string is the head, one cell per diode (anode up, so the string conducts
+# downwards: the "v" arrow), and the tail.
+_DIODE_HEAD = "{a}\n │\n"
+_DIODE_CELL = " v\n D{k}\n │\n"
+_DIODE_TAIL = "{k}"
+
+
 def diode_string(n: int, diode: Atom | None = None, name: str | None = None) -> Block:
     """n diodes in series, anode end {a} on top, cathode end {k} at the bottom."""
     if n < 1:
         raise YasdlError("diode_string() needs at least one diode")
-    s = Sketch().text(0, 0, "{a}").vline(1, 1, 1)
-    for k in range(n):
-        s.text(2 + 3 * k, 1, "v").box(3 + 3 * k, 1, f"D{k + 1}").vline(1, 4 + 3 * k, 4 + 3 * k)
-    s.text(5 + 3 * (n - 1), 0, "{k}")
+    canvas = _DIODE_HEAD + "".join(_DIODE_CELL.format(k=k + 1) for k in range(n)) + _DIODE_TAIL
     d = diode or D("1N4148")
-    return Block(name or f"Diodes{n}", s.render(), **{f"D{k + 1}": d for k in range(n)})
+    return Block(name or f"Diodes{n}", canvas, **{f"D{k + 1}": d for k in range(n)})
 
 
 VBE_MULTIPLIER = """
@@ -200,23 +203,32 @@ def vbe_multiplier(q: Atom | None = None, r1: str = "2.7k", r2: str = "1k",
 PUSH_PULL_KINDS = {"bjt": 2, "darlington": 4, "sziklai": 2}
 
 
+PUSH_PULL_VAS = """
+            {vp}
+             │
+      ┌──────┴────────┐
+      │              {c}
+      RB          ┌{b}QN
+      │           │   QN
+      ├───────────┘  {e}
+      │               │
+      BIAS            RE1
+      │               ├──────{out}
+      │               RE2
+      │               │
+      │              {e}
+{in}──┴────────────{b}QP
+                      QP
+                     {c}
+                      │
+                    {vn}
+"""
+
+
 def push_pull_template() -> str:
     """Class-AB complementary emitter-follower canvas: holes QN, QP (transistor or compound
     device), BIAS (two-terminal, top to bottom), RB (bias feed from vp), RE1/RE2."""
-    L, M, Q = 6, 13, 22
-    s = Sketch().text(0, M - 1, "{vp}").vline(M, 1, 1)
-    s.text(2, L, "┌").hline(2, L + 1, M - 1).hline(2, M + 1, Q - 1).text(2, Q, "┐").junction(2, M)
-    s.vline(L, 3, 3).box(4, L, "RB").vline(L, 5, 5)
-    s.text(3, Q - 1, "{c}").box(4, Q, "QN", rows=2).text(4, Q - 3, "{b}").text(6, Q - 1, "{e}")
-    s.wire([(4, Q - 3), (4, Q - 4), (6, Q - 4), (6, L + 1)])
-    s.vline(L, 7, 7).junction(6, L)
-    s.box(8, L, "BIAS").vline(L, 9, 12)
-    s.vline(Q, 7, 7).box(8, Q, "RE1").box(10, Q, "RE2").vline(Q, 11, 11)
-    s.hline(9, Q + 1, Q + 6).text(9, Q + 7, "{out}").text(9, Q, "├")  # tee between RE1/RE2
-    s.text(12, Q - 1, "{e}").box(13, Q, "QP", rows=2).text(13, Q - 3, "{b}").text(15, Q - 1, "{c}")
-    s.text(13, 0, "{in}").hline(13, 4, L - 1).wire([(13, Q - 3), (13, L + 1)]).junction(13, L)
-    s.vline(Q, 16, 16).text(17, Q - 2, "{vn}")
-    return s.render()
+    return PUSH_PULL_VAS
 
 
 def push_pull_vas(
@@ -243,7 +255,7 @@ def push_pull_vas(
     qn, qp = qn or devices[0], qp or devices[1]
     bias = bias or diode_string(PUSH_PULL_KINDS[kind], diode)
     return Block(
-        name or f"PushPull_{kind}", push_pull_template(),
+        name or f"PushPull_{kind}", PUSH_PULL_VAS,
         QN=qn, QP=qp, BIAS=bias, RB=R(rb) if isinstance(rb, str) else rb,
         RE1=R(re), RE2=R(re),
     )
@@ -402,50 +414,82 @@ def sziklai(driver: Atom, output: Atom, rx: str = "1k", name: str | None = None)
     b = SZIKLAI.bind(Q1=driver, Q2=output, RX=R(rx))
     return b if name is None else Block(name, b.text, **b.bindings)
 
+# parallel(): the {b} strip, then one literal 8-column strip per device (its transistor in
+# strip column 2), side by side. The first strip carries the {c}/{e} ports and starts the
+# collector and emitter buses, the last ends them. The base bus on row 8 crosses the
+# emitter leg of every device but the last: n - 1 deliberate crossings.
+_PAR_LEFT = ["", "", "", "", "", "", "", "", "{b}─", "", "", "", "", "", ""]
+_PAR_FIRST = [
+    " {c}",
+    "  │",
+    "  ├─────",
+    "  │",
+    "  Q#",
+    "┌─Q#",
+    "│ Q#",
+    "│ │",
+    "┴─│─────",
+    "  │",
+    "  RE#",
+    "  │",
+    "  ├─────",
+    "  │",
+    " {e}",
+]
+_PAR_MIDDLE = [
+    "",
+    "",
+    "──┬─────",
+    "  │",
+    "  Q#",
+    "┌─Q#",
+    "│ Q#",
+    "│ │",
+    "┴─│─────",
+    "  │",
+    "  RE#",
+    "  │",
+    "──┴─────",
+    "",
+    "",
+]
+_PAR_LAST = [
+    "",
+    "",
+    "──┐",
+    "  │",
+    "  Q#",
+    "┌─Q#",
+    "│ Q#",
+    "│ │",
+    "┘ │",
+    "  │",
+    "  RE#",
+    "  │",
+    "──┘",
+    "",
+    "",
+]
+
+
 def parallel(device, n: int, re: str = "1", name: str | None = None) -> Block:
     """n identical transistor-like devices in parallel, each with an emitter ballast resistor.
 
-    Three-terminal parts in parallel are not planar: the base bus crosses n-1 emitter stubs.
-    The canvas is generated with Sketch, which declares each crossing (spec 7.1)."""
+    Three-terminal parts in parallel are not planar: the base bus crosses n-1 emitter stubs
+    (deliberate crossings, spec 7.1). The canvas repeats one literal strip per device (#
+    becomes the device number)."""
     if not 2 <= n <= 9:
         raise YasdlError(f"parallel(): n must be 2..9, got {n}")
-    s = Sketch()
-    xs = [6 + 8 * k for k in range(n)]
-    mid = (xs[0] + xs[-1]) // 2 + 1 if n % 2 == 0 else xs[n // 2] - 2
-    # collector bus with the {c} port
-    s.text(0, mid - 1, "{c}").vline(mid, 1, 1)
-    s.junction(2, mid, "EWN")
-    for k, x in enumerate(xs):
-        s.vline(x, 3, 3).box(4, x, f"Q{k + 1}", rows=3)
-        if 0 < k < n - 1:
-            s.junction(2, x, "EWS")
-        else:
-            s.text(2, x, "┌" if k == 0 else "┐")
-    edges = sorted(xs + [mid])
-    for a, b in zip(edges, edges[1:]):
-        if b - a > 1:
-            s.hline(2, a + 1, b - 1)
-    # emitter stubs, ballast resistors, emitter bus with the {e} port
-    for k, x in enumerate(xs):
-        s.vline(x, 7, 9).box(10, x, f"RE{k + 1}").vline(x, 11, 11)
-        s.text(12, x, "└" if k == 0 else ("┘" if k == n - 1 else "┴"))
-    s.junction(12, mid, "EWS")
-    for a, b in zip(edges, edges[1:]):
-        if b - a > 1:
-            s.hline(12, a + 1, b - 1)
-    s.vline(mid, 13, 13).text(14, mid - 1, "{e}")
-    # bases: each drops to a bus on row 8 that crosses the emitter stubs on its way
-    s.text(8, 0, "{b}")
-    for k, x in enumerate(xs):
-        s.hline(5, x - 1, x - 1).text(5, x - 2, "┌").vline(x - 2, 6, 7)
-        s.text(8, x - 2, "┴" if k < n - 1 else "┘")
-    stops = [x - 2 for x in xs]
-    s.hline(8, 3, stops[0] - 1)
-    for a, b in zip(stops, stops[1:]):
-        s.hline(8, a + 1, b - 1, cross=1)  # crosses the previous device's emitter stub
+    strips = [_PAR_FIRST] + [_PAR_MIDDLE] * (n - 2) + [_PAR_LAST]
+    rows = []
+    for r in range(len(_PAR_FIRST)):
+        line = _PAR_LEFT[r].ljust(4)
+        line += "".join(strip[r].replace("#", str(k + 1)).ljust(8) for k, strip in enumerate(strips))
+        rows.append(line.rstrip())
     bindings = {f"Q{k + 1}": device for k in range(n)}
     bindings.update({f"RE{k + 1}": R(re) for k in range(n)})
-    return Block(name or f"Parallel{n}", s.render(), **bindings)
+    return Block(name or f"Parallel{n}", "\n".join(rows), **bindings)
+
 
 PUSH_PULL_DIODES = {"bjt": 1, "darlington": 2, "sziklai": 1}
 
@@ -455,46 +499,73 @@ PUSH_PULL_DEFAULTS = {
     "sziklai": {"rt": "4.7k", "rq": "39"},
 }
 
-def _push_pull_canvas(diodes: int) -> str:
-    """vp on top; the bias string on the left: RT, the upper base node, `diodes` diodes, the
-    {in} node, RQ, `diodes` diodes, the lower base node, RB. The upper NPN-like device QH and the
-    lower PNP-like device QL on the right, emitter resistors RH and RL meeting at {out}."""
-    s = Sketch()
-    xs, xq = 7, 22  # string column, device column
-    s.text(0, 13, "{vp}").vline(14, 1, 1)
-    s.text(2, xs, "┌").hline(2, xs + 1, 13).junction(2, 14, "EWN").hline(2, 15, xq - 1)
-    s.text(2, xq, "┐")
-    s.vline(xs, 3, 3).box(4, xs, "RT").vline(xs, 5, 5)
-    hb = 6  # upper base row
-    s.vline(xq, 3, hb - 3).text(hb - 2, xq - 1, "{c}").box(hb - 1, xq, "QH", rows=3)
-    s.junction(hb, xs, "NES").hline(hb, xs + 1, xq - 4).text(hb, xq - 3, "{b}")
-    s.text(hb + 2, xq - 1, "{e}").vline(xq, hb + 3, hb + 3).box(hb + 4, xq, "RH")
-    row = hb + 1
-    for k in range(diodes):  # anode on top: the string current flows downwards
-        s.vline(xs, row, row).text(row + 1, xs, "v").box(row + 2, xs, f"DH{k + 1}")
-        row += 3
-    s.vline(xs, row, row)
-    in_row = row + 1
-    s.text(in_row, 0, "{in}").hline(in_row, 4, xs - 1).junction(in_row, xs, "NSW")
-    s.vline(xs, in_row + 1, in_row + 1).box(in_row + 2, xs, "RQ")
-    row = in_row + 3
-    for k in range(diodes):
-        s.vline(xs, row, row).text(row + 1, xs, "v").box(row + 2, xs, f"DL{k + 1}")
-        row += 3
-    s.vline(xs, row, row)
-    lb = row + 1  # lower base row
-    out_row = (hb + 5 + lb - 5) // 2
-    s.vline(xq, hb + 5, out_row - 1).junction(out_row, xq, "NES")
-    s.hline(out_row, xq + 1, xq + 4).text(out_row, xq + 5, "{out}")
-    s.vline(xq, out_row + 1, lb - 5).box(lb - 4, xq, "RL").vline(xq, lb - 3, lb - 3)
-    s.text(lb - 2, xq - 1, "{e}").box(lb - 1, xq, "QL", rows=3).text(lb + 2, xq - 1, "{c}")
-    s.junction(lb, xs, "NES").hline(lb, xs + 1, xq - 4).text(lb, xq - 3, "{b}")
-    s.vline(xs, lb + 1, lb + 1).box(lb + 2, xs, "RB").vline(xs, lb + 3, lb + 3)
-    s.vline(xq, lb + 3, lb + 3)
-    bot = lb + 4
-    s.text(bot, xs, "└").hline(bot, xs + 1, 13).junction(bot, 14, "EWS").hline(bot, 15, xq - 1)
-    s.text(bot, xq, "┘").vline(14, bot + 1, bot + 1).text(bot + 2, 13, "{vn}")
-    return s.render()
+# push_pull_buffer(): vp on top; the bias string on the left: RT, the upper base node, the
+# upper diodes, the {in} node, RQ, the lower diodes, the lower base node, RB. The upper
+# NPN-like device QH and the lower PNP-like device QL on the right, emitter resistors RH and
+# RL meeting at {out}. One canvas per bias size (diodes on each side of {in}).
+PUSH_PULL_BUFFER = {
+    1: """
+             {vp}
+              │
+       ┌──────┴───────┐
+       │              │
+       RT            {c}
+       │              QH
+       ├───────────{b}QH
+       │              QH
+       v             {e}
+       DH1            │
+       │              RH
+{in}───┤              │
+       │              ├────{out}
+       RQ             │
+       │              RL
+       v              │
+       DL1           {e}
+       │              QL
+       ├───────────{b}QL
+       │              QL
+       RB            {c}
+       │              │
+       └──────┬───────┘
+              │
+             {vn}
+""",
+    2: """
+             {vp}
+              │
+       ┌──────┴───────┐
+       │              │
+       RT            {c}
+       │              QH
+       ├───────────{b}QH
+       │              QH
+       v             {e}
+       DH1            │
+       │              RH
+       v              │
+       DH2            │
+       │              │
+{in}───┤              │
+       │              ├────{out}
+       RQ             │
+       │              │
+       v              │
+       DL1            │
+       │              RL
+       v              │
+       DL2           {e}
+       │              QL
+       ├───────────{b}QL
+       │              QL
+       RB            {c}
+       │              │
+       └──────┬───────┘
+              │
+             {vn}
+""",
+}
+
 
 def push_pull_buffer(variant: str, upper, lower, diode: Atom | None = None, rt: str | None = None,
               rb: str | None = None, rq: str | None = None, re: str = "0.22",
@@ -515,7 +586,7 @@ def push_pull_buffer(variant: str, upper, lower, diode: Atom | None = None, rt: 
     rt = rt or PUSH_PULL_DEFAULTS[variant]["rt"]
     rb = rb or rt
     rq = rq or PUSH_PULL_DEFAULTS[variant]["rq"]
-    canvas = _push_pull_canvas(n)
+    canvas = PUSH_PULL_BUFFER[n]
     bindings = dict(QH=upper, QL=lower, RT=R(rt), RB=R(rb), RH=R(re), RL=R(re), RQ=R(rq))
     bindings.update({f"DH{k + 1}": diode for k in range(n)})
     bindings.update({f"DL{k + 1}": diode for k in range(n)})

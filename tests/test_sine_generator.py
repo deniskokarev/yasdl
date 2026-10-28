@@ -59,9 +59,12 @@ def test_sine_generator_matches_reference_netlist():
     assert re.search(r"^\.subckt sgen (.*)$", actual, re.M).group(1) == re.search(
         r"^\.subckt sgen (.*)$", expected, re.M
     ).group(1)
-    expected_part, expected_vals = spice_partition(parse_spice(expected), lambda n: n)
+    # parse_spice reads the top level by default; both netlists are .subckt sgen bodies.
+    expected_elements = parse_spice(expected, "sgen")
+    assert len(expected_elements) == len(NAME_MAP)
+    expected_part, expected_vals = spice_partition(expected_elements, lambda n: n)
     actual_part, actual_vals = spice_partition(
-        parse_spice(actual), lambda n: NAME_MAP[n]
+        parse_spice(actual, "sgen"), lambda n: NAME_MAP[n]
     )
     assert actual_part == expected_part
     assert actual_vals == expected_vals

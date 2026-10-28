@@ -144,6 +144,24 @@ render(amp, "out")                                   # out/InvAmp.kicad_sch + .s
 print(spice_netlist(PARALLEL, subckt="parallel"))
 ```
 
+Full callable interfaces and parameter conventions: [docs/API.md](docs/API.md).
+
+### Parts, packages and standard blocks
+
+- `yasdl.parts`: parts on KiCad's generic shapes with explicit, verified pin maps
+  (`Q2N3904`, `Q2N3906`, `BD139`, `BD140`, `D1N4148`, `AtomNPN(...)`, `AtomOpamp5(...)`), and
+  multi-unit packages: `chip = Package(dual_opamp("TL072", ...), "U1")`, `chip.unit("A")`,
+  `chip.power()`; one reference, footprint and SPICE element per chip.
+- `yasdl.std`: reusable blocks with consistent interfaces: a powered op-amp wrapper,
+  follower/inverting/non-inverting stages, RC and Sallen-Key filters, Darlington/Sziklai/
+  parallel compound transistors, current mirrors, differential pairs and a class-AB push-pull
+  stage whose bias string matches its output devices.
+- `NC()` no-connect markers, `POT()` potentiometers with documented ccw/wiper/cw pins and
+  tapers, `Atom(..., sim=False)` for connectors, `render(..., export_name=...)`.
+- SPICE values: **use `Meg` for mega and lowercase `m` for milli**; values KiCad and ngspice
+  read differently are rejected by direct SPICE generation and reported as mismatches by rendering. The SPICE round trip compares R/C/L/D/Q, sources and
+  subcircuit instances with their parameters and the identity of ground and named nets.
+
 ## 6. Skill
 
 [skills/yasdl-circuit-design/SKILL.md](skills/yasdl-circuit-design/SKILL.md) teaches AI coding agents to design circuits in yasdl. It
@@ -158,24 +176,19 @@ guide and common errors.
 | PARALLEL bound into a vertical slot (turned automatically) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Shunt.png) |
 | Darlington pair (fits wherever an NPN is drawn) | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/Darlington.png) |
 | 2 kHz sine generator, composed from small blocks | [docs/examples/sgen.py](docs/examples/sgen.py) | ![](docs/examples/generated/SGen.png) |
+| LM386 with no-connect marker groups on unused pins | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/LM386NC.png) |
+| Dual op-amp package, units in two standard blocks | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/DualOpamp.png) |
+| Class-AB push-pull stage from `yasdl.std` | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/PushPull_bjt.png) |
 
 ## 8. Tests
 
-In fbsource, the Buck target runs the self-contained unit tests, using packaged symbol fixtures
-when KiCad's symbol directory is absent:
+Run the full suite with Python 3.12 or later:
 
 ```sh
-buck2 test fbcode//aai/forge/ee/yasdl/tests:tests
+python3.12 -m pytest -q tests
 ```
 
-The `integration` tests exercise KiCad ERC and netlist round trips and ngspice
-simulation. Models and the reference sine-generator netlist are bundled with
-yasdl. From this directory, run:
-
-```sh
-export YASDL_KICAD=~/KiCad9
-python3 -m pytest -q -m integration tests
-```
-
-`ngspice` must be on `PATH`. Omit `-m integration` to run the full suite. A regular
-pytest invocation retains the existing skips when external prerequisites are absent.
+Install KiCad 9 and its standard symbol libraries at a normal location, or set
+`YASDL_KICAD` to its installation root. Put ngspice on `PATH`. Tests requiring missing
+tools are skipped; a complete verification run has both tools available. Optional
+test tooling belongs in a virtual environment; the library runtime uses only stdlib.

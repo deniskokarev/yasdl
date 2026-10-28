@@ -7,3 +7,32 @@
 .subckt yasdl_ideal_opamp inp inn out params: GAIN=1e9
 B1 out 0 V={GAIN}*(V(inp)-V(inn))
 .ends yasdl_ideal_opamp
+
+* Potentiometer (symbol Device:R_Potentiometer; yasdl POT()). Pins: ccw (pin 1), wiper
+* (pin 2), cw (pin 3). POS is the shaft position, 0 = fully counterclockwise (wiper at
+* ccw), 1 = fully clockwise (wiper at cw). F = fraction of R between ccw and the wiper:
+*   TAPER=0 linear:            F = POS
+*   TAPER=1 audio/log ("A"):   F = (81^POS - 1)/80   (10 % at mid rotation)
+*   TAPER=2 reverse log ("C"): F = 1 - (81^(1-POS) - 1)/80
+* 1 mOhm in series with each section keeps the end positions finite.
+.subckt yasdl_pot ccw w cw params: R=10k POS=0.5 TAPER=0
+.param F = {TAPER == 1 ? (pow(81, POS) - 1)/80 : (TAPER == 2 ? 1 - (pow(81, 1 - POS) - 1)/80 : POS)}
+R1 ccw w {R*F + 1m}
+R2 w cw {R*(1 - F) + 1m}
+.ends yasdl_pot
+
+* Ideal op-amp with supply pins (inp inn vp vn out): like yasdl_ideal_opamp, linear
+* gain GAIN with no rails, no input current and no pole; the supply pins only see 1 GOhm.
+* For package/unit examples and tests, not for clipping behaviour. (A rail clamp in a
+* behavioural source makes Newton oscillate between the rails and fail to converge.)
+.subckt yasdl_ideal_opamp5 inp inn vp vn out params: GAIN=1e9
+B1 out 0 V={GAIN}*(V(inp)-V(inn))
+R1 vp vn 1G
+.ends yasdl_ideal_opamp5
+
+* Ideal dual as one whole-package model; channel and power terminal order is explicit.
+.subckt yasdl_ideal_opamp_dual inpa inna outa inpb innb outb vcc vee
+XA inpa inna outa yasdl_ideal_opamp
+XB inpb innb outb yasdl_ideal_opamp
+RS vcc vee 1MEG
+.ends yasdl_ideal_opamp_dual

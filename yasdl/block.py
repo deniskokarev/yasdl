@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple, TYPE_CHECKING
 
-from .canvas import _UF, ARROWS, Canvas, CanvasError
+from .canvas import _UF, ARROWS, Canvas, CanvasError, minimal_period
 from .kicad_lib import (
     compose,
     load,
@@ -42,6 +42,11 @@ class Atom:
     arrows: dict = field(
         default_factory=dict
     )  # pin number -> arrow (current direction, library frame)
+    sim: bool = True  # False: a physical part with no SPICE element (connector, jack)
+    footprint: str = ""  # KiCad Footprint field, preserved in the schematic
+    datasheet: str = ""  # KiCad Datasheet field, preserved in the schematic
+    unit: int = 1  # KiCad unit of a multi-unit symbol
+    package: object = field(default=None, compare=False)  # shared Package of a unit view
 
     def __post_init__(self):
         arrows = list(self.arrows.values())
@@ -51,6 +56,16 @@ class Atom:
             )
         if any(a not in ARROWS for a in arrows):
             raise YasdlError(f"{self.lib_id}: arrows must be one of {''.join(ARROWS)}")
+
+    def __call__(self, value=None, *, model=None, library=None):
+        """Instantiate a reusable descriptor, optionally overriding its value/model resource."""
+        spice = self.spice
+        if model is not None or library is not None:
+            if spice is None:
+                raise YasdlError(f"{self.lib_id}: descriptor has no model to override")
+            spice = replace(spice, model=model if model is not None else spice.model,
+                            library=str(library) if library is not None else spice.library)
+        return replace(self, value=self.value if value is None else value, spice=spice)
 
     def oriented(self, rot: int = 0, mirror: str | None = None) -> Atom:
         """Fixed orientation: rotate `rot` degrees counterclockwise, then mirror ("x"/"y")."""
@@ -82,7 +97,7 @@ class Atom:
 
     @property
     def symbol(self):
-        return load(self.lib_id)
+        return load(self.lib_id, self.unit)
 
     def side_pins(self, rot: int, mirror: str | None) -> dict[str, list]:
         """Pins per side in drawing order (W/E top to bottom, N/S left to right)."""
@@ -212,6 +227,18 @@ class OrientedBlock:
         )
 
 
+@dataclass(frozen=True)
+class NCMarker:
+    """No-connect terminator (spec 2.9): each attachment of the drawn rectangle ends its wire
+    with a KiCad no-connect marker. The attachment count comes from the drawing; wires and
+    nets stay as drawn. Not a part: no reference, BOM entry, netlist pin or SPICE element."""
+
+
+def NC() -> NCMarker:
+    """Bind a component to no-connect markers: `X1=NC()` (any number of drawn wires)."""
+    return NCMarker()
+
+
 class Block:
     def __init__(
         self, name: str, canvas: str, port_attrs: dict | None = None, **bindings
@@ -237,6 +264,13 @@ class Block:
                     if glued
                     else ""
                 )
+                short = minimal_period(b)
+                if not hint and short != b and short in cv.comps:
+                    hint = (
+                        f"; a component drawn as {b!r} is named {short!r}: names reduce to "
+                        "their minimal period (spec 2.2); bind it as "
+                        f"{short}=..., or draw a non-repeating name such as {b[0]}1"
+                    )
                 raise YasdlError(
                     f"{name}: binding {b!r} has no component on the canvas "
                     f"(components: {sorted(cv.comps)}){hint}"
@@ -368,6 +402,8 @@ class Block:
             for att, key in b.pin_map:
                 if cv.uf.find(att.node) != root:
                     continue
+                if isinstance(b.obj, NCMarker):
+                    continue
                 if isinstance(b.obj, Atom):
                     if b.obj.symbol.is_power:
                         continue
@@ -390,6 +426,10 @@ class Block:
         """A copy with more components bound (the unbound ones are the block's open interface)."""
         return Block(self.name, self.text, self.port_attrs, **{**self.bindings, **more})
 
+    def renamed(self, name: str) -> Block:
+        """A new block identity with the same circuit, port aliases and unit membership."""
+        return Block(name, self.text, port_attrs=self.port_attrs, **self.bindings)
+
     def oriented(self, rot: int = 0, mirror: str | None = None) -> "OrientedBlock":
         """This block with a binding-time orientation (same convention as atoms)."""
         return OrientedBlock(self, rot, mirror)
@@ -404,6 +444,12 @@ class Block:
     @property
     def symmetric(self) -> bool:
         return False
+
+    def crossing_count(self) -> int:
+        """Deliberate crossings drawn in this block and, per instance, in its sub-blocks."""
+        return len(self.canvas.crossings) + sum(
+            b.obj.crossing_count() for b in self.bound.values() if isinstance(b.obj, Block)
+        )
 
     def side_ports(self, rot: int, mirror: str | None) -> dict[str, list]:
         """Port indices per side, in drawing order, after orienting the block."""
@@ -425,6 +471,16 @@ class Block:
     # --- binding -------------------------------------------------------------
     def _bind(self, comp, obj) -> Bound:
         """Resolve orientation (spec 3.2) and map pins/ports to the drawn attachments."""
+        if isinstance(obj, NCMarker):
+            atts = [a for side in "NESW" for a in comp.attachments[side]]
+            if not atts:
+                raise YasdlError(f"{self.name}: NC {comp.name} has no wires to terminate")
+            labelled = [a.pin_label for a in atts if a.pin_label]
+            if labelled:
+                raise YasdlError(
+                    f"{self.name}: NC {comp.name} takes plain wires, not pin labels {labelled}; NC markers have no pins"
+                )
+            return Bound(comp.name, obj, 0, None, [(a, i) for i, a in enumerate(atts)])
         if isinstance(obj, OrientedBlock):
             target, fixed = obj.block, (obj.rot, obj.mirror)
         elif isinstance(obj, Block):
@@ -438,7 +494,7 @@ class Block:
             )
         else:
             raise YasdlError(
-                f"{self.name}: {comp.name} must be bound to an Atom or a Block"
+                f"{self.name}: {comp.name} must be bound to an Atom, a Block or NC()"
             )
         drawn = {s: len(comp.attachments[s]) for s in "NESW"}
         is_atom = isinstance(target, Atom)
@@ -493,6 +549,7 @@ class Block:
                 f"{self.name}: {comp.name} ({what}) does not fit its drawing: "
                 f"drawn {drawn}, has {have}"
                 + (f" in orientation {fixed}" if fixed else " in any orientation")
+                + self._fit_report(comp, options, keys, answers)
             )
 
         def reading_order(fit):
@@ -516,6 +573,92 @@ class Block:
         return Bound(
             comp.name, target, rot, mirror, [(a, item[0]) for a, item, _ in pairs]
         )
+
+    def _fit_report(self, comp, options, keys, answers) -> str:
+        """Why binding failed: the drawn attachments (with labels) and, for every orientation
+        with the right pin counts, its pins per side and the first label it contradicts."""
+        cv = self.canvas
+
+        def pin_text(item):
+            obj = item[2]
+            if hasattr(obj, "number"):  # atom pin
+                return obj.number if obj.name in ("", "~") else f"{obj.number}:{obj.name}"
+            return obj.name or obj.default
+
+        drawn = []
+        for side in "NESW":
+            atts = comp.attachments[side]
+            if atts:
+                drawn.append(
+                    f"{side}=[" + ", ".join(a.pin_label or "-" for a in atts) + "]"
+                )
+        lines = [
+            f"\n  drawn attachments (labels; - = none): {' '.join(drawn) or 'none'}"
+            + cv.excerpt(comp.r0, comp.c0, rows=(comp.r0 - 1, comp.r1 + 1))
+        ]
+        candidates = 0
+        for rot, mirror in options:
+            sp = keys(rot, mirror)
+            if any(len(sp[s]) != len(comp.attachments[s]) for s in "NESW"):
+                continue
+            candidates += 1
+            pins = " ".join(
+                f"{s}=[{', '.join(pin_text(i) for i in sp[s])}]" for s in "NESW" if sp[s]
+            )
+            bad = next(
+                (
+                    f"label {a.pin_label!r} on {s} is pin {pin_text(i)}"
+                    for s in "NESW"
+                    for a, i in zip(comp.attachments[s], sp[s])
+                    if a.pin_label and not answers(i, a.pin_label, rot, mirror)
+                ),
+                "",
+            )
+            r, m = display_orientation(rot, mirror)
+            lines.append(f"\n  orientation rot={r} mirror={m}: {pins}; {bad}")
+        if not candidates:
+            lines.append("\n  no orientation has the drawn number of pins on every side")
+        return "".join(lines) + self._binding_report(comp, options, keys, answers)
+
+    def _binding_report(self, comp, options, keys, answers) -> str:
+        """Why no orientation fits: the drawn signature and labels, then each candidate."""
+        def describe(att):
+            where = "row" if att.side in "EW" else "col"
+            label = f" label {att.pin_label!r}" if att.pin_label else ""
+            return f"{where} {att.pos}{label}"
+
+        lines = [
+            f"\n  component {comp.name}: rows {comp.r0}-{comp.r1}, cols {comp.c0}-{comp.c1}",
+            "  drawn attachments: "
+            + "; ".join(
+                f"{s}: " + ", ".join(describe(a) for a in comp.attachments[s])
+                for s in "NESW"
+                if comp.attachments[s]
+            ),
+            "  candidate orientations (pins per side in drawing order):",
+        ]
+        for rot, mirror in options:
+            sp = keys(rot, mirror)
+            shown = display_orientation(rot, mirror)
+            pins = "; ".join(
+                f"{s}: " + ", ".join(_key_text(item) for item in sp[s])
+                for s in "NESW"
+                if sp[s]
+            )
+            counts = {s: len(sp[s]) for s in "NESW"}
+            if counts != {s: len(comp.attachments[s]) for s in "NESW"}:
+                why = "pin counts differ"
+            else:
+                bad = [
+                    f"{att.pin_label!r} at {att.side} {describe(att).split(' label')[0]} "
+                    f"vs {_key_text(item)}"
+                    for s in "NESW"
+                    for att, item in zip(comp.attachments[s], sp[s])
+                    if att.pin_label and not answers(item, att.pin_label, rot, mirror)
+                ]
+                why = "label mismatch: " + ", ".join(bad)
+            lines.append(f"    rot {shown[0]} mirror {shown[1]}: {pins} -> {why}")
+        return "\n".join(lines) + self.canvas.excerpt(comp.r0, comp.c0)
 
     # --- JSON view -------------------------------------------------------------
     def local_nets(self) -> dict:
@@ -555,19 +698,24 @@ class Block:
                         entry["label"] = a.pin_label
                     if b:
                         k = key_of[id(a)]
-                        entry["pin"] = (
-                            k
-                            if isinstance(b.obj, Atom)
-                            else (b.obj.ports[k].name or b.obj.ports[k].default)
-                        )
-                        net_pins.setdefault(entry["net"], []).append(
-                            f"{name}.{entry['pin']}"
-                        )
+                        if isinstance(b.obj, NCMarker):
+                            entry["pin"] = "NC"
+                        else:
+                            entry["pin"] = (
+                                k
+                                if isinstance(b.obj, Atom)
+                                else (b.obj.ports[k].name or b.obj.ports[k].default)
+                            )
+                            net_pins.setdefault(entry["net"], []).append(
+                                f"{name}.{entry['pin']}"
+                            )
                     lst.append(entry)
                 if lst:
                     atts[side] = lst
             if b is None:
                 binding = None
+            elif isinstance(b.obj, NCMarker):
+                binding = {"nc": len(b.pin_map)}
             elif isinstance(b.obj, Atom):
                 rot, mir = display_orientation(b.rot, b.mirror)
                 binding = {
@@ -641,8 +789,10 @@ class Block:
 
 
 # --- flat netlist ------------------------------------------------------------------
-def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
-    """ext: canvas edge-port index -> outer node to join (sub-block instances)."""
+def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict, nc=None):
+    """ext: canvas edge-port index -> outer node to join (sub-block instances); nc collects
+    (NC path, attachment index, node) for every no-connect marker."""
+    nc = [] if nc is None else nc
     cv = block.canvas
     if block.unbound:
         raise YasdlError(f"{prefix or block.name}: unbound components {block.unbound}")
@@ -656,7 +806,10 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
         if lab.kind == "global":
             uf.union(key(("l", i)), ("global", lab.text))
     for name, b in block.bound.items():
-        if isinstance(b.obj, Atom):
+        if isinstance(b.obj, NCMarker):
+            for att, idx in b.pin_map:
+                nc.append((prefix + name, idx, key(att.node)))
+        elif isinstance(b.obj, Atom):
             power = b.obj.symbol.is_power
             for att, pin in b.pin_map:
                 pins[(prefix + name, pin)] = key(att.node)
@@ -664,7 +817,7 @@ def _flatten(block: Block, prefix: str, uf: _UF, pins: dict, ext: dict):
                     uf.union(key(att.node), ("global", _power_name(b.obj)))
         else:
             child_ext = {idx: key(att.node) for att, idx in b.pin_map}
-            _flatten(b.obj, f"{prefix}{name}.", uf, pins, child_ext)
+            _flatten(b.obj, f"{prefix}{name}.", uf, pins, child_ext, nc)
     for n in cv.uf.parent:
         uf.find(key(n))
 
@@ -729,10 +882,56 @@ def _name_block_level(block: Block, namer: _Namer, root_of):
         namer.derived(root_of(edge.node), port.default)
 
 
+def check_nc(block: Block, uf, pins, nc) -> None:
+    """Every no-connect must end a net that reaches exactly one device pin and nothing else:
+    no other NC, no global net, no external port (spec 2.9)."""
+    by_root = {}
+    for path, pin in pins:
+        by_root.setdefault(uf.find(pins[(path, pin)]), []).append(f"{path}.{pin}")
+    globals_ = {uf.find(k): k[1] for k in uf.parent if k[0] == "global"}
+    ports = {uf.find(("", block.canvas.uf.find(e.node))) for e in block.canvas.edge_ports}
+    seen = {}
+    for path, idx, node in nc:
+        root = uf.find(node)
+        where = f"{block.name}: NC {path} (wire {idx + 1})"
+        if root in seen:
+            raise YasdlError(f"{where} and {seen[root]} terminate the same net")
+        seen[root] = f"{path} (wire {idx + 1})"
+        members = by_root.get(root, [])
+        if root in globals_:
+            raise YasdlError(f"{where} ends the global net {globals_[root]}")
+        if root in ports:
+            raise YasdlError(f"{where} ends a net that is also an external port (block port)")
+        if len(members) != 1:
+            raise YasdlError(
+                f"{where} must end a net with exactly one device pin; it reaches "
+                f"{len(members)}: {sorted(members)}. A no-connect marks one unused pin; "
+                "it never disconnects or prunes wires; "
+                + ("no device pin" if not members else "several device pins: " + ', '.join(sorted(members)))
+            )
+    for root, label in _labelled_roots(block, uf).items():
+        if root in seen:
+            raise YasdlError(f"{block.name}: NC {seen[root]} is on the net labelled [{label}]")
+
+
+def _labelled_roots(block, uf, prefix=""):
+    out = {}
+    for i, lab in enumerate(block.canvas.labels):
+        if lab.kind == 'local':
+            out[uf.find((prefix, block.canvas.uf.find(('l', i))))] = lab.text
+    for name, bound in block.bound.items():
+        if isinstance(bound.obj, Block):
+            out.update(_labelled_roots(bound.obj, uf, prefix + name + '.'))
+    return out
+
+
 def flat_names(block: Block):
     """Flatten and name every net: (uf, pins {(path, pin): node}, names {root: name})."""
-    uf, pins = _UF(), {}
-    _flatten(block, "", uf, pins, {})
+    uf, pins, nc = _UF(), {}, []
+    _flatten(block, "", uf, pins, {}, nc)
+    from .spice import packages
+    packages(block)
+    check_nc(block, uf, pins, nc)
     namer = _Namer(block.name)
     for k in sorted((k for k in uf.parent if k[0] == "global"), key=lambda k: k[1]):
         namer.user(uf.find(k), k[1], "global net")
@@ -760,3 +959,18 @@ def netlist(block: Block) -> dict[str, list[str]]:
 
 def partition(nets: dict) -> set[frozenset]:
     return {frozenset(v) for v in nets.values()}
+
+
+def __getattr__(name):
+    if name in ('Package', 'PackageType'):
+        from . import parts
+        return getattr(parts, name)
+    raise AttributeError(name)
+
+
+def _key_text(item) -> str:
+    """A candidate pin (atom: number and name) or port (name) for binding diagnostics."""
+    key, _, obj = item
+    if isinstance(obj, Port):
+        return obj.name or obj.default
+    return f"{key}" if obj.name in ("~", "", key) else f"{key}({obj.name})"

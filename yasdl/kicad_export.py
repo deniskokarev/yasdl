@@ -4,16 +4,27 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 import tempfile
 from collections import Counter
 from pathlib import Path
 
 from .block import Block, flat_names, netlist, partition
-from .kicad_lib import KICAD_CLI, library_names, library_path, TEMPLATE_DIR, to_screen
+from .kicad_lib import (
+    BUNDLED_DIR,
+    DERIVED_LIB,
+    derived_symbols,
+    write_derived_library,
+    library_names,
+    library_path,
+    run_cli,
+    TEMPLATE_DIR,
+    to_screen,
+    YasdlDependencyError,
+)
 from .kicad_sch import export_netlist, export_svg, run_erc, Schematic, snap
 from .layout import layout
 from .spice import (
+    compare_spice,
     model_library,
     parse_spice,
     spice_model,
@@ -61,8 +72,13 @@ def to_kicad(
     spice_libs: tuple = (),
     references: str = "annotate",
     values: bool = True,
+    bundle_models: bool = True,
 ) -> tuple[Path, dict[str, str]]:
     """Write `block` as a .kicad_sch (+ .kicad_pro, sym-lib-table); return (path, refmap).
+
+    bundle_models: copy every SPICE model library the schematic references into
+    `<dir>/models/` and point Sim.Library at the copies with project-relative paths, so
+    the project still simulates after it is moved (spec 6.5). False keeps absolute paths.
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.
     references: "annotate" numbers parts per prefix (R1, R2, ...); "names" uses each
@@ -74,6 +90,9 @@ def to_kicad(
         raise ValueError(
             f"references must be 'annotate' or 'names', not {references!r}"
         )
+    from .spice import packages
+
+    placed_pkgs = {id(pp.package): pp for pp in packages(block)}
     res = layout(block)
     dx = MARGIN - res.bbox[0]
     dy = MARGIN - res.bbox[1]
@@ -81,10 +100,17 @@ def to_kicad(
     sch = Schematic(block.name, paper=_paper_for_bbox(res.bbox))
     counters, refmap, placed = Counter(), {}, []
     leaf = {
-        p: p.rsplit(".", 1)[-1] for p, a, *_ in res.symbols if not a.symbol.is_power
+        p: p.rsplit(".", 1)[-1]
+        for p, a, *_ in res.symbols
+        if not a.symbol.is_power and a.package is None
     }
     if len({v.casefold() for v in leaf.values()}) != len(leaf):
         leaf = {p: p.replace(".", "_") for p in leaf}
+    for pp in placed_pkgs.values():  # a package's units share one reference: its name
+        for unit_path in pp.unit_paths.values():
+            leaf[unit_path] = pp.name
+    pkg_refs: dict[int, str] = {}
+    packages_used = []
     for ypath, atom, x, y, rot, mirror in res.symbols:
         sym = atom.symbol
         prefix = _ref_prefix(atom.lib_id, sym)
@@ -93,12 +119,24 @@ def to_kicad(
                 atom.lib_id, "#PWR", atom.value, *t((x, y)), rot, mirror
             )
         else:
-            counters[prefix] += 1
-            ref = (
-                f"{prefix}{counters[prefix]}"
-                if references == "annotate"
-                else leaf[ypath]
-            )
+            pkg = atom.package
+            if pkg is not None and id(pkg) in pkg_refs:
+                ref = pkg_refs[id(pkg)]
+            else:
+                counters[prefix] += 1
+                ref = (
+                    f"{prefix}{counters[prefix]}"
+                    if references == "annotate"
+                    else leaf[ypath]
+                )
+            fields = {"yasdl_path": ypath, **_sim_fields(atom, spice_libs)}
+            if pkg is not None:
+                pkg_refs[id(pkg)] = ref
+                fields.update(_package_sim_fields(pkg, Path(path).parent, spice_libs))
+                if pkg.sim and pkg.descriptor not in packages_used:
+                    packages_used.append(pkg.descriptor)
+            if bundle_models and "Sim.Library" in fields:
+                fields["Sim.Library"] = _bundle(Path(path).parent, fields["Sim.Library"])
             sch.add_symbol(
                 atom.lib_id,
                 ref,
@@ -106,10 +144,18 @@ def to_kicad(
                 *t((x, y)),
                 rot,
                 mirror,
-                fields={"yasdl_path": ypath, **_sim_fields(atom, spice_libs)},
+                fields=fields,
                 hide_value=not values,
+                sim=atom.sim,
+                footprint=atom.footprint,
+                datasheet=atom.datasheet,
+                unit=atom.unit,
             )
-        refmap[ref] = ypath
+        if atom.package is not None:
+            pp = placed_pkgs[id(atom.package)]
+            refmap[ref] = PackageRef(pp.name, pp.pin_path)
+        else:
+            refmap[ref] = ypath
         placed.append(
             (sym, t((x, y)), rot, mirror, atom.value or atom.lib_id.split(":")[1])
         )
@@ -122,6 +168,8 @@ def to_kicad(
     for p, n in ends.items():
         if n >= 3:
             sch.add_junction(p)
+    for p in res.nc:
+        sch.add_no_connect(t(p))
     labels = []  # (text, point, global?)
     for text, p, scoped in res.labels:
         sch.add_label(text, t(p))
@@ -150,13 +198,21 @@ def to_kicad(
                 "Connector:TestPoint", ref, "", *p, _OUTWARD[side], helper=True
             )
             refmap[ref] = None
-        for anchor, rot in _power_flags(placed, wires, labels):
+        for anchor, rot in _lonely_labels(placed, wires, labels, port_points):
+            # A net label on a net with one pin is "label_dangling" for KiCad (a block
+            # rendered on its own whose [Vref] or [x] reaches one part): add a test point.
+            counters["TP"] += 1
+            ref = f"TP{counters['TP']}"
+            sch.add_symbol("Connector:TestPoint", ref, "", *anchor, rot, helper=True)
+            refmap[ref] = None
+        for anchor, rot in _power_flags(placed, wires, labels, [t(p) for p in res.nc]):
             ref = sch.add_symbol(
                 "power:PWR_FLAG", "#FLG", "", anchor[0], anchor[1], rot=rot, helper=True
             )
             refmap[ref] = None
     path = sch.save(path)
-    _write_project(path)
+    _write_package_lib(path.parent, packages_used, bundle_models, spice_libs)
+    _write_project(path, [i for i in sch.lib_ids if i.startswith(DERIVED_LIB + ":")])
     _BBOX[str(path)] = (
         MARGIN,
         MARGIN,
@@ -164,6 +220,96 @@ def to_kicad(
         MARGIN + res.bbox[3] - res.bbox[1],
     )
     return path, refmap
+
+
+class PackageRef(str):
+    """refmap value of a multi-unit reference: the package name, plus the yasdl path of the
+    unit view carrying each physical pin (pin_path)."""
+
+    def __new__(cls, name, pin_path):
+        obj = super().__new__(cls, name)
+        obj.pin_path = dict(pin_path)
+        return obj
+
+
+PACKAGE_LIB = "yasdl_packages.lib"
+
+
+def _package_sim_fields(pkg, out_dir: Path, spice_libs=()) -> dict:
+    """Sim fields for every unit of a package (KiCad reads them per reference, from any
+    unit): one subcircuit over all physical pins."""
+    d = pkg.descriptor
+    if not pkg.sim or not d.model:
+        return {}
+    model, order = d.spice_element()
+    if d.scope == "unit":
+        lib = str(out_dir.resolve() / PACKAGE_LIB)
+        pins = " ".join(f"{n}=p{n}" for n in order)
+    else:
+        from .parts import subckt_pins
+
+        lib = d.library or model_library(model, spice_libs)
+        mapping = getattr(d, 'spice', None)
+        if lib is None:
+            return {'Sim.Device': 'SUBCKT', 'Sim.Name': model, **({'Sim.Pins': mapping.sim_pins} if mapping and mapping.sim_pins else {})}
+        nodes = subckt_pins(model, lib)
+        pins = " ".join(f"{n}={m}" for n, m in zip(order, nodes))
+    fields = {"Sim.Device": "SUBCKT", "Sim.Library": lib, "Sim.Name": model, "Sim.Pins": pins}
+    mapping = getattr(d, 'spice', None)
+    if mapping is not None and mapping.sim_pins:
+        fields['Sim.Pins'] = mapping.sim_pins
+    if mapping is not None and mapping.params:
+        fields['Sim.Params'] = mapping.params
+    return fields
+
+
+def _bundle(out_dir: Path, lib) -> str:
+    """Copy model library `lib` into out_dir/models (once; another file with the same name
+    gets a numbered copy) and return its project-relative path."""
+    lib = Path(lib)
+    if not lib.is_absolute():
+        lib = (out_dir / lib).resolve()
+    if lib.parent == out_dir.resolve():  # generated next to the schematic already
+        return lib.name
+    models = out_dir / "models"
+    models.mkdir(exist_ok=True)
+    text = lib.read_text(errors="replace")
+    stem, suffix, k = lib.stem, lib.suffix, 1
+    while True:
+        target = models / (f"{stem}{suffix}" if k == 1 else f"{stem}_{k}{suffix}")
+        if not target.exists() or target.read_text(errors="replace") == text:
+            break
+        k += 1
+    if not target.exists():
+        target.write_text(text)
+    return f"models/{target.name}"
+
+
+def _write_package_lib(out_dir: Path, descriptors, bundle: bool = True, spice_libs=()) -> None:
+    """Whole-package wrapper subcircuits (and the includes they need) for KiCad's export,
+    merged with wrappers already written to this directory by other renders."""
+    import re as _re
+
+    wanted = [d for d in descriptors if d.model and d.scope == "unit"]
+    if not wanted:
+        return
+    path = out_dir / PACKAGE_LIB
+    text = path.read_text() if path.exists() else "* yasdl package wrappers\n"
+    for d in wanted:
+        source = d.library or model_library(d.model, spice_libs)
+        lib = (_bundle(out_dir, source) if bundle else source) if source else None
+        block = (f".include {lib}\n" if lib else "") + d.wrapper()
+        m = _re.search(
+            rf"(?ms)^(\.include [^\n]*\n)?\.subckt {d.wrapper_name()} .*?^\.ends {d.wrapper_name()}\n",
+            text,
+        )
+        if m:
+            if m.group(0) != block:
+                text = text.replace(m.group(0), block)
+        else:
+            text += block
+    if not path.exists() or path.read_text() != text:
+        path.write_text(text)
 
 
 def _sim_fields(atom, spice_libs) -> dict:
@@ -175,6 +321,15 @@ def _sim_fields(atom, spice_libs) -> dict:
         Exception
     ):  # no SPICE mapping: the schematic is still valid, just not simulatable
         return {}
+    if m is not None and not m.model and m.prefix in ("V", "I"):
+        # KiCad's VDC/IDC read the value as a bare DC level ("DC dc 0 ac 1"). A raw SPICE
+        # model passes the complete yasdl source specification through unchanged.
+        spec = atom.value.replace('"', "'")
+        return {
+            "Sim.Device": "SPICE",
+            "Sim.Params": f'type="{m.prefix}" model="{spec}" lib=""',
+            "Sim.Pins": " ".join(f"{p}={i}" for i, p in enumerate(m.pins, 1)),
+        }
     if m is None or not m.model or atom.spice is None and not m.sim_pins:
         return {}
     lib = m.library or model_library(m.model, spice_libs)
@@ -185,6 +340,8 @@ def _sim_fields(atom, spice_libs) -> dict:
         fields["Sim.Device"] = "SUBCKT"
     if m.sim_pins:
         fields["Sim.Pins"] = m.sim_pins
+    if m.params:
+        fields["Sim.Params"] = m.params
     return fields
 
 
@@ -192,7 +349,65 @@ def _sim_fields(atom, spice_libs) -> dict:
 _OUTWARD = {"W": 90, "E": 270, "N": 0, "S": 180}
 
 
-def _power_flags(placed, wires, labels):
+def _geometric_nets(placed, wires, labels):
+    """KiCad's view of connectivity: a find() over points joined by wires, pins, same-text
+    labels and same-name power symbols; plus the pins as (point, etype, power?)."""
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        parent[find(a)] = find(b)
+
+    for a, b in wires:
+        union(a, b)
+    pins = []
+    for sym, (x, y), rot, mirror, value in placed:
+        for p in sym.pins:
+            sx, sy = to_screen(p.x, p.y, rot, mirror)
+            pt = (snap(x + sx), snap(y + sy))
+            find(pt)
+            pins.append((pt, p.etype, sym.is_power))
+            if sym.is_power:
+                union(pt, ("label", value))
+    for text, pt, _ in labels:
+        union(pt, ("label", text))
+    return find, pins
+
+
+def _lonely_labels(placed, wires, labels, port_points):
+    """(point, rotation) of a test point for each net label whose net has exactly one
+    component pin and no port: the body points away from the label's wire."""
+    find, pins = _geometric_nets(placed, wires, labels)
+    count = Counter(find(pt) for pt, _, is_power in pins if not is_power)
+    powered = {find(pt) for pt, _, is_power in pins if is_power}
+    ported = {find(pt) for _, pt in port_points}
+    out, done = [], set()
+    for _text, pt, _ in labels:
+        root = find(pt)
+        if count[root] != 1 or root in powered or root in ported or root in done:
+            continue
+        done.add(root)
+        away = "W"
+        for a, b in wires:
+            if pt in (a, b):
+                other = b if a == pt else a
+                away = (
+                    ("W" if other[0] > pt[0] else "E")
+                    if other[1] == pt[1]
+                    else ("N" if other[1] > pt[1] else "S")
+                )
+                break
+        out.append((pt, _OUTWARD[away]))
+    return out
+
+
+def _power_flags(placed, wires, labels, nc=()):
     """One PWR_FLAG per net that has power-input pins but no power-output pin (ERC rule).
 
     Nets are rebuilt from geometry, as KiCad does: coincident wire ends and pin points, and
@@ -232,9 +447,10 @@ def _power_flags(placed, wires, labels):
     vertical = {p for a, b in wires if a[0] == b[0] for p in (a, b)}
     horizontal = {p for a, b in wires if a[1] == b[1] for p in (a, b)}
     flags = []
+    nc_roots = {find(p) for p in nc}
     for root, members in nets.items():
         types = {e for _, e, _ in members}
-        if "power_in" not in types or "power_out" in types:
+        if root in nc_roots or "power_in" not in types or "power_out" in types:
             continue
         candidates = [pt for pt, _, is_power in members if is_power]
         candidates += [pt for _, pt, glob in labels if glob and find(pt) == root]
@@ -245,23 +461,66 @@ def _power_flags(placed, wires, labels):
     return flags
 
 
-def _write_project(sch_path: Path):
-    """A .kicad_pro and a sym-lib-table so ERC finds the libraries the symbols came from."""
+def _write_project(sch_path: Path, derived=()):
+    """A .kicad_pro and a sym-lib-table so ERC finds the libraries the symbols came from.
+    Derived part definitions go to a project-local yasdl_parts.kicad_sym (merged with the
+    ones other renders put in the same directory), referenced through ${KIPRJMOD}."""
     pro = sch_path.with_suffix(".kicad_pro")
     if not pro.exists():
-        shutil.copy(TEMPLATE_DIR / "kicad.kicad_pro", pro)
+        template = TEMPLATE_DIR / "kicad.kicad_pro"
+        if not template.exists():
+            from .kicad_lib import _remedy
+
+            raise YasdlDependencyError(
+                f"writing {pro} needs KiCad's project template {template}, which is "
+                f"missing. {_remedy()}."
+            )
+        shutil.copy(template, pro)
     table = sch_path.parent / "sym-lib-table"
     lines = ["(sym_lib_table", "  (version 7)"]
-    lines += [
-        f'  (lib (name "{lib}")(type "KiCad")(uri "{library_path(lib)}")'
-        '(options "")(descr ""))'
-        for lib in library_names()
-    ]
+    for lib in library_names():
+        uri = library_path(lib)
+        if uri.parent == BUNDLED_DIR:  # yasdl's own symbols travel with the project
+            local = sch_path.parent / uri.name
+            if not local.exists() or local.read_text() != uri.read_text():
+                shutil.copy(uri, local)
+            uri = f"${{KIPRJMOD}}/{uri.name}"
+        lines.append(
+            f'  (lib (name "{lib}")(type "KiCad")(uri "{uri}")(options "")(descr ""))'
+        )
+    if derived:
+        _merge_derived_library(sch_path.parent / f"{DERIVED_LIB}.kicad_sym", derived)
+    if derived or (sch_path.parent / f"{DERIVED_LIB}.kicad_sym").exists():
+        lines.append(
+            f'  (lib (name "{DERIVED_LIB}")(type "KiCad")'
+            f'(uri "${{KIPRJMOD}}/{DERIVED_LIB}.kicad_sym")(options "")(descr ""))'
+        )
     text = "\n".join(lines + [")"]) + "\n"
     if (
         not table.exists() or table.read_text() != text
     ):  # rewritten when libraries change
         table.write_text(text)
+
+
+def _merge_derived_library(path: Path, lib_ids) -> None:
+    """Write `lib_ids` into the directory's derived library, keeping other definitions; a
+    name already defined differently there is an error (definitions are immutable)."""
+    from .sexp import dumps, find_all, parse
+
+    defs = derived_symbols()
+    have = {}
+    if path.exists():
+        for sym in find_all(parse(path.read_text()), "symbol"):
+            have[f"{DERIVED_LIB}:{sym[1]}"] = sym
+    for lib_id in lib_ids:
+        old = have.get(lib_id)
+        if old is not None and dumps(old) != dumps(defs[lib_id]):
+            raise YasdlDependencyError(
+                f"{path} already defines {lib_id} differently (another design used the "
+                "same part name with another pinout); render into another directory"
+            )
+        have[lib_id] = defs[lib_id]
+    write_derived_library(path, have.keys(), have)
 
 
 def erc(sch_path) -> list[str]:
@@ -301,9 +560,14 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     """Compare the KiCad netlist of `sch_path` with yasdl's netlist (power symbols excluded)."""
     kicad = export_netlist(sch_path)
     power_paths = {p for r, p in refmap.items() if r.startswith("#PWR")}
+    def ypin(r, pin):  # a multi-unit reference maps each physical pin to its unit view
+        target = refmap[r]
+        path = target.pin_path.get(pin) if isinstance(target, PackageRef) else target
+        return f"{path}.{pin}"
+
     got = {
         frozenset(
-            f"{refmap[r]}.{pin}"
+            ypin(r, pin)
             for r, pin in nodes
             if not r.startswith("#") and refmap.get(r) is not None
         )
@@ -321,39 +585,100 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
 def export_kicad_spice(sch_path) -> str:
     """kicad-cli's own SPICE export of a schematic."""
     with tempfile.TemporaryDirectory() as tmp:
+        sch_path = Path(sch_path).resolve()
         out = Path(tmp) / "net.cir"
-        subprocess.run(
-            [
-                str(KICAD_CLI),
-                "sch",
-                "export",
-                "netlist",
-                "--format",
-                "spice",
-                "-o",
-                str(out),
-                str(sch_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+        run_cli(
+            "SPICE export",
+            ["sch", "export", "netlist", "--format", "spice", "-o", out, sch_path],
+            cwd=sch_path.parent,
         )
         return out.read_text()
 
 
-def spice_roundtrip(block: Block, sch_path, refmap) -> tuple[bool, str]:
-    """Compare kicad-cli's SPICE export of the schematic with yasdl's own SPICE netlist."""
-    kicad = parse_spice(export_kicad_spice(sch_path))
-    ours = parse_spice(spice_netlist(block))
-    k_part, k_vals = spice_partition(kicad, lambda n: refmap.get(n))
-    o_part, o_vals = spice_partition(ours, lambda n: n.split("_", 1)[1])
-    norm = lambda s: {frozenset((e.replace(".", "_"), i) for e, i in net) for net in s}  # noqa: E731
-    vals = lambda s: {(e.replace(".", "_"), v) for e, v in s}  # noqa: E731
-    ok = norm(k_part) == norm(o_part) and vals(k_vals) == vals(o_vals)
-    return (
-        ok,
-        "" if ok else f"kicad {sorted(map(sorted, norm(k_part) ^ norm(o_part)))[:4]}",
+def check_models(block: Block, spice_libs=(), require: bool = True) -> None:
+    """Every SPICE model resource a render needs: each spice_libs file must exist, and (with
+    `require`) every model-based part's model must be defined in its SpiceModel.library or
+    in one of spice_libs. Raises YasdlDependencyError naming the part and the files searched."""
+    from .spice import _instances
+
+    for lib in spice_libs:
+        if not Path(lib).is_file():
+            raise YasdlDependencyError(f"SPICE model library {lib} (spice_libs) not found; file does not exist")
+    if not require:
+        return
+    for path, _, atom in _instances(block):
+        m = spice_model(atom)
+        if m is None or not m.model:
+            continue
+        if m.library:
+            if not Path(m.library).is_file():
+                raise YasdlDependencyError(
+                    f"{path}: SPICE library {m.library} (for model {m.model}) not found"
+                )
+            if model_library(m.model, (m.library,)) is None:
+                raise YasdlDependencyError(
+                    f"{path}: {m.library} defines no .model/.subckt {m.model}"
+                )
+        elif model_library(m.model, spice_libs) is None:
+            searched = ", ".join(map(str, spice_libs)) or "none given"
+            raise YasdlDependencyError(
+                f"{path}: SPICE model {m.model!r} is not defined in spice_libs "
+                f"({searched}); pass the file that defines it, e.g. "
+                "spice_libs=(yasdl.kicad_lib.JELLYBEAN_MODEL,) for 2N3904/2N3906/1N4148"
+            )
+
+
+def kicad_element_name(name: str, refmap) -> str | None:
+    """yasdl path of a kicad-cli SPICE element. kicad-cli prefixes the element letter when
+    the reference lacks it (a subcircuit U1 becomes XU1, a pot RV1 becomes XRV1)."""
+    if name in refmap:
+        return refmap[name]
+    return refmap.get(name[1:]) if name[:1].upper() in "XVIRCLDQ" else None
+
+
+_GENERATED = re.compile(r"^(N\d+|Net-.*|unconnected-.*|.*\..*)$")
+
+
+def user_net_names(*decks) -> set[str]:
+    """Node names that carry identity in a SPICE comparison: ground and every user-given
+    name (globals, top-level ports and labels). Generated names (yasdl's N1, KiCad's
+    Net-(...)/unconnected-(...)) and KiCad's sub-block labels (FB.x) are only connectivity."""
+    names = {"0"}
+    for deck in decks:
+        for _, nodes, _ in deck:
+            names |= {n for n in nodes if not _GENERATED.match(n)}
+    return names
+
+
+def spice_roundtrip(block: Block, sch_path, refmap, *, kicad_text=None, yasdl_text=None) -> tuple[bool, str]:
+    """Compare kicad-cli's SPICE export of the schematic with yasdl's own SPICE netlist.
+
+    Every top-level R/C/L/D/Q, V/I and X element is compared by identity (the reference
+    map), terminal connectivity, the names of ground and user-named nets (compared without
+    case, as ngspice does), and value: the R/C/L number as ngspice reads it, the complete
+    source specification, or the model with its parameters.
+    """
+    # One flat sheet: yasdl draws net names as KiCad labels, which kicad-cli qualifies with
+    # the root sheet path ("/Vref"). Strip it so global identity survives the comparison.
+    kicad = [
+        (name, [n[1:] if n.startswith("/") else n for n in nodes], value)
+        for name, nodes, value in parse_spice(export_kicad_spice(sch_path) if kicad_text is None else kicad_text)
+    ]
+    ours = parse_spice(spice_netlist(block, validate_values=False) if yasdl_text is None else yasdl_text)
+    named = user_net_names(kicad, ours)
+    theirs = spice_partition(
+        kicad, lambda n: _eid(kicad_element_name(n, refmap)), named
     )
+    mine = spice_partition(ours, lambda n: _eid(n.split("_", 1)[1]), named)
+    diff = compare_spice(mine, theirs)
+    if diff:
+        diff.append('raw values: ours ' + repr([(n, v.casefold()) for n, _, v in ours])
+                    + '; KiCad ' + repr([(n, v.casefold()) for n, _, v in kicad]))
+    return not diff, "; ".join(diff)
+
+
+def _eid(path):
+    return None if path is None else path.replace(".", "_")
 
 
 def render(
@@ -365,19 +690,29 @@ def render(
     references: str = "annotate",
     values: bool = True,
     erc_helpers: bool = True,
+    export_name: str | None = None,
+    bundle_models: bool = True,
 ) -> dict:
     """Schematic (+ SVG) of `block` with the netlist round trip, ERC and optional SPICE round
     trip. erc_helpers=False draws no test points or power flags (a cleaner picture); ERC is
-    then not run (info["erc"] is None), since it would flag exactly what the helpers fix."""
+    then not run (info["erc"] is None), since it would flag exactly what the helpers fix.
+    export_name: file stem for the schematic, project and SVG (default: block.name); the
+    block, its bindings and its circuit are unchanged. Two bindings of one template can so
+    render side by side: render(upper, "out", export_name="DarlN")."""
+    check_models(block, spice_libs, require=spice)
+    stem = block.name if export_name is None else export_name
+    if not stem or Path(stem).name != stem or stem in (".", ".."):
+        raise ValueError(f"export_name must be a plain file stem, not {stem!r}")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     sch_path, refmap = to_kicad(
         block,
-        out_dir / f"{block.name}.kicad_sch",
+        out_dir / f"{stem}.kicad_sch",
         spice_libs=spice_libs,
         references=references,
         values=values,
         erc_helpers=erc_helpers,
+        bundle_models=bundle_models,
     )
     ok, missing, extra = roundtrip(block, sch_path, refmap)
     info: dict[str, object] = {

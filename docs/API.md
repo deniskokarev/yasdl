@@ -172,3 +172,13 @@ relative models from the schematic directory, including renamed schematic copies
 
 **Ngspice exit code 0 does not guarantee successful analyses or measurements.** Verify
 log completion, settled windows, requested finite values and physically plausible results.
+
+## Linear analysis
+
+`analysis.elements(block)` lists the flattened R/C/L/V/I and `OPAMP_IDEAL` elements with
+SPICE-ordered nodes and numeric values; `sim=False` parts are left out and anything else is
+an error. `analysis.Circuit(block)` builds the MNA system: `solve(s,source=None,sources=None,values=None)`
+returns node voltages, `transfer(source,out,ref="0",s=1j,values=None)` returns
+`(V(out)-V(ref))/source`, and `transfer_symbolic(source,out,ref="0",numeric=False,simplify=True)`
+returns an exact sympy H(s) (sympy is an optional dependency; numeric solving is stdlib only).
+A circuit without a unique solution is an error. See SPEC 6.7.

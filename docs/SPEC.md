@@ -978,9 +978,11 @@ ckt.transfer_symbolic("V1", "vo", numeric=True)   # values plugged in as exact r
   numeric `value`), net names as in `netlist()`, ground `"0"`. Names are the components'
   own names when unique across the design, else the path with `.` → `_` (`A_RI`).
 - Elements: R, C, L, `V`, `I` (SPICE current direction) and `OPAMP_IDEAL` as a nullor
-  (V(+) = V(−), no input current). Anything else is an error.
-- Values parse as SPICE numbers (`4.7k`, `2meg`, `1M` = milli). A source's small-signal value
-  is its `ac` magnitude, else its DC value, else 1.
+  (V(+) = V(−), no input current). Non-simulated physical parts (`sim=False`) are left out,
+  as in `spice_netlist()`; anything else is an error.
+- Values parse as SPICE numbers (`4.7k`, `2meg`). An R/C/L value that KiCad and ngspice read
+  differently (`1M`, `4k7`) is rejected as in 6.2. A source's small-signal value is its `ac`
+  magnitude, else its DC value, else 1.
 - A circuit without a unique solution (source loops, op-amp outputs fighting a source) is an
   error, numerically and symbolically.
 - Numeric solving is stdlib only; `transfer_symbolic` needs sympy. Tests compare against

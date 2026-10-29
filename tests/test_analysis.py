@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from yasdl import GND, I, L, OPAMP_IDEAL, C, R, V, Block, YasdlError, spice_netlist
+from yasdl import GND, I, L, OPAMP_IDEAL, Atom, C, R, V, Block, YasdlError, spice_netlist
 from yasdl.analysis import Circuit, elements, parse_value
 
 from test_ideal_opamp import INTEGRATOR, TESTBENCH
@@ -116,6 +116,24 @@ def test_singular_circuit_is_an_error():
 """, V1=V("1"), V2=V("1"))
     with pytest.raises(YasdlError, match="no unique solution"):
         Circuit(loop).transfer("V1", "out")
+
+
+def test_physical_parts_are_left_out_and_ambiguous_values_rejected():
+    canvas = """
+[in]──R1──┬──[out]
+          │
+          C1
+          │
+        [GND]
+
+J1J1{1}──[in]
+J1J1{2}──[GND]
+"""
+    jack = Atom("Connector_Generic:Conn_01x02", sim=False)
+    rc = Block("RC", canvas, R1=R("1k"), C1=C("1u"), J1=jack)
+    assert {e.name for e in elements(rc)} == {"R1", "C1"}
+    with pytest.raises(YasdlError, match="MEG for mega"):
+        elements(Block("RC", canvas, R1=R("1M"), C1=C("1u"), J1=jack))
 
 
 @pytest.mark.skipif(not have_sympy, reason="sympy not installed")

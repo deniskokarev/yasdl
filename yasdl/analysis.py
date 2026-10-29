@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass
 
 from .block import Block, YasdlError, flat_names, ground_root
-from .spice import _instances, spice_model
+from .spice import _instances, check_value, spice_model
 
 _SUFFIX = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "m": 1e-3, "u": 1e-6, "µ": 1e-6,
            "n": 1e-9, "p": 1e-12, "f": 1e-15}
@@ -64,7 +64,9 @@ def elements(block: Block) -> list[Element]:
         root = uf.find(n)
         return "0" if root == gnd else names[root]
 
-    insts = [(path, atom) for path, _, atom in _instances(block) if not atom.symbol.is_power]
+    # Non-simulated physical parts (connectors, jacks) are left out, as in spice_netlist().
+    insts = [(path, atom) for path, _, atom in _instances(block)
+             if not atom.symbol.is_power and atom.sim]
     leaves = [p.rsplit(".", 1)[-1] for p, _ in insts]
     unique = len({x.casefold() for x in leaves}) == len(leaves)
     out = []
@@ -78,6 +80,8 @@ def elements(block: Block) -> list[Element]:
             if (path, pin) not in pins:
                 raise YasdlError(f"{path}: pin {pin} is not drawn")
             nodes.append(node(pins[(path, pin)]))
+        if kind in "RCL":
+            check_value(path, kind, atom.value)
         value = _source_value(atom.value) if kind in "VI" else parse_value(atom.value)
         out.append(Element(leaf if unique else path.replace(".", "_"), path, kind, tuple(nodes), value))
     return out

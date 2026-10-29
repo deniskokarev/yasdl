@@ -1,0 +1,103 @@
+"""Contracts settled when the a1/a2 and a3/a4 libraries were combined."""
+
+import re
+import shutil
+import subprocess
+
+import pytest
+from yasdl import Block, POT, Pot, R, spice_netlist
+from yasdl.kicad_export import spice_roundtrip
+
+
+@pytest.mark.parametrize("position", [0, 0.5, 1])
+def test_pot_keyword_form_uses_canonical_terminals(position):
+    # One pot convention for POT and Pot: pin 1 = ccw end, 2 = wiper, 3 = cw end.
+    pot = Pot("100k", position=position)
+    assert dict(pot.aliases) == {"ccw": "1", "w": "2", "wiper": "2", "cw": "3"}
+    assert dict(POT("100k", position).aliases) == dict(pot.aliases)
+    assert f"P={position:g}" in pot.spice.params
+    assert pot.spice.model == POT("100k").spice.model == "yasdl_pot"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice missing")
+@pytest.mark.parametrize(
+    "pot,expected",
+    [
+        (Pot("10k", position=0.25), 3.0),  # P: electrical fraction from ccw
+        (POT("10k", 0.25), 3.0),  # POS, linear taper
+        (POT("10k", 0.5, "log"), 12 * 8 / 80),  # audio taper: (81^0.5 - 1)/80 at mid
+        (Pot("10k", position=0.5, taper="rlog"), 12 * (1 - 8 / 80)),
+    ],
+)
+def test_shared_pot_model_reads_fraction_and_shaft_position(tmp_path, pot, expected):
+    b = Block(
+        "Pot",
+        "[VCC]─{cw}P1{ccw}─[GND]\n         {wiper}\n            │\n          {out}",
+        P1=pot,
+    )
+    deck = tmp_path / "pot.cir"
+    deck.write_text(
+        spice_netlist(b, subckt="pot")
+        + "V1 VCC 0 12\nX1 out pot\n.control\nop\nprint v(out)\n.endc\n.end\n"
+    )
+    r = subprocess.run(["ngspice", "-b", str(deck)], capture_output=True, text=True)
+    assert r.returncode == 0 and "error" not in (r.stdout + r.stderr).lower(), r.stdout
+    assert float(re.search(r"v\(out\) = (\S+)", r.stdout)[1]) == pytest.approx(
+        expected, abs=1e-5
+    )
+
+
+def test_unreadable_spice_deck_is_a_mismatch_not_a_crash():
+    b = Block("One", "{a}─R1─{b}", R1=R("1k"))
+    ok, why = spice_roundtrip(b, None, {"R1": "R1"}, kicad_text="R1 a\n")
+    assert not ok and "unreadable" in why
+    ok, why = spice_roundtrip(b, None, {"R1": "R1"}, kicad_text="R1 a b 1k\n")
+    assert ok, why
+
+
+def test_standard_topologies_are_literal_canvases():
+    # Every reusable topology is written as inspectable ASCII in the library source.
+    from pathlib import Path
+
+    import yasdl
+
+    for module in ("std.py", "circuits.py"):
+        source = (Path(yasdl.__file__).parent / module).read_text()
+        assert "Sketch" not in source, module
+
+
+
+@pytest.mark.integration
+def test_run_cli_accepts_operation_and_argument_list_forms():
+    from yasdl.kicad_lib import KICAD_CLI, KiCadCommandFailed, run_cli
+
+    if not KICAD_CLI.exists():
+        pytest.skip("KiCad CLI unavailable")
+    assert run_cli("version check", ["version"]).stdout.startswith("9.")
+    assert run_cli(["version"]).stdout.startswith("9.")
+    with pytest.raises(KiCadCommandFailed, match="exited with"):
+        run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"])
+    assert run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"], ok=(0, 1, 2, 3)).returncode
+
+
+@pytest.mark.integration
+def test_schematic_with_an_unloadable_model_is_a_mismatch_not_a_crash(tmp_path):
+    # kicad-cli exits with status 2 when a Sim.Library file is gone; the round trip reports
+    # a difference instead of raising.
+    from yasdl import Atom, SpiceModel
+    from yasdl.kicad_export import to_kicad
+    from yasdl.kicad_lib import KICAD_CLI
+
+    if not KICAD_CLI.exists():
+        pytest.skip("KiCad CLI unavailable")
+    lib = tmp_path / "trim.lib"
+    lib.write_text(".subckt trim a b params: r=1k\nR1 a b {r}\n.ends\n")
+    trim = Atom("Device:R", "trim",
+                spice=SpiceModel("X", ("1", "2"), "trim", "1=a 2=b", str(lib), "r=2.2k"))
+    b = Block("Trim", "{a}─X1─{b}", X1=trim)
+    sch, refs = to_kicad(b, tmp_path / "Trim.kicad_sch", bundle_models=False)
+    assert spice_roundtrip(b, sch, refs)[0]
+    lib.unlink()
+    ok, why = spice_roundtrip(b, sch, refs)
+    assert not ok and "KiCad SPICE export failed" in why, why

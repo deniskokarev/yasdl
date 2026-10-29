@@ -18,7 +18,7 @@ import itertools
 import math
 from dataclasses import dataclass, field
 
-from .block import Atom, Block
+from .block import Atom, Block, NCMarker
 from .kicad_lib import (
     compose,
     orient_vec,
@@ -60,6 +60,7 @@ class Result:
     symbols: list = field(default_factory=list)  # (path, Atom, x, y, rot, mirror)
     wires: list = field(default_factory=list)  # ((x, y), (x, y))
     labels: list = field(default_factory=list)  # (text, (x, y))
+    nc: list = field(default_factory=list)  # no-connect marker points (x, y)
 
     def shape(self, block_bound) -> Shape:
         pins = {id(att): self.ports[idx] for att, idx in block_bound.pin_map}
@@ -95,6 +96,7 @@ class Result:
             ],
             [(orient(start), orient(end)) for start, end in self.wires],
             [(text, orient(point), scoped) for text, point, scoped in self.labels],
+            [orient(point) for point in self.nc],
         )
 
     def translated(self, dx, dy, prefix):
@@ -116,6 +118,7 @@ class Result:
                 (prefix + txt if scoped else txt, t(p), scoped)
                 for txt, p, scoped in self.labels
             ],
+            [t(p) for p in self.nc],
         )
 
 
@@ -198,8 +201,12 @@ class Layout:
                 atom = Atom(POWER_NETS[lab.text], lab.text)
                 rot = rot_with_pin_on(atom.symbol, lab.entries[0])
                 self.power[i] = (atom, rot, symbol_extent(atom, rot, None, ""))
+        self.nc_comps = set()
         for name, b in block.bound.items():
-            if isinstance(b.obj, Atom):
+            if isinstance(b.obj, NCMarker):  # markers sit on wire ends; no body of their own
+                self.nc_comps.add(name)
+                self.shapes[name] = Shape((0.0, 0.0, 0.0, 0.0), {})
+            elif isinstance(b.obj, Atom):
                 self.shapes[name] = _atom_shape(b)
             else:
                 key = id(b.obj)
@@ -314,7 +321,7 @@ class Layout:
             comp = cv.comps[name]
             shape = self.shapes[name]
             first = True
-            for side in aligned_sides:
+            for side in aligned_sides if name not in self.nc_comps else "":
                 for att in comp.attachments[side]:
                     px, py = shape.pins[id(att)]
                     off = px if horiz else py
@@ -403,6 +410,8 @@ class Layout:
         horiz = axis == "x"
         changed = False
         for name, comp in self.cv.comps.items():
+            if name in self.nc_comps:
+                continue
             shape = self.shapes[name]
             for side in "NS" if horiz else "EW":
                 for att in comp.attachments[side]:
@@ -436,7 +445,8 @@ class Layout:
                 res.symbols += child.symbols
                 res.wires += child.wires
                 res.labels += child.labels
-            else:
+                res.nc += child.nc
+            elif name not in self.nc_comps:
                 res.symbols.append((name, b.obj, ox[name], oy[name], b.rot, b.mirror))
 
         # Wires between cells (crossings pass straight through).
@@ -461,8 +471,18 @@ class Layout:
                     done.add(key)
                     res.wires.append((node_point(cell), node_point(nxt)))
 
+        # No-connect markers: at the free end of each terminated wire.
+        for name in sorted(self.nc_comps):
+            for att, _ in self.block.bound[name].pin_map:
+                cell = att.cell
+                while cell in cv.crossings:
+                    cell = walk(cell, att.side)
+                res.nc.append(node_point(cell))
+
         # Pin connections, with ladder jogs where a pin is off its wire's line.
         for name, comp in cv.comps.items():
+            if name in self.nc_comps:
+                continue
             shape = self.shapes[name]
             origin = (ox[name], oy[name])
             for side in "NESW":
@@ -620,3 +640,25 @@ def _seg_hit(a1, a2, b1, b2):
 
 def layout(block: Block) -> Result:
     return Layout(block).run()
+
+
+def wire_crossings(res: Result) -> list[tuple[float, float]]:
+    """Points where a horizontal and a vertical wire cross without either ending there (a
+    drawn crossing, not a junction or a corner). Composition must add none beyond the ones
+    drawn on the canvases (spec 4)."""
+    wires = res.wires if isinstance(res, Result) else res
+    hs = [(a, b) for a, b in wires if abs(a[1] - b[1]) < 1e-6 and a != b]
+    vs = [(a, b) for a, b in wires if abs(a[0] - b[0]) < 1e-6 and a != b]
+    out = set()
+    for (h1, h2) in hs:
+        y, x0, x1 = h1[1], min(h1[0], h2[0]), max(h1[0], h2[0])
+        for (v1, v2) in vs:
+            x, y0, y1 = v1[0], min(v1[1], v2[1]), max(v1[1], v2[1])
+            if x0 + 1e-6 < x < x1 - 1e-6 and y0 + 1e-6 < y < y1 - 1e-6:
+                out.add((round(x, 4), round(y, 4)))
+    return sorted(out)
+
+
+def drawn_crossings(block: Block) -> int:
+    """Crossings authored on the parent canvas and each child instance, recursively."""
+    return int(block.crossing_count)

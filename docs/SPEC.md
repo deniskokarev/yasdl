@@ -1018,6 +1018,11 @@ ckt.transfer_symbolic("V1", "vo", numeric=True)   # values plugged in as exact r
     the wires pointing at it, or `junction(r, c, "NES")` to declare its arms before the
     wires (or place the glyph with `text`).
   Errors name the operation, the collision cell, its content and the attempted drawing.
+  `render()` additionally lints port placement at draw time: a `{port}` that does not sit
+  on the canvas edge (which unrelated rows or columns may have moved) is a `SketchError`
+  naming the port and its distance in cells from the edge it belongs on, instead of first
+  failing in `Block` parsing. Pin labels (braces touching a component) are not ports and
+  are not linted; wire-count problems remain `Block` errors.
 - **Crossing count.** `Block.crossing_count` is the block's own deliberate crossings plus,
   recursively, those of every child instance (an `int`; calling it returns the same
   number). Composition adds no crossings: the laid-out drawing has exactly this many wire

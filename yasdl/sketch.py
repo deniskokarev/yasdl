@@ -298,9 +298,89 @@ class Sketch:
         self.origin.update({cell: what for cell in plan})
         self.crossing_cells |= crossing
 
+    def _check_port_edges(self) -> None:
+        """Draw-time port lint (N3): a {port} that ends up inside the canvas edge is
+        only rejected later, by Block's parser, after the whole drawing exists. The
+        edge is a property of the finished canvas (unrelated rows set it), so check
+        it here, where the final extents are known: every brace label that is not a
+        pin label (pin labels touch a component) and has exactly one wire must sit
+        on the edge opposite that wire. Distances are in cells from that edge."""
+        rows: dict[int, dict[int, str]] = {}
+        for (r, c), ch in self.cells.items():
+            rows.setdefault(r, {})[c] = ch
+        r0, r1 = min(rows), max(rows)
+        c0 = min(c for row in rows.values() for c in row)
+        c1 = max(c for row in rows.values() for c in row)
+
+        def arms_toward(r: int, c: int, direction: str) -> bool:
+            glyph = self.cells.get((r, c))
+            return glyph in ARMS and direction in ARMS[glyph]
+
+        for r in sorted(rows):
+            cols = sorted(rows[r])
+            i = 0
+            while i < len(cols):
+                if rows[r][cols[i]] != "{":
+                    i += 1
+                    continue
+                j = i
+                while j < len(cols) and cols[j] == cols[i] + (j - i) and rows[r][cols[j]] != "}":
+                    j += 1
+                if j >= len(cols) or cols[j] != cols[i] + (j - i) or rows[r][cols[j]] != "}":
+                    i += 1
+                    continue
+                start, end = cols[i], cols[j]
+                name = "".join(rows[r][c] for c in range(start + 1, end))
+                i = j + 1
+                # A pin label touches its component (a word character next to the
+                # brace span); a port touches only wires and empty cells.
+                perimeter = [
+                    self.cells.get((rr, cc))
+                    for rr in (r - 1, r, r + 1)
+                    for cc in range(start - 1, end + 2)
+                    if not (rr == r and start <= cc <= end)
+                ]
+                if any(ch and (ch.isalnum() or ch == "_") for ch in perimeter):
+                    continue
+                wires = set()
+                if arms_toward(r, start - 1, "E"):
+                    wires.add("W")
+                if arms_toward(r, end + 1, "W"):
+                    wires.add("E")
+                if any(arms_toward(r - 1, c, "S") for c in range(start, end + 1)):
+                    wires.add("N")
+                if any(arms_toward(r + 1, c, "N") for c in range(start, end + 1)):
+                    wires.add("S")
+                if len(wires) != 1:
+                    continue  # wire-count problems are Block's error, not this lint
+                (wire,) = wires
+                if wire == "N":  # wire above the label: port belongs on the south edge
+                    if r == r1:
+                        continue
+                    edge, dist = "south", r1 - r
+                elif wire == "S":  # wire below the label: port belongs on the north edge
+                    if r == r0:
+                        continue
+                    edge, dist = "north", r - r0
+                elif wire == "W":  # wire west of the label: port belongs on the east edge
+                    if end == c1:
+                        continue
+                    edge, dist = "east", c1 - end
+                else:  # wire east of the label: port belongs on the west edge
+                    if start == c0:
+                        continue
+                    edge, dist = "west", start - c0
+                raise SketchError(
+                    f"Sketch.render(): port {{{name}}} at row {r}, col {start} is "
+                    f"{dist} cell(s) inside the {edge} edge (canvas rows {r0}..{r1}, "
+                    f"cols {c0}..{c1}); ports must sit on the canvas edge, on the side "
+                    "opposite their wire"
+                )
+
     def render(self) -> str:
         if not self.cells:
             return ""
+        self._check_port_edges()
         h = max(r for r, _ in self.cells) + 1
         w = max(c for _, c in self.cells) + 1
         rows = [[" "] * w for _ in range(h)]

@@ -123,9 +123,17 @@ class Canvas:
 
     def __init__(self, text: str, name: str = "block"):
         self.name = name
+        raw = text.split("\n")
         lines = textwrap.dedent(text).split("\n")
+        # Source offsets for diagnostics: canvas (row, col) = source line/column minus the
+        # removed leading blank lines and common indentation.
+        self.src_row0 = 0
+        self.src_col0 = next(
+            (len(a) - len(b) for a, b in zip(raw, lines) if b.strip()), 0
+        )
         while lines and not lines[0].strip():
             lines.pop(0)
+            self.src_row0 += 1
         while lines and not lines[-1].strip():
             lines.pop()
         if not lines:
@@ -158,9 +166,35 @@ class Canvas:
         self.edge_ports.sort(key=lambda p: ("NESW".index(p.side), p.pos))
 
     # --- helpers -----------------------------------------------------------
-    def err(self, msg, r=None, c=None):
-        where = f" at row {r}, col {c}" if r is not None else ""
-        raise CanvasError(f"{self.name}: {msg}{where}")
+    def err(self, msg, r=None, c=None, rows=None):
+        """Raise with the position and an excerpt. Positions are canvas coordinates (0-based,
+        after removing leading blank lines and the common indentation); the source line and
+        column (1-based, within the canvas string) follow in parentheses."""
+        where = ""
+        if r is not None:
+            where = (
+                f" at row {r}, col {c} (canvas string line {r + self.src_row0 + 1}, "
+                f"column {c + self.src_col0 + 1}); original source "
+                f"{r + self.src_row0 + 1}:{c + self.src_col0 + 1}"
+            )
+        raise CanvasError(f"{self.name}: {msg}{where}" + self.excerpt(r, c, rows))
+
+    def excerpt(self, r=None, c=None, rows=None) -> str:
+        """A few canvas rows around (r, c) with row numbers and a caret under column c."""
+        if r is None or not getattr(self, "g", None):
+            return ""
+        lo, hi = (r - 1, r + 1) if rows is None else rows
+        lo, hi = max(lo, 0), min(hi, self.H - 1)
+        out = []
+        for i in range(lo, hi + 1):
+            out.append(f"\n  {i:3d} | {self.g[i].rstrip()}")
+            if i == r and c is not None:
+                out.append("\n      | " + " " * c + "^")
+        return "".join(out) + (
+            f"\n  canvas row {r}, col {c} = source line {r + self.src_row0 + 1}, column {c + self.src_col0 + 1}"
+            f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
+            f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
+        )
 
     def inside(self, r, c):
         return 0 <= r < self.H and 0 <= c < self.W
@@ -248,19 +282,31 @@ class Canvas:
                     stack.append((nr, nc))
         r0, r1 = min(x for x, _ in cells), max(x for x, _ in cells)
         c0, c1 = min(y for _, y in cells), max(y for _, y in cells)
+        extent = {}  # row -> (first col, last col) of this component's cells
+        for x, y in cells:
+            lo, hi = extent.get(x, (y, y))
+            extent[x] = (min(lo, y), max(hi, y))
+        spans = "; ".join(
+            f"row {x}: {self.g[x][lo : hi + 1]!r} at cols {lo}-{hi}"
+            for x, (lo, hi) in sorted(extent.items())
+        )
         if len(cells) != (r1 - r0 + 1) * (c1 - c0 + 1):
+            usual = max(set(extent.values()), key=list(extent.values()).count)
+            bad = next(x for x in sorted(extent) if extent[x] != usual)
             self.err(
                 "component characters must form a rectangle (keep a 1-cell gap between "
-                "components)",
-                r0,
-                c0,
+                f"components; a row shifted by one column is the usual cause): {spans}; span rows {r0}-{r1}, cols {c0}-{c1}",
+                bad,
+                extent[bad][0],
+                rows=(r0, r1),
             )
         rows = {self.g[x][c0 : c1 + 1] for x in range(r0, r1 + 1)}
         if len(rows) != 1:
             self.err(
-                f"all rows of a component rectangle must be identical: {sorted(rows)}",
+                f"all rows of a component rectangle must be identical: {spans}",
                 r0,
                 c0,
+                rows=(r0, r1),
             )
         name = minimal_period(rows.pop())
         if name in ("v", "V"):
@@ -271,7 +317,14 @@ class Canvas:
                 c0,
             )
         if name in self.comps:
-            self.err(f"duplicate component {name}", r0, c0)
+            first = self.comps[name]
+            hint = ""
+            if r0 == first.r1 + 1 or r1 + 1 == first.r0:
+                hint = (
+                    f" (the other {name} spans rows {first.r0}-{first.r1}, cols "
+                    f"{first.c0}-{first.c1}; if both are one component, a row is shifted)"
+                )
+            self.err(f"duplicate component {name}{hint}", r0, c0, rows=(min(r0, first.r0), max(r1, first.r1)))
         self.comps[name] = Comp(name, r0, c0, r1, c1)
         for cell in cells:
             self.comp_at[cell] = name

@@ -3,7 +3,7 @@
 These fixtures contain the symbols used by the yasdl unit tests, extracted from
 the KiCad 9.0.9 installation's libraries and reformatted as standalone libraries:
 
-- `Device`: `C`, `D`, `Q_NPN`, `R`
+- `Device`: `C`, `D`, `Q_NPN`, `Q_PNP`, `R`
 - `Simulation_SPICE`: `IDC`, `OPAMP`, `VDC`
 - `power`: `GND`, `VCC`, `VEE`
 

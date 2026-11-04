@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-import subprocess
 import tempfile
 import uuid as _uuid
 from pathlib import Path
 
-from .kicad_lib import KICAD_CLI, load, orient_vec, power_body_side, screen_bbox
+from .kicad_lib import (
+    load,
+    orient_vec,
+    power_body_side,
+    run_cli,
+    screen_bbox,
+    YasdlDependencyError,
+)
 from .sexp import dumps, find, find_all, parse, Sym
 
 GRID = 1.27  # KiCad's default schematic grid (50 mil)
@@ -57,10 +63,15 @@ class Schematic:
         fields: dict | None = None,
         helper: bool = False,
         hide_value: bool = False,
+        sim: bool = True,
+        footprint: str = "",
+        datasheet: str = "",
+        unit: int = 1,
     ):
         """helper: an ERC helper (test point, power flag): hidden fields, not in BOM/simulation.
-        hide_value: keep the Value field but don't show it."""
-        sym = load(lib_id)
+        hide_value: keep the Value field but don't show it. sim=False: excluded from
+        simulation (a connector); footprint/datasheet: the part's metadata fields."""
+        sym = load(lib_id, unit)
         if lib_id not in self.lib_ids:
             self.lib_ids.append(lib_id)
         if sym.is_power:
@@ -74,8 +85,8 @@ class Schematic:
         if mirror:
             node.append([Sym("mirror"), Sym(mirror)])
         node += [
-            [Sym("unit"), _num(1)],
-            [Sym("exclude_from_sim"), Sym("yes" if helper else "no")],
+            [Sym("unit"), _num(unit)],
+            [Sym("exclude_from_sim"), Sym("yes" if helper or not sim else "no")],
             [Sym("in_bom"), Sym("no" if helper else "yes")],
             [Sym("on_board"), Sym("yes")],
             [Sym("dnp"), Sym("no")],
@@ -84,8 +95,8 @@ class Schematic:
         props = {
             "Reference": ref,
             "Value": value or lib_id.split(":")[1],
-            "Footprint": "",
-            "Datasheet": "",
+            "Footprint": footprint,
+            "Datasheet": datasheet,
             **(fields or {}),
         }
         x0, y0, x1, y1 = screen_bbox(sym, rot, mirror)
@@ -147,7 +158,7 @@ class Schematic:
                         Sym("path"),
                         f"/{self.uuid}",
                         [Sym("reference"), ref],
-                        [Sym("unit"), _num(1)],
+                        [Sym("unit"), _num(unit)],
                     ],
                 ],
             ]
@@ -180,6 +191,11 @@ class Schematic:
                 [Sym("color"), _num(0), _num(0), _num(0), _num(0)],
                 [Sym("uuid"), _uid()],
             ]
+        )
+
+    def add_no_connect(self, p):
+        self.items.append(
+            [Sym("no_connect"), [Sym("at"), _num(p[0]), _num(p[1])], [Sym("uuid"), _uid()]]
         )
 
     def add_label(self, name: str, p, angle: int = 0):
@@ -247,21 +263,9 @@ def export_netlist(sch_path) -> dict[str, set[tuple[str, str]]]:
     """Run kicad-cli and return {net name: {(ref, pin), ...}} (single-pin nets included)."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "net.net"
-        subprocess.run(
-            [
-                str(KICAD_CLI),
-                "sch",
-                "export",
-                "netlist",
-                "--format",
-                "kicadsexpr",
-                "-o",
-                str(out),
-                str(sch_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+        run_cli(
+            "netlist export",
+            ["sch", "export", "netlist", "--format", "kicadsexpr", "-o", out, sch_path],
         )
         root = parse(out.read_text())
     nets = {}
@@ -277,38 +281,53 @@ def export_netlist(sch_path) -> dict[str, set[tuple[str, str]]]:
 def export_svg(sch_path, out_dir) -> Path:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            str(KICAD_CLI),
-            "sch",
-            "export",
-            "svg",
-            "--exclude-drawing-sheet",
-            "-o",
-            str(out_dir),
-            str(sch_path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
+    run_cli(
+        "SVG export",
+        ["sch", "export", "svg", "--exclude-drawing-sheet", "-o", out_dir, sch_path],
     )
     return out_dir / (Path(sch_path).stem + ".svg")
 
 
 def run_erc(sch_path) -> str:
+    """kicad-cli's ERC report. kicad-cli exits nonzero when it finds violations, so the
+    exit status is not checked; a missing report is an error, never a clean result."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "erc.rpt"
-        subprocess.run(
-            [
-                str(KICAD_CLI),
-                "sch",
-                "erc",
-                "--severity-all",
-                "-o",
-                str(out),
-                str(sch_path),
-            ],
-            capture_output=True,
-            text=True,
+        run = run_cli(
+            "ERC", ["sch", "erc", "--severity-all", "-o", out, sch_path], check=False
         )
-        return out.read_text() if out.exists() else ""
+        if not out.exists():
+            raise YasdlDependencyError(
+                f"ERC of {sch_path} produced no report (kicad-cli exit {run.returncode}): "
+                f"{(run.stderr or run.stdout).strip()}"
+            )
+        return out.read_text()
+
+
+def export_netlist_full(sch_path):
+    """({net name: {(ref, pin)}}, {ref: {"value", "footprint", "datasheet", "units"}}) from
+    kicad-cli's netlist export; components with several units are one entry."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "net.net"
+        run_cli("KiCad netlist export", ["sch", "export", "netlist", "--format",
+                                       "kicadsexpr", "-o", out, sch_path])
+        root = parse(out.read_text())
+    nets = {}
+    for net in find_all(find(root, "nets"), "net"):
+        name = str(find(net, "name")[1])
+        nets[name] = {
+            (str(find(n, "ref")[1]), str(find(n, "pin")[1]))
+            for n in find_all(net, "node")
+        }
+    comps = {}
+    for comp in find_all(find(root, "components"), "comp"):
+        ref = str(find(comp, "ref")[1])
+        get = lambda k: str(find(comp, k)[1]) if find(comp, k) else ""  # noqa: E731
+        units = find(comp, "units")
+        comps[ref] = {
+            "value": get("value"),
+            "footprint": get("footprint"),
+            "datasheet": get("datasheet"),
+            "units": len(find_all(units, "unit")) if units else 1,
+        }
+    return nets, comps

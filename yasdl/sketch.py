@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from .canvas import ARMS, STEP, OPPOSITE
 
-_GLYPH = {
+_GLYPH: dict[frozenset[str], str] = {
     frozenset("EW"): "─",
     frozenset("NS"): "│",
     frozenset("ES"): "┌",
@@ -192,13 +192,13 @@ class Sketch:
                 raise SketchError(f"{what}: a junction joins three or four distinct sides")
             self.text(row, col, _GLYPH[frozenset(selected)])
             return self
-        arms = inferred
-        if len(arms) < 3:
+        joined = inferred
+        if len(joined) < 3:
             raise SketchError(
-                f"{what}: only {len(arms)} wire(s) point at this cell ({''.join(sorted(arms))}); "
+                f"{what}: only {len(joined)} wire(s) point at this cell ({''.join(sorted(joined))}); "
                 "a junction joins three or four"
             )
-        self._commit(what, {(row, col): _GLYPH[frozenset(arms)]}, set(), 0)
+        self._commit(what, {(row, col): _GLYPH[frozenset(joined)]}, set(), 0)
         return self
 
     # --- checking --------------------------------------------------------------------

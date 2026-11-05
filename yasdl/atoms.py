@@ -136,11 +136,13 @@ def Pot(resistance: str = "10k", *, position: float = 0.5, taper: str = "linear"
     pot = POT(resistance, position, "lin" if taper == "linear" else taper)
     from .spice import ngspice_number
 
-    if not ngspice_number(resistance) or ngspice_number(resistance) <= 0:
+    _num = ngspice_number(resistance)
+    if not _num or _num <= 0:
         raise YasdlError(f"Pot: resistance {resistance!r} must be positive (use MEG for mega)")
     if taper in ("linear", "lin"):
         from dataclasses import replace
 
+        assert pot.spice is not None  # POT() always carries a SPICE model
         pot = replace(pot, spice=replace(pot.spice, params=f"R={resistance} P={float(position):g}"))
     return pot
 

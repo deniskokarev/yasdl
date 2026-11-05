@@ -20,6 +20,7 @@ from .kicad_lib import (
 from .nets import DEFAULT_PORT_NAME, GROUND, POWER_NETS, reserved
 
 if TYPE_CHECKING:
+    from .parts import Package
     from .spice import SpiceModel
 
 
@@ -47,7 +48,7 @@ class Atom:
     footprint: str = ""  # KiCad Footprint field, preserved in the schematic
     datasheet: str = ""  # KiCad Datasheet field, preserved in the schematic
     unit: int = 1  # KiCad unit of a multi-unit symbol
-    package: object = field(default=None, compare=False)  # shared Package of a unit view
+    package: Package | None = field(default=None, compare=False)  # shared Package of a unit view
 
     def __post_init__(self):
         # Descriptors are shared: their alias and arrow maps are read-only copies.
@@ -146,7 +147,7 @@ class Bound:
     """A component as resolved in a block: what it is and how its pins map to attachments."""
 
     name: str
-    obj: Atom | Block
+    obj: "Atom | Block | NCMarker"
     rot: int = 0
     mirror: str | None = None
     pin_map: list = field(
@@ -254,10 +255,21 @@ def NC() -> NCMarker:
 
 class Block:
     def __init__(
-        self, name: str, canvas: str, port_attrs: dict | None = None, **bindings
+        self,
+        name: str,
+        canvas: str,
+        port_attrs: dict | None = None,
+        *,
+        bindings: "dict[str, Atom | Block | NCMarker | str] | None" = None,
+        **more: "Atom | Block | NCMarker | str",
     ):
-        """port_attrs: {port key: {"aliases": [...]}}; a key is W0-style, D3-style or an alias."""
-        self.name, self.text, self.bindings = name, canvas, bindings
+        """port_attrs: {port key: {"aliases": [...]}}; a key is W0-style, D3-style or an alias.
+        Component bindings arrive either as keyword arguments or, when they are
+        built dynamically, as the `bindings` dict."""
+        merged: dict[str, Atom | Block | NCMarker | str] = dict(bindings or {})
+        merged.update(more)
+        self.name, self.text, self.bindings = name, canvas, merged
+        bindings = merged
         self.port_attrs = port_attrs or {}
         try:
             self.canvas = Canvas(canvas, name)
@@ -437,11 +449,11 @@ class Block:
 
     def bind(self, **more) -> Block:
         """A copy with more components bound (the unbound ones are the block's open interface)."""
-        return Block(self.name, self.text, self.port_attrs, **{**self.bindings, **more})
+        return Block(self.name, self.text, self.port_attrs, bindings={**self.bindings, **more})
 
     def renamed(self, name: str) -> Block:
         """A new block identity with the same circuit, port aliases and unit membership."""
-        return Block(name, self.text, port_attrs=self.port_attrs, **self.bindings)
+        return Block(name, self.text, port_attrs=self.port_attrs, bindings=self.bindings)
 
     def oriented(self, rot: int = 0, mirror: str | None = None) -> "OrientedBlock":
         """This block with a binding-time orientation (same convention as atoms)."""

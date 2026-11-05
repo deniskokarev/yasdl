@@ -173,7 +173,7 @@ def diode_string(n: int, diode: Atom | None = None, name: str | None = None) -> 
         raise YasdlError("diode_string() needs at least one diode")
     canvas = _DIODE_HEAD + "".join(_DIODE_CELL.format(k=k + 1) for k in range(n)) + _DIODE_TAIL
     d = diode or D("1N4148")
-    return Block(name or f"Diodes{n}", canvas, **{f"D{k + 1}": d for k in range(n)})
+    return Block(name or f"Diodes{n}", canvas, bindings={f"D{k + 1}": d for k in range(n)})
 
 
 VBE_MULTIPLIER = """
@@ -404,15 +404,15 @@ SZIKLAI = Block(
 """,
 )
 
-def darlington(q1: Atom, q2: Atom | None = None, rx: str = "1k", name: str | None = None) -> Block:
+def darlington(q1: "Atom | Block", q2: "Atom | Block | None" = None, rx: str = "1k", name: str | None = None) -> Block:
     """A Darlington of two same-polarity transistors (NPN-like with NPNs, PNP-like with PNPs)."""
     b = DARLINGTON.bind(Q1=q1, Q2=q2 or q1, RX=R(rx))
-    return b if name is None else Block(name, b.text, **b.bindings)
+    return b if name is None else Block(name, b.text, bindings=b.bindings)
 
-def sziklai(driver: Atom, output: Atom, rx: str = "1k", name: str | None = None) -> Block:
+def sziklai(driver: "Atom | Block", output: "Atom | Block", rx: str = "1k", name: str | None = None) -> Block:
     """A Sziklai pair behaving like `driver`: sziklai(npn, pnp) is NPN-like."""
     b = SZIKLAI.bind(Q1=driver, Q2=output, RX=R(rx))
-    return b if name is None else Block(name, b.text, **b.bindings)
+    return b if name is None else Block(name, b.text, bindings=b.bindings)
 
 # parallel(): the {b} strip, then one literal 8-column strip per device (its transistor in
 # strip column 2), side by side. The first strip carries the {c}/{e} ports and starts the
@@ -488,7 +488,7 @@ def parallel(device, n: int, re: str = "1", name: str | None = None) -> Block:
         rows.append(line.rstrip())
     bindings = {f"Q{k + 1}": device for k in range(n)}
     bindings.update({f"RE{k + 1}": R(re) for k in range(n)})
-    return Block(name or f"Parallel{n}", "\n".join(rows), **bindings)
+    return Block(name or f"Parallel{n}", "\n".join(rows), bindings=bindings)
 
 
 PUSH_PULL_DIODES = {"bjt": 1, "darlington": 2, "sziklai": 1}
@@ -590,7 +590,7 @@ def push_pull_buffer(variant: str, upper, lower, diode: Atom | None = None, rt: 
     bindings = dict(QH=upper, QL=lower, RT=R(rt), RB=R(rb), RH=R(re), RL=R(re), RQ=R(rq))
     bindings.update({f"DH{k + 1}": diode for k in range(n)})
     bindings.update({f"DL{k + 1}": diode for k in range(n)})
-    return Block(name or f"PushPull_{variant}", canvas, **bindings)
+    return Block(name or f"PushPull_{variant}", canvas, bindings=bindings)
 
 _MIRROR_NPN = """
  {in}       {out}
@@ -847,14 +847,14 @@ def sallen_key_lowpass(r1: str, r2: str, c_shunt: str, c_feedback: str, u=None,
     """Second-order low-pass (R, R in series; C to ground; C as feedback)."""
     b = SALLEN_KEY.bind(ZA=R(r1), ZB=R(r2), ZS=C(c_shunt), ZF=C(c_feedback))
     b = b.bind(U1=u or OPAMP_IDEAL())
-    return b if name is None else Block(name, b.text, **b.bindings)
+    return b if name is None else Block(name, b.text, bindings=b.bindings)
 
 def sallen_key_highpass(c1: str, c2: str, r_shunt: str, r_feedback: str, u=None,
                         name: str | None = None) -> Block:
     """Second-order high-pass (C, C in series; R to ground; R as feedback)."""
     b = SALLEN_KEY.bind(ZA=C(c1), ZB=C(c2), ZS=R(r_shunt), ZF=R(r_feedback))
     b = b.bind(U1=u or OPAMP_IDEAL())
-    return b if name is None else Block(name, b.text, **b.bindings)
+    return b if name is None else Block(name, b.text, bindings=b.bindings)
 
 INVERTING = Block("Inverting", """
           ┌──RF──┐
@@ -926,7 +926,7 @@ def mirror(q, kind=None, re="100", name=None):
     if kind in ("npn", "pnp"):
         return _polarity_mirror(q, kind, re, name)
     b = _plain_mirror(q, name or kind or "Mirror")
-    return Block(b.name, b.text.replace("{com}", "{com, vn}"), **b.bindings)
+    return Block(b.name, b.text.replace("{com}", "{com, vn}"), bindings=b.bindings)
 
 
 def diff_pair(q, *args, kind="npn", rc="10k", re="100", rt="10k", tail=None, name=None):

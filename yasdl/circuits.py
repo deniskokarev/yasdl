@@ -322,7 +322,7 @@ def CurrentMirror(*, pnp=False, degeneration=None, rail=None):
         parts.update(RE1=R(degeneration), RE2=R(degeneration))
     if rail is not None:
         text = text.replace("{common}", f"[{rail}]")
-    return Block("CurrentMirror", text, **parts)
+    return Block("CurrentMirror", text, bindings=parts)
 
 
 def CurrentSink(*, resistance="150"):
@@ -412,7 +412,7 @@ def LongTailedPair(*, degeneration=None, tail="4.7k", collector="10k"):
         canvas = canvas.replace("RE", "│ ")
     else:
         parts["RE"] = R(degeneration)
-    branch = Block("DiffBranch", canvas, **parts)
+    branch = Block("DiffBranch", canvas, bindings=parts)
     return Block(
         "LongTailedPair",
         """

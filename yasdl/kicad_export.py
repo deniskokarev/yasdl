@@ -213,7 +213,7 @@ def to_kicad(
             # rendered on its own whose [Vref] or [x] reaches one part): add a test point.
             counters["TP"] += 1
             ref = f"TP{counters['TP']}"
-            sch.add_symbol("Connector:TestPoint", ref, "", *anchor, rot, helper=True)
+            sch.add_symbol("Connector:TestPoint", ref, "", anchor[0], anchor[1], rot, helper=True)
             refmap[ref] = None
         for anchor, rot in _power_flags(placed, wires, labels, [t(p) for p in res.nc]):
             ref = sch.add_symbol(

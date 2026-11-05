@@ -75,6 +75,7 @@ def elements(block: Block) -> list[Element]:
         if kind is None:
             raise YasdlError(f"{path}: {atom.lib_id} is not a linear element analysis supports")
         m = spice_model(atom)
+        assert m is not None  # every linear element kind has a SPICE model
         nodes = []
         for pin in m.pins:
             if (path, pin) not in pins:

@@ -7,8 +7,13 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 from .block import Atom, Block, flat_names, ground_root, YasdlError
 from .kicad_lib import YasdlDependencyError
+
+if TYPE_CHECKING:
+    from .parts import Package
 
 
 class MissingModelResource(YasdlDependencyError, YasdlError):
@@ -242,8 +247,8 @@ def spice_netlist(
             libs.append(lib)
     for lib in dict.fromkeys([*libs, *includes]):
         if Path(lib).is_absolute() and not Path(lib).is_file():
-            models = [spice_model(a).model for _, _, a in _instances(block)
-                      if spice_model(a) is not None and spice_model(a).library == lib]
+            models = [m.model for _, _, a in _instances(block)
+                      if (m := spice_model(a)) is not None and m.library == lib]
             raise MissingModelResource(
                 f"SPICE export of {block.name}: required model resource missing: {lib}"
                 + (f" (SPICE model resource for model {models[0]!r})" if models else "")
@@ -259,8 +264,9 @@ def spice_netlist(
         if not pkg.package.sim:
             continue
         d = pkg.package.descriptor
-        if d.model and d.scope == "unit" and d.wrapper() not in wrappers:
-            wrappers.append(d.wrapper())
+        wrapper = getattr(d, "wrapper", None)  # only OpampPackage wraps units
+        if d.model and d.scope == "unit" and wrapper is not None and wrapper() not in wrappers:
+            wrappers.append(wrapper())
     lines += [w.rstrip("\n") for w in wrappers]
     if subckt:
         # ngspice makes every non-pin node of a .subckt local. Global nets that aren't
@@ -331,7 +337,7 @@ class PlacedPackage:
     """A Package as used in a design: its unit paths and, per physical pin, the path of the
     unit view that carries it."""
 
-    package: object
+    package: "Package"
     unit_paths: dict  # unit key -> yasdl path
     pin_path: dict  # physical pin -> yasdl path
 

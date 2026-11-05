@@ -190,8 +190,12 @@ class Canvas:
             out.append(f"\n  {i:3d} | {self.g[i].rstrip()}")
             if i == r and c is not None:
                 out.append("\n      | " + " " * c + "^")
-        return "".join(out) + (
+        where = (
             f"\n  canvas row {r}, col {c} = source line {r + self.src_row0 + 1}, column {c + self.src_col0 + 1}"
+            if c is not None
+            else ""
+        )
+        return "".join(out) + where + (
             f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
             f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
         )

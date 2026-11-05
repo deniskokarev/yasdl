@@ -42,7 +42,9 @@ def _role(key, roles) -> str:
     if k in canonical:
         return canonical[k]
     alias = _ROLE_ALIASES.get(k)
-    return alias if alias in roles else str(key)
+    if alias is not None and alias in roles:
+        return alias
+    return str(key)
 
 
 def _pin_map(name: str, pins: dict, roles) -> dict[str, str]:
@@ -334,6 +336,7 @@ class OpampPackage:
         """(subcircuit name, physical pins in its node order) of the package element."""
         if self.scope == "unit":
             return self.wrapper_name(), tuple(self.physical_pins())
+        assert self.model is not None  # whole-device scope always has a model
         return self.model, tuple(str(p) for p in self.model_pins)
 
 
@@ -532,7 +535,7 @@ class Package:
             return self._atom(letter, ord(letter) - 64, {'out': out[0]} if len(out) == 1 else {})
         if letter not in names:
             raise YasdlError(f"{self.name}: no unit {letter!r}; it does not exist (units {names})")
-        out = str(self.descriptor.units[letter]["out"])
+        out = str(d.units[letter]["out"])
         return self._atom(letter, names.index(letter) + 1, {"out": out})
 
     def power(self) -> Atom:

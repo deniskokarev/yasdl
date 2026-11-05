@@ -151,6 +151,7 @@ def run_cli(operation, args=None, check: bool = True, cwd=None, ok=(0,)):
     if args is None and not isinstance(operation, str):  # run_cli([args...])
         args = list(operation)
         operation = "kicad-cli " + " ".join(map(str, args[:2]))
+    assert args is not None  # a string operation always comes with its args
     cmd = [str(require_cli(operation)), *map(str, args)]
     run = subprocess.run(cmd, capture_output=True, text=True, **({'cwd': cwd} if cwd else {}))
     if check and run.returncode not in ok:

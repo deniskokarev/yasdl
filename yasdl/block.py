@@ -260,13 +260,13 @@ class Block:
         canvas: str,
         port_attrs: dict | None = None,
         *,
-        bindings: "dict[str, Atom | Block | NCMarker | str] | None" = None,
-        **more: "Atom | Block | NCMarker | str",
+        bindings: "dict[str, Atom | Block | OrientedBlock | NCMarker | str] | None" = None,
+        **more: "Atom | Block | OrientedBlock | NCMarker | str",
     ):
         """port_attrs: {port key: {"aliases": [...]}}; a key is W0-style, D3-style or an alias.
         Component bindings arrive either as keyword arguments or, when they are
         built dynamically, as the `bindings` dict."""
-        merged: dict[str, Atom | Block | NCMarker | str] = dict(bindings or {})
+        merged: dict[str, Atom | Block | OrientedBlock | NCMarker | str] = dict(bindings or {})
         merged.update(more)
         self.name, self.text, self.bindings = name, canvas, merged
         bindings = merged

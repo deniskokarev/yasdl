@@ -12,7 +12,7 @@ from yasdl.kicad_export import render
 N, P = Q2N3904, Q2N3906
 
 
-def dual_opamp():
+def dual_opamp() -> Block:
     """One TL072-pinout package: unit A amplifies, unit B buffers, unit C is the supply."""
     chip = Package("TL072")
     power = Block("Power", "[VCC]\n  │\n  PC\n  │\n[VEE]", PC=chip.unit("C"))
@@ -29,7 +29,7 @@ PW
     )
 
 
-def connector_and_volume():
+def connector_and_volume() -> Block:
     """A physical input connector (not simulated) feeding a volume pot."""
     jack = Atom(
         "Connector_Generic:Conn_01x02",
@@ -49,7 +49,7 @@ def connector_and_volume():
     )
 
 
-def spare_terminals():
+def spare_terminals() -> Block:
     """Three independent no-connect wire ends: a spare transistor's base and collector,
     and one resistor end."""
     return Block(
@@ -72,7 +72,7 @@ NC3─R1─{out}
     )
 
 
-def examples():
+def examples() -> dict[str, Block]:
     sink = std.current_sink(N, diode=D1N4148)
     result = {
         "DarlingtonN": std.darlington(N),

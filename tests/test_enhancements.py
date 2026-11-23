@@ -3,6 +3,7 @@
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import (
@@ -43,7 +44,7 @@ live = pytest.mark.skipif(
 )
 
 
-def transistor(atom, name="Transistor"):
+def transistor(atom: Atom, name: str = "Transistor") -> Block:
     return Block(
         name,
         """
@@ -62,14 +63,14 @@ def transistor(atom, name="Transistor"):
 
 @live
 @pytest.mark.integration
-def test_verified_standard_physical_pinouts():
+def test_verified_standard_physical_pinouts() -> None:
     # Trusted exact KiCad device variants, independent of generic factories.
     # Datasheets: onsemi 2N3903-D / 2N3906-D, TO-92 E=1 B=2 C=3.
     from yasdl.kicad_lib import library_path
 
     symbols = find_all(parse(library_path("Transistor_BJT").read_text()), "symbol")
 
-    def exact_pinout(name):
+    def exact_pinout(name: str) -> dict[str, str]:
         exact = next(s for s in symbols if s[1] == name)
         while find(exact, "extends") is not None:
             parent = str(find(exact, "extends")[1])
@@ -91,7 +92,7 @@ def test_verified_standard_physical_pinouts():
     assert exact_pinout("BD139") == {"E": "1", "B": "3", "C": "2"}
 
 
-def test_generic_definitions_do_not_mutate_shared_roots():
+def test_generic_definitions_do_not_mutate_shared_roots() -> None:
     base = load("Device:Q_NPN").sexp
     old = dumps(base)
     a = Q2N3904()
@@ -119,14 +120,16 @@ def test_generic_definitions_do_not_mutate_shared_roots():
         {"E": 1, "B": 2, "C": 3, "extra": 4},
     ],
 )
-def test_generic_maps_reject_incomplete_or_duplicate_pins(pins):
+def test_generic_maps_reject_incomplete_or_duplicate_pins(
+    pins: dict[str, int | str],
+) -> None:
     with pytest.raises(YasdlError):
         AtomNPN("bad", pins=pins)
 
 
 @live
 @pytest.mark.integration
-def test_generic_parts_with_different_pinouts_export_together(tmp_path):
+def test_generic_parts_with_different_pinouts_export_together(tmp_path: Path) -> None:
     a = transistor(Q2N3904())
     b = transistor(
         AtomNPN(
@@ -191,7 +194,7 @@ def test_pot_rejects_invalid_settings(kwargs):
         Pot(**kwargs)
 
 
-def bench():
+def bench() -> Block:
     return Block(
         "SourcesAndPot",
         """
@@ -213,7 +216,7 @@ def bench():
 
 @live
 @pytest.mark.integration
-def test_p0_live_x_v_i_roundtrip_and_export_mutations(tmp_path):
+def test_p0_live_x_v_i_roundtrip_and_export_mutations(tmp_path: Path) -> None:
     b = bench()
     info = render(b, tmp_path, svg=False, spice=True)
     assert info["roundtrip_ok"] and info["spice_ok"] and info["erc"] == [], info
@@ -294,7 +297,7 @@ def test_p0_live_x_v_i_roundtrip_and_export_mutations(tmp_path):
         "pwl(0 0 1m 1 2m 0)",
     ],
 )
-def test_p0_live_supported_transient_sources(tmp_path, spec):
+def test_p0_live_supported_transient_sources(tmp_path: Path, spec: str) -> None:
     b = Block(
         "Voltage", "┌─R1─┐\n│    │\nV1   │\n│    │\n└────┘", V1=V(spec), R1=R("1k")
     )
@@ -302,7 +305,7 @@ def test_p0_live_supported_transient_sources(tmp_path, spec):
     assert info["spice_ok"] and info["roundtrip_ok"] and info["erc"] == [], info
 
 
-def test_parser_rejects_missing_duplicate_and_malformed_instances():
+def test_parser_rejects_missing_duplicate_and_malformed_instances() -> None:
     assert parse_spice(
         ".subckt x a b\nR1 a b 1\n.ends\nV1 n 0 dc 0 ac 1\nX1 n 0 x R=1k P=0.5"
     ) == [("V1", ["n", "0"], "dc 0 ac 1"), ("X1", ["n", "0"], "x R=1k P=0.5")]
@@ -311,7 +314,7 @@ def test_parser_rejects_missing_duplicate_and_malformed_instances():
             parse_spice(text)
 
 
-def test_p0_global_scope_subcircuit():
+def test_p0_global_scope_subcircuit() -> None:
     b = Block(
         "Divider",
         "[VCC]\n  │\n  R1\n  │\n  ├─{out}\n  │\n  R2\n  │\n[GND]",
@@ -324,7 +327,7 @@ def test_p0_global_scope_subcircuit():
 
 @pytest.mark.integration
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice missing")
-def test_p0_global_supply_measured_in_ngspice(tmp_path):
+def test_p0_global_supply_measured_in_ngspice(tmp_path: Path) -> None:
     b = Block(
         "Divider",
         "[VCC]\n  │\n  R1\n  │\n  ├─{out}\n  │\n  R2\n  │\n[GND]",
@@ -350,7 +353,7 @@ def test_p0_global_supply_measured_in_ngspice(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_p0_special_net_identities_cannot_be_renamed(tmp_path):
+def test_p0_special_net_identities_cannot_be_renamed(tmp_path: Path) -> None:
     b = Block("Ground", "[VCC]─R1─R2─[GND]", R1=R("1k"), R2=R("1k"))
     path, refs = to_kicad(b, tmp_path / "ground.kicad_sch")
     text = export_kicad_spice(path)
@@ -365,7 +368,7 @@ def test_p0_special_net_identities_cannot_be_renamed(tmp_path):
 @pytest.mark.parametrize(
     "canvas", ["NC1─R1─{out}", "NC1─J1─NC2\nNC1─J1─NC2\nNC1─J1─NC2"]
 )
-def test_nc_groups_live_export_and_erc(tmp_path, canvas):
+def test_nc_groups_live_export_and_erc(tmp_path: Path, canvas: str) -> None:
     if "J1" in canvas:
         b = Block(
             "NCGroup",
@@ -388,7 +391,7 @@ def test_nc_groups_live_export_and_erc(tmp_path, canvas):
     assert "NC" not in "\n".join(n for n, _, _ in parse_spice(spice_netlist(b)))
 
 
-def test_nc_hierarchical_fanout_is_rejected_without_pruning():
+def test_nc_hierarchical_fanout_is_rejected_without_pruning() -> None:
     single = Block("Single", "{a}─R1─{b}", R1=R("1k"))
     good = Block("Good", "NC1─X1─{out}", NC1=NC(), X1=single)
     assert len(netlist(good)) == 2
@@ -402,7 +405,9 @@ def test_nc_hierarchical_fanout_is_rejected_without_pruning():
         netlist(Block("Detached", "NC1", NC1=NC()))
 
 
-def dual_package(tmp_path, *, sim=True):
+def dual_package(
+    tmp_path: Path, *, sim: bool = True
+) -> tuple[Block, Package, Block, Block]:
     lib = tmp_path / "dual.lib"
     lib.write_text(
         ".subckt dual ap am ao bp bm bo vp vm\nEa ao 0 ap am 10000\nEb bo 0 bp bm 10000\n.ends dual\n"
@@ -443,7 +448,9 @@ def dual_package(tmp_path, *, sim=True):
 
 @live
 @pytest.mark.integration
-def test_shared_package_units_live_physical_and_spice_identity(tmp_path):
+def test_shared_package_units_live_physical_and_spice_identity(
+    tmp_path: Path,
+) -> None:
     b, chip, t, power = dual_package(tmp_path)
     info = render(b, tmp_path, spice=True, svg=False)
     assert info["roundtrip_ok"] and info["spice_ok"] and info["erc"] == [], info
@@ -497,7 +504,9 @@ def test_shared_package_units_live_physical_and_spice_identity(tmp_path):
     assert len([c for c in comps if str(find(c, "ref")[1]) == "U1"]) == 1
 
 
-def test_package_missing_power_duplicate_units_and_invalid_maps(tmp_path):
+def test_package_missing_power_duplicate_units_and_invalid_maps(
+    tmp_path: Path,
+) -> None:
     b, chip, t, power = dual_package(tmp_path)
     assert netlist(b)
     duplicate = b.bind(B1=t.bind(UA=chip.unit("A")))
@@ -524,7 +533,9 @@ def test_package_missing_power_duplicate_units_and_invalid_maps(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_non_simulated_connector_is_physical_and_excluded_consistently(tmp_path):
+def test_non_simulated_connector_is_physical_and_excluded_consistently(
+    tmp_path: Path,
+) -> None:
     b = Block(
         "Connector",
         "{left}──{1}J1\n{right}─{2}J1",
@@ -547,7 +558,7 @@ def test_non_simulated_connector_is_physical_and_excluded_consistently(tmp_path)
 
 @live
 @pytest.mark.integration
-def test_export_name_variants_preserve_identity(tmp_path):
+def test_export_name_variants_preserve_identity(tmp_path: Path) -> None:
     template = Block("Same", "{in}─R1─{out}")
     a = template.bind(R1=R("1k"))
     b = template.bind(R1=R("2k"))
@@ -565,7 +576,7 @@ def test_export_name_variants_preserve_identity(tmp_path):
             render(a, tmp_path, export_name=stem)
 
 
-def test_diagnostic_excerpt_and_binding_context():
+def test_diagnostic_excerpt_and_binding_context() -> None:
     with pytest.raises(YasdlError) as error:
         Block("Bad", "\n    R1\n     R1\n")
     text = str(error.value)
@@ -585,7 +596,9 @@ def test_diagnostic_excerpt_and_binding_context():
     )
 
 
-def test_dependency_failures_are_actionable(tmp_path, monkeypatch):
+def test_dependency_failures_are_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from yasdl import kicad_lib
 
     missing = tmp_path / "absent"
@@ -603,7 +616,7 @@ def test_dependency_failures_are_actionable(tmp_path, monkeypatch):
 
 @live
 @pytest.mark.integration
-def test_hierarchical_nc_and_vertical_groups_live(tmp_path):
+def test_hierarchical_nc_and_vertical_groups_live(tmp_path: Path) -> None:
     from yasdl import Sketch
 
     single = Block("Single", "{a}─R1─{b}", R1=R("1k"))
@@ -633,7 +646,7 @@ def test_hierarchical_nc_and_vertical_groups_live(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_schematic_models_remain_usable_after_project_move(tmp_path):
+def test_schematic_models_remain_usable_after_project_move(tmp_path: Path) -> None:
     original = tmp_path / "original"
     original.mkdir()
     b = bench()
@@ -653,7 +666,7 @@ def test_schematic_models_remain_usable_after_project_move(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_package_export_negative_unit_and_physical_pin_changes(tmp_path):
+def test_package_export_negative_unit_and_physical_pin_changes(tmp_path: Path) -> None:
     b, chip, t, power = dual_package(tmp_path)
     path, refs = to_kicad(b, tmp_path / "dual.kicad_sch")
     root = parse(path.read_text())
@@ -672,7 +685,7 @@ def test_package_export_negative_unit_and_physical_pin_changes(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_p0_spice_rejects_added_instances_and_changed_models(tmp_path):
+def test_p0_spice_rejects_added_instances_and_changed_models(tmp_path: Path) -> None:
     b = bench()
     path, refs = to_kicad(b, tmp_path / "bench.kicad_sch")
     text = export_kicad_spice(path)
@@ -691,7 +704,7 @@ def test_p0_spice_rejects_added_instances_and_changed_models(tmp_path):
 
 @live
 @pytest.mark.integration
-def test_p0_global_signal_name_is_preserved(tmp_path):
+def test_p0_global_signal_name_is_preserved(tmp_path: Path) -> None:
     b = Block("Shared", "[Shared]─R1─[GND]", R1=R("1k"))
     info = render(b, tmp_path, svg=False, spice=True)
     assert info["roundtrip_ok"] and info["spice_ok"] and info["erc"] == [], info
@@ -701,7 +714,7 @@ def test_p0_global_signal_name_is_preserved(tmp_path):
     assert ".global Shared" in spice_netlist(b, subckt="shared")
 
 
-def test_opamp_role_maps_and_model_order_are_independent():
+def test_opamp_role_maps_and_model_order_are_independent() -> None:
     m = SpiceModel("X", ("7", "4", "6", "3", "2"), "model")
     a = AtomOpamp5(
         "741", pins={"inp": 3, "inn": 2, "out": 6, "V+": 7, "V-": 4}, spice=m
@@ -730,7 +743,7 @@ def test_opamp_role_maps_and_model_order_are_independent():
 
 @live
 @pytest.mark.integration
-def test_portable_included_model_resources(tmp_path):
+def test_portable_included_model_resources(tmp_path: Path) -> None:
     models = tmp_path / "models"
     models.mkdir()
     child = models / "child.lib"
@@ -754,7 +767,9 @@ def test_portable_included_model_resources(tmp_path):
     assert len(list((moved / "spice_models").glob("*.lib"))) == 2
 
 
-def test_wrong_kicad_version_is_actionable(tmp_path, monkeypatch):
+def test_wrong_kicad_version_is_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from yasdl import kicad_lib
 
     cli = tmp_path / "kicad-cli"
@@ -793,7 +808,7 @@ def test_wrong_kicad_version_is_actionable(tmp_path, monkeypatch):
     ],
     ids=["both_inputs_labelled", "plus_below_only"],
 )
-def test_p0_direct_opamp_supply_assertions_reject_input_mirror(canvas):
+def test_p0_direct_opamp_supply_assertions_reject_input_mirror(canvas: str) -> None:
     from yasdl import OPAMP
 
     with pytest.raises(YasdlError, match="does not fit.*pin labels"):
@@ -804,8 +819,8 @@ def test_p0_direct_opamp_supply_assertions_reject_input_mirror(canvas):
 @pytest.mark.integration
 @pytest.mark.parametrize("rail,voltage", [("+12V", 12), ("-12V", -12)])
 def test_p0_registered_power_names_retain_spice_global_identity(
-    tmp_path, rail, voltage
-):
+    tmp_path: Path, rail: str, voltage: int
+) -> None:
     b = Block(
         "RegisteredSupply",
         f"[{rail}]\n  │\n  R1\n  │\n  ├─{{out}}\n  │\n  R2\n  │\n[GND]",
@@ -829,7 +844,7 @@ def test_p0_registered_power_names_retain_spice_global_identity(
         assert m and float(m[1]) == pytest.approx(voltage / 2)
 
 
-def test_json_preserves_differently_bound_same_name_and_nested_definitions():
+def test_json_preserves_differently_bound_same_name_and_nested_definitions() -> None:
     from yasdl import std
     from yasdl.parts import Q2N3904, Q2N3906
 

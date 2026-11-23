@@ -1,5 +1,7 @@
 """P0: real KiCad exports and independent negative controls."""
 
+from pathlib import Path
+
 import pytest
 from yasdl import Atom, Block, I, R, spice_netlist, SpiceModel, V, YasdlError
 from yasdl.kicad_export import compare_spice, export_kicad_spice, render, to_kicad
@@ -14,7 +16,9 @@ from yasdl.kicad_lib import KICAD_CLI
 @pytest.mark.parametrize(
     "current_spec", ["dc 0 ac 1m", "pulse(0 1m 0 1n 1n 1m 2m)", "sin(0 1m 41)"]
 )
-def test_p0_real_sources_x_parameters_and_mutations(tmp_path, source, current_spec):
+def test_p0_real_sources_x_parameters_and_mutations(
+    tmp_path: Path, source: str, current_spec: str
+) -> None:
     lib = tmp_path / "trim.lib"
     lib.write_text(".subckt trim a b params: r=1k\nR1 a b {r}\n.ends\n")
     x = Atom(
@@ -64,7 +68,7 @@ def test_p0_real_sources_x_parameters_and_mutations(tmp_path, source, current_sp
     assert not compare_spice(b, text.replace("Drive", "fake_global"), refs)[0]
 
 
-def test_port_order_rejects_duplicate_aliases():
+def test_port_order_rejects_duplicate_aliases() -> None:
     b = Block("R", "{a}──R1──{b}", R1=R("1k"))
     with pytest.raises(YasdlError, match="every port once"):
         spice_netlist(b, subckt="r", port_order=["a", "a"])
@@ -73,7 +77,9 @@ def test_port_order_rejects_duplicate_aliases():
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad unavailable")
 @pytest.mark.parametrize("value,agrees", [("1MEG", True), ("1m", True), ("1M", False)])
-def test_explicit_mega_and_milli_convention(tmp_path, value, agrees):
+def test_explicit_mega_and_milli_convention(
+    tmp_path: Path, value: str, agrees: bool
+) -> None:
     info = render(
         Block("Scale", "{a}──R1──{b}", R1=R(value)), tmp_path, svg=False, spice=True
     )

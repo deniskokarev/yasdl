@@ -10,7 +10,7 @@ from yasdl import Atom, Block, kicad_lib, NPN, R
 from yasdl.kicad_lib import YasdlDependencyError
 
 
-def _fake_cli(tmp_path, script):
+def _fake_cli(tmp_path: Path, script: str) -> Path:
     cli = tmp_path / "bin" / "kicad-cli"
     cli.parent.mkdir(parents=True, exist_ok=True)
     cli.write_text("#!/bin/sh\n" + script)
@@ -18,13 +18,17 @@ def _fake_cli(tmp_path, script):
     return cli
 
 
-def test_yasdl_kicad_overrides_discovery(monkeypatch, tmp_path):
+def test_yasdl_kicad_overrides_discovery(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("YASDL_KICAD", str(tmp_path))
     root, searched = kicad_lib.find_kicad_root()
     assert root == tmp_path and searched == [tmp_path]
 
 
-def test_discovery_picks_the_first_installed_candidate(monkeypatch, tmp_path):
+def test_discovery_picks_the_first_installed_candidate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.delenv("YASDL_KICAD", raising=False)
     empty, prefix, mac = (
         tmp_path / "none",
@@ -42,7 +46,9 @@ def test_discovery_picks_the_first_installed_candidate(monkeypatch, tmp_path):
     assert kicad_lib.find_kicad_root() == (empty, [empty])
 
 
-def test_missing_cli_names_operation_path_and_remedy(monkeypatch, tmp_path):
+def test_missing_cli_names_operation_path_and_remedy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from yasdl.kicad_export import render
 
     monkeypatch.setattr(kicad_lib, "KICAD_CLI", tmp_path / "nope" / "kicad-cli")
@@ -53,7 +59,9 @@ def test_missing_cli_names_operation_path_and_remedy(monkeypatch, tmp_path):
     assert str(tmp_path / "nope" / "kicad-cli") in msg and "YASDL_KICAD" in msg
 
 
-def test_failing_cli_reports_command_and_output(monkeypatch, tmp_path):
+def test_failing_cli_reports_command_and_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from yasdl.kicad_sch import export_netlist
 
     cli = _fake_cli(tmp_path, 'echo "boom: library table broken" >&2\nexit 3\n')
@@ -62,7 +70,9 @@ def test_failing_cli_reports_command_and_output(monkeypatch, tmp_path):
         export_netlist(tmp_path / "x.kicad_sch")
 
 
-def test_erc_without_report_is_an_error_not_a_pass(monkeypatch, tmp_path):
+def test_erc_without_report_is_an_error_not_a_pass(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Before: a kicad-cli that wrote no report produced erc == [] (clean)."""
     from yasdl.kicad_export import erc
 
@@ -72,7 +82,7 @@ def test_erc_without_report_is_an_error_not_a_pass(monkeypatch, tmp_path):
         erc(tmp_path / "x.kicad_sch")
 
 
-def test_missing_library_and_symbol():
+def test_missing_library_and_symbol() -> None:
     with pytest.raises(
         YasdlDependencyError, match="symbol library 'NoSuchLib' not found"
     ):
@@ -83,7 +93,9 @@ def test_missing_library_and_symbol():
         Atom("Device:Q_NPX").symbol
 
 
-def test_missing_symbol_dir_mentions_kicad_remedy(monkeypatch, tmp_path):
+def test_missing_symbol_dir_mentions_kicad_remedy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(kicad_lib, "SYMBOL_DIR", tmp_path / "symbols")
     kicad_lib._library.cache_clear()
     kicad_lib.load.cache_clear()
@@ -97,7 +109,7 @@ def test_missing_symbol_dir_mentions_kicad_remedy(monkeypatch, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not kicad_lib.KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_spice_model_resources(tmp_path):
+def test_spice_model_resources(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     q = Block("Q", "     │\n{b}─Q1\n     │\n   [GND]", Q1=NPN("2N9999"))

@@ -6,6 +6,7 @@ S-expression reader. Physical pin numbers are checked through KiCad's own netlis
 """
 
 import re
+from pathlib import Path
 
 import pytest
 from yasdl import (
@@ -45,7 +46,7 @@ DUAL = {
 }
 
 
-def kicad_pins(lib, name):
+def kicad_pins(lib: str, name: str) -> dict[str, str]:
     """{number: name} of a KiCad library symbol, following (extends ...) to its parent."""
     root = parse((SYMBOL_DIR / f"{lib}.kicad_sym").read_text())
     syms = {str(s[1]): s for s in find_all(root, "symbol")}
@@ -75,7 +76,7 @@ def factory_pins(atom_or_type):
 
 
 @pytest.mark.parametrize("name", ["2N3904", "2N3906", "BD139", "BD140", "1N4148"])
-def test_standard_parts_match_datasheets(name):
+def test_standard_parts_match_datasheets(name: str) -> None:
     from yasdl import parts
 
     factory = {
@@ -99,7 +100,7 @@ def test_standard_parts_match_datasheets(name):
         ("1N4148", "Diode"),
     ],
 )
-def test_standard_parts_match_kicad_device_symbols(name, lib):
+def test_standard_parts_match_kicad_device_symbols(name: str, lib: str) -> None:
     from yasdl import parts
 
     factory = {
@@ -114,7 +115,7 @@ def test_standard_parts_match_kicad_device_symbols(name, lib):
 
 @pytest.mark.skipif(not have_libs, reason="KiCad device libraries missing")
 @pytest.mark.parametrize("device", ["LM358", "TL072"])
-def test_dual_opamp_pinout_matches_datasheet_and_kicad(device):
+def test_dual_opamp_pinout_matches_datasheet_and_kicad(device: str) -> None:
     from yasdl.parts import dual_opamp
 
     kind = dual_opamp(f"{device}_PINS")
@@ -123,14 +124,14 @@ def test_dual_opamp_pinout_matches_datasheet_and_kicad(device):
     assert {n: r.split(".")[-1].replace("out", "~") for n, r in DUAL.items()} == kicad
 
 
-def test_generic_symbol_is_not_mutated():
+def test_generic_symbol_is_not_mutated() -> None:
     from yasdl.parts import BD139, Q2N3904
 
     Q2N3904(), BD139()
     assert sorted(p.number for p in load("Device:Q_NPN").pins) == ["B", "C", "E"]
 
 
-def test_factory_validation():
+def test_factory_validation() -> None:
     with pytest.raises(YasdlError, match="exactly the roles"):
         AtomNPN("BAD1", {"E": "1", "B": "2"})
     with pytest.raises(YasdlError, match="distinct"):
@@ -206,7 +207,7 @@ def test_two_pinouts_in_one_schematic(tmp_path):
 
 @pytest.mark.integration
 @kicad
-def test_generic_parts_keep_blank_metadata(tmp_path):
+def test_generic_parts_keep_blank_metadata(tmp_path: Path) -> None:
     from yasdl import NPN
     from yasdl.kicad_export import render
     from yasdl.kicad_sch import export_netlist_full
@@ -222,7 +223,7 @@ def test_generic_parts_keep_blank_metadata(tmp_path):
     assert comps["Q2"]["datasheet"] in ("", "~")
 
 
-def test_opamp5_factory_maps_model_pins(tmp_path):
+def test_opamp5_factory_maps_model_pins(tmp_path: Path) -> None:
     lib = tmp_path / "single.lib"
     lib.write_text(
         ".subckt SINGLE 1 2 3 4 5\n* noninv inv vcc vee out\nB1 5 0 V=1e5*(V(1)-V(2))\n.ends\n"

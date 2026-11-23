@@ -4,6 +4,7 @@ instance parameters on one shared model, simulation and the round trip of its se
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import Block, POT, pot_position, R, spice_netlist, V, YasdlError
@@ -12,7 +13,7 @@ from yasdl.kicad_lib import KICAD_CLI, load
 have_ngspice = shutil.which("ngspice") is not None
 
 
-def test_symbol_pins_and_roles():
+def test_symbol_pins_and_roles() -> None:
     pins = {p.number: p.side for p in load("Device:R_Potentiometer").pins}
     assert pins == {
         "1": "N",
@@ -23,7 +24,7 @@ def test_symbol_pins_and_roles():
     assert pot.aliases == {"ccw": "1", "w": "2", "wiper": "2", "cw": "3"}
 
 
-def test_labels_orient_the_pot():
+def test_labels_orient_the_pot() -> None:
     """{cw} on top and the wiper on the left: only a half turn puts pin 3 up, pin 2 left."""
     block = Block(
         "Pot",
@@ -50,7 +51,7 @@ def test_labels_orient_the_pot():
         (1.0, "log", 1.0),
     ],
 )
-def test_position_and_taper(rotation, taper, pos):
+def test_position_and_taper(rotation: float, taper: str, pos: float) -> None:
     assert pot_position(rotation, taper) == pytest.approx(pos)
 
 
@@ -68,7 +69,7 @@ def test_invalid_settings(kwargs, match):
 
 
 @pytest.mark.parametrize("value", ["1M", "4.7M", "ten", "10 k", ""])
-def test_invalid_values(value):
+def test_invalid_values(value: str) -> None:
     with pytest.raises(YasdlError):
         POT(value)
 
@@ -92,7 +93,7 @@ DIVIDER = Block(
 )
 
 
-def test_spice_element_carries_parameters():
+def test_spice_element_carries_parameters() -> None:
     text = spice_netlist(DIVIDER)
     assert re.search(r"^X_RV \S+ out 0 yasdl_pot R=10k POS=0\.25$", text, re.M)
     assert text.count(".include") == 1
@@ -104,7 +105,9 @@ def test_spice_element_carries_parameters():
     "rotation, taper, expected",
     [(0.25, "lin", 0.75), (0.5, "log", 0.9), (0.0, "lin", 1.0), (1.0, "lin", 0.0)],
 )
-def test_wiper_voltage_in_ngspice(tmp_path, rotation, taper, expected):
+def test_wiper_voltage_in_ngspice(
+    tmp_path: Path, rotation: float, taper: str, expected: float
+) -> None:
     """CCW end at 1 V, CW end at 0 V: V(wiper) = 1 - POS."""
     block = DIVIDER.bind(RV=POT("10k", rotation=rotation, taper=taper))
     deck = spice_netlist(block) + ".control\nop\nprint v(out)\n.endc\n.end\n"
@@ -143,7 +146,7 @@ TWO_POTS = Block(
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_settings_survive_the_round_trip(tmp_path):
+def test_settings_survive_the_round_trip(tmp_path: Path) -> None:
     """Both pots have the same model and equivalent connections; only their settings differ,
     and exchanging the settings must be detected."""
     from yasdl.kicad_export import export_kicad_spice, render, spice_roundtrip
@@ -168,7 +171,7 @@ def test_settings_survive_the_round_trip(tmp_path):
     assert not ok and "pos=" in diff
 
 
-def test_pot_is_still_a_resistor_symbol():
+def test_pot_is_still_a_resistor_symbol() -> None:
     # A fixed divider and a pot occupy the same three-terminal drawing
     assert POT("10k").lib_id == "Device:R_Potentiometer"
     assert R("1k").lib_id == "Device:R"

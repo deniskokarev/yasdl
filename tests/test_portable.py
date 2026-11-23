@@ -4,6 +4,7 @@ installation dependencies."""
 
 import re
 import shutil
+from pathlib import Path
 
 import pytest
 from yasdl import Block, POT, R
@@ -29,7 +30,7 @@ DESIGN = """
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_moved_project_still_checks_and_simulates(tmp_path):
+def test_moved_project_still_checks_and_simulates(tmp_path: Path) -> None:
     from yasdl.kicad_export import erc, export_kicad_spice, render
 
     chip = Package(IDEAL_DUAL, "U1")

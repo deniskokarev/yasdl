@@ -1,5 +1,7 @@
 """Direct multi-unit root symbols retain physical identity and explicit model mappings."""
 
+from pathlib import Path
+
 import pytest
 from yasdl import Block, netlist, Package, PackageType, spice_netlist, SpiceModel, std
 from yasdl.kicad_lib import BUNDLED_MODELS, KICAD_CLI
@@ -12,7 +14,7 @@ MODEL = SpiceModel(
 )
 
 
-def design(chip):
+def design(chip: Package) -> Block:
     return Block(
         "RootPackage",
         "[VCC]\n  │\n  PW\n  │\n[VEE]\n\n{a}──FA──FB──{b}",
@@ -22,7 +24,7 @@ def design(chip):
     )
 
 
-def test_root_package_type_preserves_units_and_complete_whole_model():
+def test_root_package_type_preserves_units_and_complete_whole_model() -> None:
     chip = PackageType("Device:Opamp_Dual", "DUAL", MODEL)(name="UA")
     assert chip.unit(1) is chip.unit("A") and chip.unit("C") is chip.power()
     nets = netlist(design(chip))
@@ -34,7 +36,7 @@ def test_root_package_type_preserves_units_and_complete_whole_model():
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_raw_package_physical_export_and_spice(tmp_path):
+def test_raw_package_physical_export_and_spice(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
     from yasdl.kicad_sch import export_netlist_full
 
@@ -54,7 +56,7 @@ def test_raw_package_physical_export_and_spice(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_physical_package_needs_no_simulation_resources(tmp_path):
+def test_physical_package_needs_no_simulation_resources(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     missing = SpiceModel(
@@ -69,7 +71,9 @@ def test_physical_package_needs_no_simulation_resources(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_package_preserves_supplied_model_pin_mapping_and_rejects_a_swap(tmp_path):
+def test_package_preserves_supplied_model_pin_mapping_and_rejects_a_swap(
+    tmp_path: Path,
+) -> None:
     from dataclasses import replace
 
     from yasdl.kicad_export import render
@@ -91,7 +95,7 @@ def test_package_preserves_supplied_model_pin_mapping_and_rejects_a_swap(tmp_pat
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_package_model_resource_can_be_supplied_at_render_time(tmp_path):
+def test_package_model_resource_can_be_supplied_at_render_time(tmp_path: Path) -> None:
     from dataclasses import replace
 
     from yasdl.kicad_export import render
@@ -107,7 +111,9 @@ def test_package_model_resource_can_be_supplied_at_render_time(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_per_channel_package_model_can_be_supplied_at_render_time(tmp_path):
+def test_per_channel_package_model_can_be_supplied_at_render_time(
+    tmp_path: Path,
+) -> None:
     from yasdl.kicad_export import render
     from yasdl.parts import dual_opamp
 

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from yasdl import (
     AtomOpamp3,
@@ -17,7 +19,7 @@ from yasdl.kicad_lib import KICAD_CLI
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad unavailable")
-def test_generic_opamp_physical_maps_and_powered_wrapper_mirror(tmp_path):
+def test_generic_opamp_physical_maps_and_powered_wrapper_mirror(tmp_path: Path) -> None:
     lib = tmp_path / "opamp.lib"
     lib.write_text(
         ".subckt realop inp inn vp vm out\nB1 out 0 V={1e6*(V(inp)-V(inn))}\n.ends\n.subckt ideal inp inn out\nB1 out 0 V={1e6*(V(inp)-V(inn))}\n.ends\n"
@@ -40,7 +42,7 @@ def test_generic_opamp_physical_maps_and_powered_wrapper_mirror(tmp_path):
         assert info["roundtrip_ok"] and info["spice_ok"] and info["erc"] == [], info
 
 
-def test_model_order_requires_every_role(tmp_path):
+def test_model_order_requires_every_role(tmp_path: Path) -> None:
     with pytest.raises(YasdlError, match="all five opamp roles"):
         AtomOpamp5(
             "Bad",
@@ -65,7 +67,7 @@ def test_package_physical_ports_are_independent_reference_map():
     }
 
 
-def test_generic_role_aliases_ignore_case(tmp_path):
+def test_generic_role_aliases_ignore_case(tmp_path: Path) -> None:
     real = AtomOpamp5(
         "Real",
         {"inp": 3, "inn": 2, "out": 1, "vp": 8, "vm": 4},

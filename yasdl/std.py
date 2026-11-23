@@ -352,7 +352,7 @@ def push_pull_core(
         raise YasdlError(f"push_pull_core(): n must be 1..9, got {n}")
     npn, pnp = npn or NPN("2N3904"), pnp or PNP("2N3906")
 
-    def output(q, tag):
+    def output(q: Atom | Block, tag: str) -> Block:
         if n == 1:
             return Block(f"Ballasted{tag}", _BALLASTED, Q1=q, RE1=R(re))
         return parallel(q, n, re, name=f"Parallel{tag}{n}")
@@ -843,7 +843,7 @@ _LTP_MIRROR_PNP = """
 """
 
 
-def _check_kind(kind):
+def _check_kind(kind: str) -> None:
     if kind not in ("npn", "pnp"):
         raise YasdlError(f"kind must be 'npn' or 'pnp', not {kind!r}")
 
@@ -864,7 +864,7 @@ def mirror(
     return Block(name or f"Mirror_{kind}", canvas, bindings=parts)
 
 
-def wilson(q, kind: str = "npn", name: str | None = None) -> Block:
+def wilson(q: Atom | Block, kind: str = "npn", name: str | None = None) -> Block:
     """Wilson current mirror (higher output resistance, base-current error compensated): Q1
     takes the reference at {in}, Q3 delivers {out}, Q2 is diode-connected."""
     _check_kind(kind)
@@ -872,7 +872,7 @@ def wilson(q, kind: str = "npn", name: str | None = None) -> Block:
     return Block(name or f"Wilson_{kind}", canvas, Q1=q, Q2=q, Q3=q)
 
 
-def _two_terminal(part):
+def _two_terminal(part: str | Atom | Block) -> Atom | Block:
     return R(part) if isinstance(part, str) else part
 
 
@@ -900,8 +900,8 @@ def diff_pair(
 
 
 def diff_pair_mirror(
-    q,
-    load,
+    q: Atom | Block,
+    load: Atom | Block,
     kind: str = "npn",
     re: str = "100",
     rt: "str | Atom | Block" = "10k",
@@ -964,7 +964,12 @@ SALLEN_KEY = Block(
 
 
 def sallen_key_lowpass(
-    r1: str, r2: str, c_shunt: str, c_feedback: str, u=None, name: str | None = None
+    r1: str,
+    r2: str,
+    c_shunt: str,
+    c_feedback: str,
+    u: Atom | Block | None = None,
+    name: str | None = None,
 ) -> Block:
     """Second-order low-pass (R, R in series; C to ground; C as feedback)."""
     b = SALLEN_KEY.bind(ZA=R(r1), ZB=R(r2), ZS=C(c_shunt), ZF=C(c_feedback))
@@ -973,7 +978,12 @@ def sallen_key_lowpass(
 
 
 def sallen_key_highpass(
-    c1: str, c2: str, r_shunt: str, r_feedback: str, u=None, name: str | None = None
+    c1: str,
+    c2: str,
+    r_shunt: str,
+    r_feedback: str,
+    u: Atom | Block | None = None,
+    name: str | None = None,
 ) -> Block:
     """Second-order high-pass (C, C in series; R to ground; R as feedback)."""
     b = SALLEN_KEY.bind(ZA=C(c1), ZB=C(c2), ZS=R(r_shunt), ZF=R(r_feedback))

@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import NoReturn
 
 from .sexp import find, find_all, parse
 
@@ -55,7 +57,7 @@ DependencyError = YasdlDependencyError
 class SymbolNotFound(YasdlDependencyError, KeyError):
     """A missing library symbol, catchable as either a dependency error or KeyError."""
 
-    def __str__(self):  # KeyError would quote the message
+    def __str__(self) -> str:  # KeyError would quote the message
         return str(self.args[0]) if self.args else ""
 
 
@@ -71,7 +73,7 @@ class KiCadCommandFailed(YasdlDependencyError):
     """kicad-cli ran and exited with an error; the message holds its command and output."""
 
 
-def kicad_candidates():
+def kicad_candidates() -> list[Path]:
     """Normal installation roots, then the prefix of a kicad-cli found on PATH."""
     import shutil
 
@@ -219,7 +221,7 @@ class LibPin:
 class _FrozenList(list):
     """An S-expression list that refuses in-place edits (cached library definitions)."""
 
-    def _blocked(self, *args, **kwargs):
+    def _blocked(self, *args, **kwargs) -> NoReturn:
         raise TypeError("symbol definitions are immutable; derive a new definition")
 
     __setitem__ = __delitem__ = append = extend = insert = pop = remove = _blocked
@@ -247,7 +249,7 @@ class LibSymbol:
     unit: int = 1
     unit_count: int = 1
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, "definition", _freeze(self.definition))
 
     @property
@@ -359,7 +361,9 @@ def derive_symbol(
     return lib_id
 
 
-def write_derived_library(path: Path, lib_ids, defs: dict | None = None) -> Path:
+def write_derived_library(
+    path: Path, lib_ids: Iterable[str], defs: dict | None = None
+) -> Path:
     """A .kicad_sym file holding the given derived definitions (for the project's table)."""
     from .sexp import dumps, Sym
 
@@ -519,7 +523,9 @@ def rot_with_pin_on(sym: LibSymbol, side: str) -> int:
     return next(r for r in (0, 90, 180, 270) if pin_side(sym.pins[0], r, None) == side)
 
 
-def screen_bbox(sym: LibSymbol, rot: int, mirror: str | None):
+def screen_bbox(
+    sym: LibSymbol, rot: int, mirror: str | None
+) -> tuple[float, float, float, float]:
     xmin, ymin, xmax, ymax = sym.bbox
     pts = [to_screen(x, y, rot, mirror) for x in (xmin, xmax) for y in (ymin, ymax)]
     return (

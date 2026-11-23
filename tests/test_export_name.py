@@ -1,5 +1,7 @@
 """P1.3: render(export_name=...) chooses output file names independently of the block."""
 
+from pathlib import Path
+
 import pytest
 from docs.examples.blocks import DARLINGTON
 from yasdl import netlist, NPN, PNP
@@ -10,7 +12,7 @@ have_kicad = KICAD_CLI.exists()
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
+def test_two_bindings_of_one_template_render_side_by_side(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     upper = DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904"))
@@ -34,7 +36,7 @@ def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_default_name_is_the_block_name(tmp_path):
+def test_default_name_is_the_block_name(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     info = render(
@@ -44,7 +46,7 @@ def test_default_name_is_the_block_name(tmp_path):
 
 
 @pytest.mark.parametrize("bad", ["", "a/b", "..", "."])
-def test_export_name_must_be_a_plain_stem(tmp_path, bad):
+def test_export_name_must_be_a_plain_stem(tmp_path: Path, bad: str) -> None:
     from yasdl.kicad_export import render
 
     with pytest.raises(ValueError, match="export_name"):

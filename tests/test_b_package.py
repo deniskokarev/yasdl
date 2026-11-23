@@ -9,6 +9,8 @@ V+ 8, V- 4), one footprint, and one whole-device SPICE element.
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from yasdl import (
@@ -59,13 +61,13 @@ TOP_CANVAS = """
 
 
 @pytest.fixture
-def dual(tmp_path):
+def dual(tmp_path: Path) -> Callable[..., Package]:
     lib = tmp_path / "dual.lib"
     lib.write_text(DUAL_LIB)
     return dual_opamp("TESTDUAL", model="testdual", library=lib, model_pins=MODEL_PINS)
 
 
-def top(chip, **override):
+def top(chip: Package, **override) -> Block:
     bindings = dict(
         FA=FOLLOWER.bind(U1=chip.unit("A")),
         FB=FOLLOWER.bind(U1=chip.unit("B")),
@@ -75,7 +77,7 @@ def top(chip, **override):
     return Block("DualTop", TOP_CANVAS, **bindings)
 
 
-def test_units_fill_three_terminal_holes(dual):
+def test_units_fill_three_terminal_holes(dual: Callable[..., Package]) -> None:
     chip = dual(name="UA")
     block = top(chip)
     nets = netlist(block)
@@ -96,11 +98,13 @@ def test_whole_device_spice_element(dual):
     assert text.count(".include") == 1
 
 
-def test_default_package_name_is_its_first_unit_path(dual):
+def test_default_package_name_is_its_first_unit_path(
+    dual: Callable[..., Package],
+) -> None:
     assert "X_FA_U1 " in spice_netlist(top(dual()))
 
 
-def test_every_unit_must_be_bound_once(dual):
+def test_every_unit_must_be_bound_once(dual: Callable[..., Package]) -> None:
     chip = dual(name="UA")
     with pytest.raises(YasdlError, match="unbound units B"):
         netlist(top(chip, FB=FOLLOWER.bind(U1=OPAMP_IDEAL())))
@@ -128,7 +132,7 @@ def test_package_api_errors(dual, tmp_path):
         )
 
 
-def test_two_packages_need_distinct_names(dual):
+def test_two_packages_need_distinct_names(dual: Callable[..., Package]) -> None:
     a, b = dual(name="U1"), dual(name="U1")
     block = Block(
         "TwoChips",
@@ -146,7 +150,9 @@ def test_two_packages_need_distinct_names(dual):
 
 @pytest.mark.integration
 @kicad
-def test_one_physical_chip_in_kicad(dual, tmp_path):
+def test_one_physical_chip_in_kicad(
+    dual: Callable[..., Package], tmp_path: Path
+) -> None:
     from yasdl.kicad_export import render
     from yasdl.kicad_sch import export_netlist_full
     from yasdl.sexp import find, find_all, parse
@@ -175,7 +181,7 @@ def test_one_physical_chip_in_kicad(dual, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
-def test_whole_device_simulates(dual, tmp_path):
+def test_whole_device_simulates(dual: Callable[..., Package], tmp_path: Path) -> None:
     chip = dual(name="UA")
     chain = Block(
         "Chain",
@@ -234,14 +240,14 @@ J1J1──┐   │
 )
 
 
-def test_non_simulated_part_is_left_out_of_spice_only():
+def test_non_simulated_part_is_left_out_of_spice_only() -> None:
     nets = netlist(JACKED)
     assert any(p.startswith("J1.") for pins in nets.values() for p in pins)
     text = spice_netlist(JACKED)
     assert "J1" not in text and "R_R1 " in text and "C_C1 " in text
 
 
-def test_part_without_model_suggests_sim_false():
+def test_part_without_model_suggests_sim_false() -> None:
     block = Block(
         "NoModel",
         "J1J1──R1──{out}\nJ1J1──┐\n      │\n    [GND]",
@@ -254,7 +260,7 @@ def test_part_without_model_suggests_sim_false():
 
 @pytest.mark.integration
 @kicad
-def test_non_simulated_part_in_kicad(tmp_path):
+def test_non_simulated_part_in_kicad(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, render
     from yasdl.kicad_sch import export_netlist_full
     from yasdl.sexp import find, find_all, parse

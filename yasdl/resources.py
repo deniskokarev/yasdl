@@ -19,7 +19,12 @@ _INCLUDE = re.compile(
 )
 
 
-def copy_model_resource(source, destination, cache=None, _active=None) -> Path:
+def copy_model_resource(
+    source: str | Path,
+    destination: str | Path,
+    cache: dict[Path, Path] | None = None,
+    _active: set[Path] | None = None,
+) -> Path:
     """Copy `source` and its include closure into `destination`; return the copied path.
 
     cache: {resolved source: copied path}, shared across calls to copy each file once.
@@ -42,7 +47,7 @@ def copy_model_resource(source, destination, cache=None, _active=None) -> Path:
         ) from e
     active.add(source)
 
-    def include(m):
+    def include(m: re.Match[str]) -> str:
         child = Path(m[2] or m[3] or m[4]).expanduser()
         if not child.is_absolute():
             child = source.parent / child

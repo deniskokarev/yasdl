@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from types import MappingProxyType
 from typing import NamedTuple, TYPE_CHECKING
 
-from .canvas import _UF, ARROWS, Canvas, CanvasError, minimal_period
+from .canvas import (
+    _UF,
+    ARROWS,
+    Attachment,
+    Canvas,
+    CanvasError,
+    Comp,
+    EdgePort,
+    minimal_period,
+)
 from .kicad_lib import (
     compose,
+    LibPin,
+    LibSymbol,
     load,
     orient_side,
     orient_vec,
@@ -52,7 +65,7 @@ class Atom:
         default=None, compare=False
     )  # shared Package of a unit view
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Descriptors are shared: their alias and arrow maps are read-only copies.
         object.__setattr__(self, "aliases", MappingProxyType(dict(self.aliases)))
         object.__setattr__(self, "arrows", MappingProxyType(dict(self.arrows)))
@@ -66,7 +79,13 @@ class Atom:
         if any(a not in ARROWS for a in arrows):
             raise YasdlError(f"{self.lib_id}: arrows must be one of {''.join(ARROWS)}")
 
-    def __call__(self, value=None, *, model=None, library=None):
+    def __call__(
+        self,
+        value: str | None = None,
+        *,
+        model: str | None = None,
+        library: str | Path | None = None,
+    ) -> Atom:
         """Instantiate a reusable descriptor, optionally overriding its value/model resource."""
         spice = self.spice
         if model is not None or library is not None:
@@ -108,7 +127,7 @@ class Atom:
         )
 
     @property
-    def symbol(self):
+    def symbol(self) -> LibSymbol:
         return load(self.lib_id, self.unit)
 
     def side_pins(self, rot: int, mirror: str | None) -> dict[str, list]:
@@ -123,7 +142,7 @@ class Atom:
         return out
 
     def matches_label(
-        self, pin, label: str, rot: int = 0, mirror: str | None = None
+        self, pin: LibPin, label: str, rot: int = 0, mirror: str | None = None
     ) -> bool:
         """Pin labels match a pin's name or number, case-insensitively, or an alias. Arrow labels
         match the pin's arrow after orienting the part (spec 2.5)."""
@@ -209,7 +228,7 @@ class Port(NamedTuple):
         return label.casefold() in (n.casefold() for n in self.names())
 
 
-def dip_order(edge_ports) -> list[int]:
+def dip_order(edge_ports: Sequence[tuple[str, int]]) -> list[int]:
     """DIP numbers for ports given as (side, pos): W top->bottom, S left->right,
     E bottom->top, N right->left."""
     key = {
@@ -326,7 +345,7 @@ class Block:
         explicit = [list(p.aliases) for p in cv.edge_ports]
         reexport = [self._reexport_candidate(p) for p in cv.edge_ports]
 
-        def lookup(key):
+        def lookup(key: str) -> int:
             for k, _port in enumerate(cv.edge_ports):
                 names = [defaults[k], f"D{dip[k]}", *explicit[k]]
                 if reexport[k]:
@@ -402,7 +421,7 @@ class Block:
         self._check_label_names(ports)
         return ports
 
-    def _check_label_names(self, ports):
+    def _check_label_names(self, ports: Sequence[Port]) -> None:
         """User net names must not clash (spec 2.8): labels must not look like default port
         names, and port aliases must differ from this block's labels (case-insensitive)."""
         aliases = {a.casefold(): a for p in ports for a in p.aliases}
@@ -425,7 +444,7 @@ class Block:
                     f"{{{aliases[lab.text.casefold()]}}}"
                 )
 
-    def _reexport_candidate(self, edge_port) -> str | None:
+    def _reexport_candidate(self, edge_port: EdgePort) -> str | None:
         """The one pin name (atom pin name or sub-block port name) on the port's net, if any."""
         cv = self.canvas
         root = cv.uf.find(edge_port.node)
@@ -569,7 +588,9 @@ class Block:
                 return target.matches_label(item[2], label, rot, mirror)
             return item[2].answers(label, rot, mirror)
 
-        def mapping(rot, mirror):
+        def mapping(
+            rot: int, mirror: str | None
+        ) -> list[tuple[Attachment, tuple[str | int, str, LibPin | Port], str]] | None:
             sp = keys(rot, mirror)
             if {s: len(sp[s]) for s in "NESW"} != drawn:
                 return None
@@ -607,13 +628,23 @@ class Block:
                 + self._fit_report(comp, options, keys, answers)
             )
 
-        def reading_order(fit):
+        def reading_order(
+            fit: tuple[
+                tuple[int, str | None],
+                list[tuple[Attachment, tuple[str | int, str, LibPin | Port], str]],
+            ],
+        ) -> int:
             """Pins that stay on a start side (N/W) or an end side (S/E): higher is better."""
             return sum(
                 (orig in "NW") == (new in "NW") for _, (_, orig, _), new in fit[1]
             )
 
-        def axis_flips(fit):
+        def axis_flips(
+            fit: tuple[
+                tuple[int, str | None],
+                list[tuple[Attachment, tuple[str | int, str, LibPin | Port], str]],
+            ],
+        ) -> int:
             """How many of the two axes the orientation changes (mirror: 1, 180 deg: 2)."""
             rot, mirror = fit[0]
             return (orient_side("E", rot, mirror) != "E") + (
@@ -629,7 +660,17 @@ class Block:
             comp.name, target, rot, mirror, [(a, item[0]) for a, item, _ in pairs]
         )
 
-    def _fit_report(self, comp, options, keys, answers) -> str:
+    def _fit_report(
+        self,
+        comp: Comp,
+        options: list[tuple[int, str | None]],
+        keys: Callable[
+            [int, str | None], dict[str, list[tuple[str | int, str, LibPin | Port]]]
+        ],
+        answers: Callable[
+            [tuple[str | int, str, LibPin | Port], str, int, str | None], bool
+        ],
+    ) -> str:
         """Why binding failed: the drawn attachments (with labels) and, for every orientation
         with the right pin counts, its pins per side and the first label it contradicts."""
         cv = self.canvas
@@ -681,10 +722,20 @@ class Block:
             )
         return "".join(lines) + self._binding_report(comp, options, keys, answers)
 
-    def _binding_report(self, comp, options, keys, answers) -> str:
+    def _binding_report(
+        self,
+        comp: Comp,
+        options: list[tuple[int, str | None]],
+        keys: Callable[
+            [int, str | None], dict[str, list[tuple[str | int, str, LibPin | Port]]]
+        ],
+        answers: Callable[
+            [tuple[str | int, str, LibPin | Port], str, int, str | None], bool
+        ],
+    ) -> str:
         """Why no orientation fits: the drawn signature and labels, then each candidate."""
 
-        def describe(att):
+        def describe(att: Attachment) -> str:
             where = "row" if att.side in "EW" else "col"
             label = f" label {att.pin_label!r}" if att.pin_label else ""
             return f"{where} {att.pos}{label}"
@@ -864,7 +915,7 @@ class Block:
             out["blocks"] = blocks
         return out
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Block({self.name}, {self.canvas.H}x{self.canvas.W}, ports={self.ports}, "
             f"unbound={self.unbound})"
@@ -910,7 +961,7 @@ class _Namer:
     must be unique case-insensitively across the design; derived names (default port names)
     get a suffix on a clash; generated names never collide with anything."""
 
-    def __init__(self, where: str):
+    def __init__(self, where: str) -> None:
         self.where, self.names, self.taken = where, {}, {}
 
     def _set(self, root, name):
@@ -945,7 +996,7 @@ class _Namer:
         return self.names[root]
 
 
-def _power_name(atom) -> str:
+def _power_name(atom: Atom) -> str:
     return atom.value or atom.lib_id.split(":")[1]
 
 

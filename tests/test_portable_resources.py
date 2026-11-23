@@ -1,4 +1,5 @@
 import shutil
+from pathlib import Path
 
 import pytest
 from yasdl import Atom, Block, SpiceModel
@@ -9,7 +10,9 @@ from yasdl.resources import copy_model_resource
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad unavailable")
-def test_nested_models_move_without_originals(tmp_path, monkeypatch):
+def test_nested_models_move_without_originals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     src = tmp_path / "source"
     src.mkdir()
     (src / "inner.lib").write_text(".subckt resistor a b\nR1 a b 1k\n.ends\n")
@@ -50,7 +53,7 @@ def test_nested_models_move_without_originals(tmp_path, monkeypatch):
     assert spice_roundtrip(c, moved / "Portable.kicad_sch", refs)[0]
 
 
-def test_missing_nested_resource_and_cycles(tmp_path):
+def test_missing_nested_resource_and_cycles(tmp_path: Path) -> None:
     root = tmp_path / "root.lib"
     root.write_text(".include missing.lib\n")
     with pytest.raises(FileNotFoundError, match="missing.lib"):
@@ -60,7 +63,9 @@ def test_missing_nested_resource_and_cycles(tmp_path):
         copy_model_resource(root, tmp_path / "out")
 
 
-def test_same_parent_text_distinct_nested_models_do_not_collide(tmp_path):
+def test_same_parent_text_distinct_nested_models_do_not_collide(
+    tmp_path: Path,
+) -> None:
     cache = {}
     copies = []
     for i, value in enumerate(("1k", "2k")):

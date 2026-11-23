@@ -20,6 +20,7 @@ parts at the end of this module, and tests/test_parts.py for their reference fix
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -36,7 +37,7 @@ OPAMP_ROLES = ("+", "-", "out", "V+", "V-")
 _ROLE_ALIASES = {"inp": "+", "inn": "-", "vp": "V+", "vm": "V-", "v+": "V+", "v-": "V-"}
 
 
-def _role(key, roles) -> str:
+def _role(key: int | str, roles: Sequence[str]) -> str:
     k = str(key).casefold()
     canonical = {r.casefold(): r for r in roles}
     if k in canonical:
@@ -47,7 +48,7 @@ def _role(key, roles) -> str:
     return str(key)
 
 
-def _pin_map(name: str, pins: dict, roles) -> dict[str, str]:
+def _pin_map(name: str, pins: dict, roles: Sequence[str]) -> dict[str, str]:
     """Validate a complete, one-to-one role -> physical pin map; values as strings. Role
     keys are case-insensitive; op-amp roles also accept inp/inn/vp/vm."""
     if pins is None:
@@ -86,7 +87,7 @@ def _metadata(footprint: str, datasheet: str, description: str = "") -> dict:
     return props
 
 
-def subckt_pins(model: str, library) -> list[str]:
+def subckt_pins(model: str, library: str | Path) -> list[str]:
     """Formal node names of `.subckt model` in a SPICE library (continuation lines joined)."""
     from .kicad_lib import YasdlDependencyError
     from .spice import spice_lines
@@ -141,16 +142,16 @@ def _bjt(kind: str, name, pins, model, library, footprint, datasheet, value):
 
 
 def AtomNPN(
-    name,
-    pins=None,
-    library=None,
-    model=None,
+    name: str,
+    pins: dict[str, int | str] | None = None,
+    library: str | Path | None = None,
+    model: str | None = None,
     *,
-    model_name=None,
-    footprint="",
-    datasheet="",
-    value=None,
-):
+    model_name: str | None = None,
+    footprint: str = "",
+    datasheet: str = "",
+    value: str | None = None,
+) -> Atom:
     """An NPN part on the generic Device:Q_NPN shape. pins: {"E": 1, "B": 2, "C": 3}, the
     physical pin of each role (keys in any case). SPICE: a Q element, nodes C B E, model
     `model` (or `model_name`; default `name`) from `library` (default: found in
@@ -161,16 +162,16 @@ def AtomNPN(
 
 
 def AtomPNP(
-    name,
-    pins=None,
-    library=None,
-    model=None,
+    name: str,
+    pins: dict[str, int | str] | None = None,
+    library: str | Path | None = None,
+    model: str | None = None,
     *,
-    model_name=None,
-    footprint="",
-    datasheet="",
-    value=None,
-):
+    model_name: str | None = None,
+    footprint: str = "",
+    datasheet: str = "",
+    value: str | None = None,
+) -> Atom:
     """A PNP part on the generic Device:Q_PNP shape; see AtomNPN."""
     return _bjt(
         "PNP", name, pins, model or model_name, library, footprint, datasheet, value
@@ -178,15 +179,15 @@ def AtomPNP(
 
 
 def AtomDiode(
-    name,
-    pins=None,
-    library=None,
-    model=None,
+    name: str,
+    pins: dict[str, int | str] | None = None,
+    library: str | Path | None = None,
+    model: str | None = None,
     *,
-    model_name=None,
-    footprint="",
-    datasheet="",
-):
+    model_name: str | None = None,
+    footprint: str = "",
+    datasheet: str = "",
+) -> Atom:
     """A diode on the generic Device:D shape (K left, A right). pins: {"K": 1, "A": 2}."""
     model = model or model_name
     p = _pin_map(name, pins or {"K": 1, "A": 2}, ("K", "A"))
@@ -208,7 +209,14 @@ def AtomDiode(
 
 
 # --- single op-amps -------------------------------------------------------------------------
-def _opamp_spice(name, p, model, library, model_pins, spice=None):
+def _opamp_spice(
+    name: str,
+    p: Mapping[str, str],
+    model: str | None,
+    library: str | Path | None,
+    model_pins: Sequence[int | str],
+    spice: SpiceModel | None = None,
+) -> SpiceModel | None:
     """The X element of an op-amp: an explicit SpiceModel (pins in model order), or a model
     from `library` with `model_pins` listing the roles (or physical pins) in node order."""
     if spice is not None:
@@ -253,7 +261,7 @@ def _opamp_spice(name, p, model, library, model_pins, spice=None):
     )
 
 
-def _opamp_aliases(p) -> dict:
+def _opamp_aliases(p: Mapping[str, str]) -> dict:
     """Role aliases of an op-amp part: out, and inp/inn/vp/vm for +, -, V+, V-."""
     names = {"+": "inp", "-": "inn", "V+": "vp", "V-": "vm"}
     return {"out": p["out"], **{names[r]: v for r, v in p.items() if r in names}}
@@ -294,19 +302,19 @@ def AtomOpamp5(
 
 
 def AtomOpamp3(
-    name,
-    pins=None,
-    library=None,
-    model_name=None,
-    model_order=None,
+    name: str,
+    pins: dict[str, int | str] | None = None,
+    library: str | Path | None = None,
+    model_name: str | None = None,
+    model_order: Sequence[int | str] | None = None,
     *,
-    model=None,
-    model_pins=None,
-    spice=None,
-    footprint="",
-    datasheet="",
-    value=None,
-):
+    model: str | None = None,
+    model_pins: Sequence[int | str] | None = None,
+    spice: SpiceModel | None = None,
+    footprint: str = "",
+    datasheet: str = "",
+    value: str | None = None,
+) -> Atom:
     """A supply-less op-amp on the yasdl:OPAMP_IDEAL shape (+ above -, output right).
     pins default to {"+": 1, "-": 2, "out": 3}; simulation as for AtomOpamp5."""
     p = _pin_map(name, pins or {"+": 1, "-": 2, "out": 3}, ("+", "-", "out"))
@@ -350,7 +358,7 @@ class OpampPackage:
     datasheet: str = ""
     lib_id: str = field(default="", compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if len(self.units) not in _PACKAGE_SHAPES:
             raise YasdlError(f"{self.name}: 2 or 4 amplifier units are supported")
         if self.scope not in ("unit", "package"):
@@ -400,7 +408,7 @@ class OpampPackage:
         lib_id = derive_symbol(base.lib_id, self.name, renumber)
         object.__setattr__(self, "lib_id", lib_id)
 
-    def __call__(self, name=None, **kwargs):
+    def __call__(self, name: str | None = None, **kwargs) -> Package:
         """Create one chip; an omitted name is derived from its first placed unit path."""
         return Package(self, name, **kwargs)
 
@@ -451,18 +459,18 @@ class PackageType:
     scope: str = field(default="package", init=False)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.value or self.lib_id.split(":", 1)[1]
 
     @property
-    def model(self):
+    def model(self) -> str | None:
         return self.spice.model if self.spice else None
 
     @property
-    def library(self):
+    def library(self) -> str | None:
         return self.spice.library if self.spice else None
 
-    def power_unit(self):
+    def power_unit(self) -> int | None:
         found = [
             u
             for u in range(1, load(self.lib_id).unit_count + 1)
@@ -471,14 +479,14 @@ class PackageType:
         ]
         return found[0] if len(found) == 1 else None
 
-    def unit_names(self):
+    def unit_names(self) -> list[str]:
         return [
             chr(64 + u)
             for u in range(1, load(self.lib_id).unit_count + 1)
             if u != self.power_unit()
         ]
 
-    def physical_pins(self):
+    def physical_pins(self) -> list[str]:
         return sorted(
             {
                 p.number
@@ -490,7 +498,7 @@ class PackageType:
     def spice_element(self):
         return self.spice.model or self.value, self.spice.pins
 
-    def __call__(self, name=None, **kwargs):
+    def __call__(self, name: str | None = None, **kwargs) -> Package:
         return Package(self, name=name, **kwargs)
 
 
@@ -665,13 +673,15 @@ class Package:
             )
         if name is not None and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise YasdlError(f"package name {name!r}: letters, digits and _")
+        self.descriptor: OpampPackage | PackageType
+        self.name: str | None
         self.descriptor, self.name = descriptor, name
-        self.sim = (
+        self.sim: bool = (
             descriptor.sim
             if isinstance(descriptor, PackageType)
             else (True if sim is None else sim)
         )
-        self.value = (
+        self.value: str = (
             (
                 descriptor.value
                 if isinstance(descriptor, PackageType)
@@ -680,19 +690,19 @@ class Package:
             if value is None
             else value
         )
-        self.footprint = descriptor.footprint if footprint is None else footprint
-        self.datasheet = descriptor.datasheet if datasheet is None else datasheet
-        self._units = {}
+        self.footprint: str = descriptor.footprint if footprint is None else footprint
+        self.datasheet: str = descriptor.datasheet if datasheet is None else datasheet
+        self._units: dict[str, Atom] = {}
         self._locked = True
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: object) -> None:
         if getattr(self, "_locked", False):
             raise AttributeError(
                 "Package objects are immutable; create another Package"
             )
         object.__setattr__(self, key, value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Package({self.descriptor.name}, {self.name!r})"
 
     def _atom(self, key: str, unit_no: int, aliases: dict) -> Atom:
@@ -823,10 +833,10 @@ DUAL_DIP8 = dict(
 def dual_opamp(
     name: str,
     model: str | None = None,
-    library=None,
-    model_pins=("+", "-", "V+", "V-", "out"),
-    datasheet="",
-):
+    library: str | Path | None = None,
+    model_pins: Sequence[str] = ("+", "-", "V+", "V-", "out"),
+    datasheet: str = "",
+) -> OpampPackage:
     """A standard DIP-8 dual op-amp (TL072, NE5532, LM358 pinout) with a single-amplifier
     subcircuit `model` (node order `model_pins`) from `library`."""
     model_pins = tuple(model_pins)
@@ -860,6 +870,13 @@ IDEAL_DUAL = dual_opamp(
 )
 
 
-def AtomOpampPackage(name, *, units, power, spice=None, **kwargs) -> Package:
+def AtomOpampPackage(
+    name: str,
+    *,
+    units: dict[str, dict[str, int | str]],
+    power: dict[str, int | str],
+    spice: SpiceModel | None = None,
+    **kwargs,
+) -> Package:
     """A dual op-amp package from explicit role maps (see Package)."""
     return Package(name, units=units, power=power, spice=spice, **kwargs)

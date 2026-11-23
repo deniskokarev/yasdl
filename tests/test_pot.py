@@ -4,6 +4,7 @@ position direction, tapers and per-instance settings that survive the SPICE roun
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import Block, netlist, POT, spice_netlist, YasdlError
@@ -33,7 +34,7 @@ TWO = """
 """
 
 
-def test_pins_follow_role_labels():
+def test_pins_follow_role_labels() -> None:
     """Independent fixture: KiCad R_Potentiometer pin 1 = ccw, 2 = wiper, 3 = cw."""
     nets = netlist(Block("Vol", VOLUME, VR1=POT("10k")))
     assert nets["in"] == ["VR1.3"]
@@ -41,7 +42,7 @@ def test_pins_follow_role_labels():
     assert nets["GND"] == ["VR1.1"]
 
 
-def test_element_line_carries_value_position_and_taper():
+def test_element_line_carries_value_position_and_taper() -> None:
     text = spice_netlist(Block("Vol", VOLUME, VR1=POT("50k", 0.25, "log")))
     assert re.search(r"^X_VR1 0 out in yasdl_pot R=50k POS=0.25 TAPER=1$", text, re.M)
     assert re.search(r"^\.include .*yasdl\.lib$", text, re.M)
@@ -61,7 +62,7 @@ def test_invalid_settings(kwargs, match):
         POT(**kwargs)
 
 
-def test_wrong_role_label_is_rejected():
+def test_wrong_role_label_is_rejected() -> None:
     with pytest.raises(YasdlError, match="does not fit"):
         Block(
             "Bad",
@@ -98,7 +99,9 @@ def _ratio(tmp_path, pot):
         (0.5, "rlog", 0.9),
     ],
 )
-def test_volume_divider_in_ngspice(tmp_path, position, taper, want):
+def test_volume_divider_in_ngspice(
+    tmp_path: Path, position: float, taper: str, want: float
+) -> None:
     """Input on cw, ccw grounded: the output is F(position) of the input."""
     assert _ratio(tmp_path, POT("10k", position, taper)) == pytest.approx(
         want, abs=1e-4
@@ -107,14 +110,14 @@ def test_volume_divider_in_ngspice(tmp_path, position, taper, want):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
-def test_clockwise_is_louder(tmp_path):
+def test_clockwise_is_louder(tmp_path: Path) -> None:
     levels = [_ratio(tmp_path, POT("10k", p, "log")) for p in (0.2, 0.4, 0.6, 0.8)]
     assert levels == sorted(levels) and levels[0] < levels[-1]
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_two_settings_survive_the_kicad_round_trip(tmp_path):
+def test_two_settings_survive_the_kicad_round_trip(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, render, spice_roundtrip
 
     block = Block("Pots", TWO, VR1=POT("10k", 0.2, "log"), VR2=POT("10k", 0.7))

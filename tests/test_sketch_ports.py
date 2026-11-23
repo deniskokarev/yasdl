@@ -5,7 +5,7 @@ import pytest
 from yasdl import Block, R, Sketch, SketchError
 
 
-def test_east_port_inside_edge_is_rejected_with_distance():
+def test_east_port_inside_edge_is_rejected_with_distance() -> None:
     s = Sketch()
     s.hline(0, 0, 3).text(0, 4, "{out}").text(0, 10, "R1")
     with pytest.raises(
@@ -14,7 +14,7 @@ def test_east_port_inside_edge_is_rejected_with_distance():
         s.render()
 
 
-def test_west_port_inside_edge_is_rejected_with_distance():
+def test_west_port_inside_edge_is_rejected_with_distance() -> None:
     s = Sketch()
     s.text(0, 2, "{in}").hline(0, 6, 9).text(0, 12, "R1").hline(1, 0, 1)
     with pytest.raises(
@@ -23,14 +23,14 @@ def test_west_port_inside_edge_is_rejected_with_distance():
         s.render()
 
 
-def test_south_port_inside_edge_is_rejected_with_distance():
+def test_south_port_inside_edge_is_rejected_with_distance() -> None:
     s = Sketch()
     s.vline(2, 0, 1).text(2, 0, "{fb}").text(4, 0, "R1")
     with pytest.raises(SketchError, match=r"port \{fb\}.*inside the south edge"):
         s.render()
 
 
-def test_ports_on_the_edge_render_and_parse():
+def test_ports_on_the_edge_render_and_parse() -> None:
     s = Sketch()
     s.text(0, 0, "{in}").hline(0, 4, 6).text(0, 7, "R1").hline(0, 9, 11).text(
         0, 12, "{out}"
@@ -40,7 +40,7 @@ def test_ports_on_the_edge_render_and_parse():
     assert {p.name for p in block.ports} == {"in", "out"}
 
 
-def test_pin_label_next_to_component_is_not_a_port():
+def test_pin_label_next_to_component_is_not_a_port() -> None:
     # {b} touches the Q1 box mid-canvas: a pin label, not an edge port.
     s = Sketch()
     s.text(1, 0, "{b}").box(1, 4, "Q1Q1", rows=3)

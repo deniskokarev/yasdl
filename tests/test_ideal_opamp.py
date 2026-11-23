@@ -1,6 +1,7 @@
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import Block, C, GND, I, netlist, OPAMP_IDEAL, R, spice_netlist, V
@@ -39,7 +40,7 @@ TESTBENCH = Block(
 )
 
 
-def test_symbol_has_no_supply_pins():
+def test_symbol_has_no_supply_pins() -> None:
     sym = load("yasdl:OPAMP_IDEAL")
     assert sorted((p.number, p.name, p.side) for p in sym.pins) == [
         ("1", "+", "W"),
@@ -48,14 +49,14 @@ def test_symbol_has_no_supply_pins():
     ]
 
 
-def test_plus_label_puts_noninverting_input_at_the_bottom():
+def test_plus_label_puts_noninverting_input_at_the_bottom() -> None:
     assert INTEGRATOR.bound["U1"].mirror == "x"
     nets = netlist(INTEGRATOR)
     assert nets["GND"] == ["U1.1"]
     assert sorted(nets["out"]) == ["CF.2", "U1.3"]
 
 
-def test_spice_includes_bundled_model():
+def test_spice_includes_bundled_model() -> None:
     text = spice_netlist(TESTBENCH)
     assert f".include {BUNDLED_MODELS}" in text
     assert re.search(r"^X_INT_U1 0 \S+ out yasdl_ideal_opamp$", text, re.M)
@@ -63,7 +64,7 @@ def test_spice_includes_bundled_model():
     assert text.count(".include") == 1  # one include per library, however many op-amps
 
 
-def test_current_source_arrow_orients_it():
+def test_current_source_arrow_orients_it() -> None:
     down = Block(
         "Down",
         """
@@ -89,7 +90,7 @@ def test_current_source_arrow_orients_it():
         R1=R("1k"),
     )
 
-    def bottom_pin(blk):
+    def bottom_pin(blk: Block) -> str:
         return next(pin for att, pin in blk.bound["I1"].pin_map if att.side == "S")
 
     assert bottom_pin(down) == "2"  # current leaves through the bottom pin
@@ -115,7 +116,7 @@ def test_integrator_simulates(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="KiCad not installed")
-def test_render_erc_clean_and_spice_roundtrip(tmp_path):
+def test_render_erc_clean_and_spice_roundtrip(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     info = render(TESTBENCH, tmp_path, spice=True)
@@ -128,7 +129,7 @@ def test_render_erc_clean_and_spice_roundtrip(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="KiCad not installed")
-def test_stale_sym_lib_table_is_rewritten(tmp_path):
+def test_stale_sym_lib_table_is_rewritten(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     (tmp_path / "sym-lib-table").write_text("(sym_lib_table\n  (version 7)\n)\n")
@@ -154,7 +155,7 @@ def test_references_from_names_and_hidden_values(tmp_path):
 
 
 @pytest.mark.integration
-def test_reference_names_fall_back_to_paths_when_names_repeat():
+def test_reference_names_fall_back_to_paths_when_names_repeat() -> None:
     from yasdl.kicad_export import to_kicad
 
     twice = Block(
@@ -181,7 +182,7 @@ def test_reference_names_fall_back_to_paths_when_names_repeat():
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="KiCad not installed")
-def test_render_without_erc_helpers(tmp_path):
+def test_render_without_erc_helpers(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     info = render(TESTBENCH, tmp_path, svg=False, erc_helpers=False)

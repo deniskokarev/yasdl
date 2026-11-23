@@ -79,7 +79,11 @@ def pot_position(rotation: float, taper: str = "lin") -> float:
 
 
 def POT(
-    value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotation=None
+    value: str = "10k",
+    position: float = 0.5,
+    taper: str = "lin",
+    *,
+    rotation: float | None = None,
 ) -> Atom:
     """Three-terminal potentiometer (Device:R_Potentiometer), pins by role (spec 6.2):
     pin 1 = `ccw` end (top in the library), pin 2 = wiper `w` (right), pin 3 = `cw` end

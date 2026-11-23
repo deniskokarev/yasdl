@@ -1,7 +1,7 @@
 from yasdl import Block, R
 
 
-def test_distinct_bound_variants_and_repeated_instances():
+def test_distinct_bound_variants_and_repeated_instances() -> None:
     first = Block("Variant", "─R1─", R1=R("1k"))
     second = first.bind(R1=R("2k"))
     top = Block("Top", "─A1─B1─C1─", A1=first, B1=second, C1=first)
@@ -15,7 +15,7 @@ def test_distinct_bound_variants_and_repeated_instances():
     assert first.name == second.name == "Variant"
 
 
-def test_nested_equal_names_do_not_become_self_references():
+def test_nested_equal_names_do_not_become_self_references() -> None:
     leaf = Block("Bank", "─R1─", R1=R("1k"))
     mid = Block("Bank", "─U1─", U1=leaf)
     root = Block("Bank", "─U1─", U1=mid)

@@ -32,7 +32,9 @@ def _num(v: float) -> Sym:
     return Sym(str(int(v)) if v == int(v) else repr(v))
 
 
-def _effects(hide: bool = False, justify: str | None = None):
+def _effects(
+    hide: bool = False, justify: str | None = None
+) -> list[Sym | list[Sym | list[Sym]]]:
     e = [Sym("effects"), [Sym("font"), [Sym("size"), _num(1.27), _num(1.27)]]]
     if justify:
         e.append([Sym("justify"), *[Sym(j) for j in justify.split()]])
@@ -42,10 +44,10 @@ def _effects(hide: bool = False, justify: str | None = None):
 
 
 class Schematic:
-    def __init__(self, title: str = "yasdl", paper: str = "A4"):
-        self.title = title
-        self.paper = paper
-        self.uuid = _uid()
+    def __init__(self, title: str = "yasdl", paper: str = "A4") -> None:
+        self.title: str = title
+        self.paper: str = paper
+        self.uuid: str = _uid()
         self.symbols: list[list[object]] = []
         self.items: list[list[object]] = []
         self.lib_ids: list[str] = []
@@ -67,7 +69,7 @@ class Schematic:
         footprint: str = "",
         datasheet: str = "",
         unit: int = 1,
-    ):
+    ) -> str:
         """helper: an ERC helper (test point, power flag): hidden fields, not in BOM/simulation.
         hide_value: keep the Value field but don't show it. sim=False: excluded from
         simulation (a connector); footprint/datasheet: the part's metadata fields."""
@@ -166,7 +168,7 @@ class Schematic:
         self.symbols.append(node)
         return ref
 
-    def add_wire(self, a, b):
+    def add_wire(self, a: tuple[float, float], b: tuple[float, float]) -> None:
         if a == b:
             return
         self.items.append(
@@ -182,7 +184,7 @@ class Schematic:
             ]
         )
 
-    def add_junction(self, p):
+    def add_junction(self, p: tuple[float, float]) -> None:
         self.items.append(
             [
                 Sym("junction"),
@@ -193,7 +195,7 @@ class Schematic:
             ]
         )
 
-    def add_no_connect(self, p):
+    def add_no_connect(self, p: tuple[float, float]) -> None:
         self.items.append(
             [
                 Sym("no_connect"),
@@ -202,7 +204,7 @@ class Schematic:
             ]
         )
 
-    def add_label(self, name: str, p, angle: int = 0):
+    def add_label(self, name: str, p: tuple[float, float], angle: int = 0) -> None:
         justify = {
             0: "left bottom",
             180: "right bottom",
@@ -219,7 +221,7 @@ class Schematic:
             ]
         )
 
-    def add_text(self, text: str, p, angle: int = 0):
+    def add_text(self, text: str, p: tuple[float, float], angle: int = 0) -> None:
         """Non-electrical annotation with the same placement as a net label."""
         justify = {
             0: "left bottom",
@@ -257,13 +259,13 @@ class Schematic:
             [Sym("embedded_fonts"), Sym("no")],
         ]
 
-    def save(self, path) -> Path:
+    def save(self, path: str | Path) -> Path:
         path = Path(path)
         path.write_text(dumps(self.to_sexp()) + "\n")
         return path
 
 
-def export_netlist(sch_path) -> dict[str, set[tuple[str, str]]]:
+def export_netlist(sch_path: str | Path) -> dict[str, set[tuple[str, str]]]:
     """Run kicad-cli and return {net name: {(ref, pin), ...}} (single-pin nets included)."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "net.net"
@@ -282,7 +284,7 @@ def export_netlist(sch_path) -> dict[str, set[tuple[str, str]]]:
     return nets
 
 
-def export_svg(sch_path, out_dir) -> Path:
+def export_svg(sch_path: str | Path, out_dir: str | Path) -> Path:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     run_cli(
@@ -292,7 +294,7 @@ def export_svg(sch_path, out_dir) -> Path:
     return out_dir / (Path(sch_path).stem + ".svg")
 
 
-def run_erc(sch_path) -> str:
+def run_erc(sch_path: str | Path) -> str:
     """kicad-cli's ERC report. kicad-cli exits nonzero when it finds violations, so the
     exit status is not checked; a missing report is an error, never a clean result."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -308,7 +310,9 @@ def run_erc(sch_path) -> str:
         return out.read_text()
 
 
-def export_netlist_full(sch_path):
+def export_netlist_full(
+    sch_path: str | Path,
+) -> tuple[dict[str, set[tuple[str, str]]], dict[str, dict[str, str | int]]]:
     """({net name: {(ref, pin)}}, {ref: {"value", "footprint", "datasheet", "units"}}) from
     kicad-cli's netlist export; components with several units are one entry."""
     with tempfile.TemporaryDirectory() as tmp:

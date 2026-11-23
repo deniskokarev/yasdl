@@ -3,7 +3,7 @@ from yasdl import Block, netlist, R, Sketch
 from yasdl.sketch import SketchError
 
 
-def test_route_corners_and_atomic_failure():
+def test_route_corners_and_atomic_failure() -> None:
     s = Sketch().wire([(0, 0), (0, 3), (3, 3), (3, 0)])
     assert s.render() == "───┐\n   │\n   │\n───┘"
     before = s.render()
@@ -20,7 +20,7 @@ def test_route_corners_and_atomic_failure():
 
 
 @pytest.mark.parametrize("obstacle", ["─", "┌", "├", "┼", "R", "["])
-def test_endpoint_and_text_are_never_crossings(obstacle):
+def test_endpoint_and_text_are_never_crossings(obstacle: str) -> None:
     s = Sketch().text(2, 2, obstacle)
     before = s.render()
     with pytest.raises(SketchError):
@@ -28,7 +28,7 @@ def test_endpoint_and_text_are_never_crossings(obstacle):
     assert s.render() == before
 
 
-def test_multiple_crossings_and_box_atomicity():
+def test_multiple_crossings_and_box_atomicity() -> None:
     s = Sketch().hline(1, 0, 5).hline(3, 0, 5)
     before = s.render()
     with pytest.raises(SketchError):

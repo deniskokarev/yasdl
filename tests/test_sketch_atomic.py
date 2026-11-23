@@ -3,7 +3,7 @@ from yasdl import Block, Sketch, SketchError
 from yasdl.layout import layout
 
 
-def test_route_elbows_and_reversed_coordinates():
+def test_route_elbows_and_reversed_coordinates() -> None:
     s = Sketch().wire([(0, 0), (0, 3), (3, 3), (3, 1)])
     assert s.render() == "───┐\n   │\n   │\n ──┘"
     assert Sketch().hline(0, 3, 0).render() == "────"
@@ -11,7 +11,7 @@ def test_route_elbows_and_reversed_coordinates():
 
 
 @pytest.mark.parametrize("old", ["R1", "{a}", "[VCC]", "─", "│", "┌", "├", "┼"])
-def test_text_never_overwrites_even_identical(old):
+def test_text_never_overwrites_even_identical(old: str) -> None:
     s = Sketch().text(1, 3, old)
     before = s.render()
     with pytest.raises(ValueError, match="collision.*row 1, col 3"):
@@ -19,7 +19,7 @@ def test_text_never_overwrites_even_identical(old):
     assert s.render() == before
 
 
-def test_late_box_and_wire_collisions_are_atomic():
+def test_late_box_and_wire_collisions_are_atomic() -> None:
     s = Sketch().text(4, 8, "X1")
     before = s.render()
     with pytest.raises(ValueError):
@@ -30,7 +30,7 @@ def test_late_box_and_wire_collisions_are_atomic():
     assert s.render() == before
 
 
-def test_crossing_count_and_separate_nets():
+def test_crossing_count_and_separate_nets() -> None:
     s = Sketch().hline(3, 0, 6)
     before = s.render()
     with pytest.raises(ValueError, match="found 1.*created 1"):
@@ -64,7 +64,7 @@ def test_crossing_count_and_separate_nets():
         [(0.5, 0), (0, 0)],
     ],
 )
-def test_invalid_routes_leave_canvas_unchanged(points):
+def test_invalid_routes_leave_canvas_unchanged(points: list[tuple[float, int]]) -> None:
     s = Sketch().text(7, 7, "R1")
     before = s.render()
     with pytest.raises(SketchError):  # a ValueError
@@ -77,7 +77,7 @@ def test_invalid_routes_leave_canvas_unchanged(points):
 
 
 @pytest.mark.parametrize("operation", ["end", "same", "bend", "tee", "count"])
-def test_wire_crossing_is_only_exception(operation):
+def test_wire_crossing_is_only_exception(operation: str) -> None:
     s = Sketch().hline(3, 1, 7)
     if operation == "bend":
         s.text(3, 9, "┌")
@@ -98,7 +98,7 @@ def test_wire_crossing_is_only_exception(operation):
     assert s.render() == before
 
 
-def test_composition_preserves_crossings_without_adapter_crossings():
+def test_composition_preserves_crossings_without_adapter_crossings() -> None:
     child = Block("Crossing", "{top}\n  │\n──│──\n  │\n{bot}")
     parent = Block(
         "Composed",
@@ -134,7 +134,9 @@ def test_composition_preserves_crossings_without_adapter_crossings():
 
 
 @pytest.mark.parametrize("orientation", [(0, None), (90, None), (180, "x")])
-def test_repeated_oriented_children_add_to_parent_crossing_count(orientation):
+def test_repeated_oriented_children_add_to_parent_crossing_count(
+    orientation: tuple[int, str | None],
+) -> None:
     child = Block("Child", "{top}\n  │\n──│──\n  │\n{bot}")
     s = Sketch().text(0, 7, "{ta}").text(0, 18, "{mid}").text(0, 27, "{tb}")
     s.box(2, 8, "X1").box(2, 28, "X2")

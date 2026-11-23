@@ -87,7 +87,7 @@ CHAIN = Block(
 )
 
 
-def test_parse_value():
+def test_parse_value() -> None:
     assert parse_value("4.7k") == pytest.approx(4700)
     assert parse_value("100n") == pytest.approx(1e-7)
     assert parse_value("2meg") == pytest.approx(2e6)
@@ -96,7 +96,7 @@ def test_parse_value():
     assert parse_value("") is None
 
 
-def test_elements_flatten_with_unique_names():
+def test_elements_flatten_with_unique_names() -> None:
     els = {e.name: e for e in elements(TESTBENCH)}
     assert set(els) == {"V1", "RI", "CF", "U1"}
     assert els["U1"].kind == "OPAMP" and els["U1"].nodes[0] == "0"
@@ -105,24 +105,24 @@ def test_elements_flatten_with_unique_names():
     assert {"A_RI", "B_RI", "A_U1", "B_U1", "V1"} <= names
 
 
-def test_divider():
+def test_divider() -> None:
     assert Circuit(DIVIDER).transfer("V1", "out") == pytest.approx(0.75)
 
 
-def test_integrator_numeric_matches_closed_form():
+def test_integrator_numeric_matches_closed_form() -> None:
     w = 2 * math.pi * 1e3
     h = Circuit(TESTBENCH).transfer("V1", "out", s=1j * w)
     assert h == pytest.approx(-1 / (1j * w * 1e3 * 1e-6))
 
 
-def test_chain_numeric_matches_closed_form():
+def test_chain_numeric_matches_closed_form() -> None:
     s = 2j * math.pi * 500
     h = Circuit(CHAIN).transfer("V1", "vo", s=s)
     zf = 1 / (1 / 100e3 + s * 10e-9)
     assert h == pytest.approx((-zf / 10e3) * (-22e3 / 10e3))
 
 
-def test_inductor_and_current_source():
+def test_inductor_and_current_source() -> None:
     rl = Block(
         "RL",
         """
@@ -142,7 +142,7 @@ def test_inductor_and_current_source():
     assert v["out"] == pytest.approx(-1000)
 
 
-def test_singular_circuit_is_an_error():
+def test_singular_circuit_is_an_error() -> None:
     loop = Block(
         "Loop",
         """
@@ -159,7 +159,7 @@ def test_singular_circuit_is_an_error():
         Circuit(loop).transfer("V1", "out")
 
 
-def test_physical_parts_are_left_out_and_ambiguous_values_rejected():
+def test_physical_parts_are_left_out_and_ambiguous_values_rejected() -> None:
     canvas = """
 [in]──R1──┬──[out]
           │
@@ -178,7 +178,7 @@ J1J1{2}──[GND]
 
 
 @pytest.mark.skipif(not have_sympy, reason="sympy not installed")
-def test_symbolic():
+def test_symbolic() -> None:
     import sympy as sp
 
     h = Circuit(TESTBENCH).transfer_symbolic("V1", "out")
@@ -239,7 +239,7 @@ def _ladder(sections: int) -> Block:
 
 
 @pytest.mark.skipif(not have_sympy, reason="sympy not installed")
-def test_symbolic_ladder_is_fast():
+def test_symbolic_ladder_is_fast() -> None:
     """A 6-section RC ladder: Matrix.det on expressions took minutes, the polynomial-ring
     det with conductance stamps about 2 s."""
     import time

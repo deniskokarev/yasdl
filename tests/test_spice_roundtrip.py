@@ -9,6 +9,7 @@ schematic (or compare against a different design) and must be rejected.
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import (
@@ -52,7 +53,9 @@ R2 w b {R*(1-X)+1m}
 """
 
 
-def pot_atom(lib, params="R=100k X=0.25", model="tpot"):
+def pot_atom(
+    lib: Path | str, params: str = "R=100k X=0.25", model: str = "tpot"
+) -> Atom:
     return Atom(
         "Device:R_Potentiometer",
         "B100k",
@@ -60,7 +63,7 @@ def pot_atom(lib, params="R=100k X=0.25", model="tpot"):
     )
 
 
-def bench(lib, **over):
+def bench(lib: Path | str, **over) -> Block:
     """Sources (DC/AC, SIN, PULSE), an X with parameters, an ideal op-amp X, R/C/L/D/Q."""
     parts = dict(
         V1=V("dc 0 ac 1 sin(0 0.5 1k)"),
@@ -98,7 +101,7 @@ def bench(lib, **over):
 
 
 # --- unit level ------------------------------------------------------------------------
-def test_parse_spice_reads_x_v_i_and_skips_definitions():
+def test_parse_spice_reads_x_v_i_and_skips_definitions() -> None:
     text = """* deck
 .subckt inner a b params: R=1k
 R9 a b {R}
@@ -137,20 +140,22 @@ R1 n1 n2 4.7k
         ("1.5kOhm", 1.5e3, 1.5e3),
     ],
 )
-def test_ngspice_and_kicad_readings(text, ng, ki):
+def test_ngspice_and_kicad_readings(
+    text: str, ng: float | None, ki: float | None
+) -> None:
     for got, want in ((ngspice_number(text), ng), (kicad_number(text), ki)):
         assert got == pytest.approx(want) if want is not None else got is None
 
 
 @pytest.mark.parametrize("value", ["1M", "4k7", "2R2", "4M7"])
-def test_values_read_differently_by_kicad_and_ngspice_are_rejected(value):
+def test_values_read_differently_by_kicad_and_ngspice_are_rejected(value: str) -> None:
     block = Block("Val", "{a}──R1──{b}", R1=R(value))
     with pytest.raises(YasdlError, match="MEG for mega"):
         spice_netlist(block)
 
 
 @pytest.mark.parametrize("value", ["1.5 kOhms", "1.5 k", "4.7 n"])
-def test_values_with_inner_spaces_are_rejected(value):
+def test_values_with_inner_spaces_are_rejected(value: str) -> None:
     """KiCad reads '1.5 kOhms' as 1.5 (the space ends the number) while ngspice can't read it."""
     block = Block("Val", "{a}──R1──{b}", R1=R(value))
     with pytest.raises(YasdlError, match="without spaces"):
@@ -160,23 +165,23 @@ def test_values_with_inner_spaces_are_rejected(value):
 @pytest.mark.parametrize(
     "value", ["1Meg", "1m", "4.7k", "100nF", "2.2", "{RV}", "1.5kOhm"]
 )
-def test_unambiguous_values_pass_through_unchanged(value):
+def test_unambiguous_values_pass_through_unchanged(value: str) -> None:
     text = spice_netlist(Block("Val", "{a}──C1──{b}", C1=C(value)))
     assert f"C_C1 a b {value}" in text
 
 
-def test_sources_are_not_value_checked():
+def test_sources_are_not_value_checked() -> None:
     assert "V_V1 W0 E0 dc 1M" in spice_netlist(Block("S", "──V1──", V1=V("dc 1M")))
 
 
-def test_instance_params_on_the_element_line(tmp_path):
+def test_instance_params_on_the_element_line(tmp_path: Path) -> None:
     block = Block(
         "Trim", "{a}──VR──{b}\n    {2}\n     │\n   [GND]", VR=pot_atom("x.lib")
     )
     assert re.search(r"^X_VR a 0 b tpot R=100k X=0.25$", spice_netlist(block), re.M)
 
 
-def test_comparison_keeps_ground_and_global_identity():
+def test_comparison_keeps_ground_and_global_identity() -> None:
     a = parse_spice("R1 VCC n1 1k\nR2 n1 0 1k\n")
     b = parse_spice("R1 0 n1 1k\nR2 n1 VCC 1k\n")
     same = lambda n: n  # noqa: E731
@@ -206,7 +211,7 @@ RAILS = Block(
 )
 
 
-def test_subckt_declares_global_supplies_not_ground():
+def test_subckt_declares_global_supplies_not_ground() -> None:
     text = spice_netlist(RAILS, subckt="rails")
     assert re.search(r"^\.global VCC$", text, re.M)
     assert text.index(".global") < text.index(".subckt")
@@ -215,7 +220,7 @@ def test_subckt_declares_global_supplies_not_ground():
     assert ".global" not in spice_netlist(alias, subckt="s")  # supply is a pin
 
 
-def test_subckt_declares_unported_globals_of_nested_blocks():
+def test_subckt_declares_unported_globals_of_nested_blocks() -> None:
     top = Block("Top", "{o}──RS", RS=RAILS)
     text = spice_netlist(top, subckt="top")
     assert re.search(r"^\.global VCC$", text, re.M)
@@ -223,10 +228,10 @@ def test_subckt_declares_unported_globals_of_nested_blocks():
 
 @pytest.mark.integration
 @ngspice
-def test_global_supply_reaches_subckt_in_ngspice(tmp_path):
+def test_global_supply_reaches_subckt_in_ngspice(tmp_path: Path) -> None:
     """12 V on VCC outside the subcircuit: 6 V with .global, 0 V without it."""
 
-    def run(deck):
+    def run(deck: str) -> float:
         cir = tmp_path / "rails.cir"
         cir.write_text(
             "* rails\n" + deck + "VS VCC 0 12\nX1 out rails\n"
@@ -258,7 +263,7 @@ def _render(block, tmp_path, lib):
 
 
 @pytest.fixture
-def pot_lib(tmp_path):
+def pot_lib(tmp_path: Path) -> Path:
     lib = tmp_path / "tpot.lib"
     lib.write_text(POT_LIB)
     return lib
@@ -266,7 +271,7 @@ def pot_lib(tmp_path):
 
 @pytest.mark.integration
 @kicad
-def test_roundtrip_agrees_for_x_v_i_and_params(tmp_path, pot_lib):
+def test_roundtrip_agrees_for_x_v_i_and_params(tmp_path: Path, pot_lib: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice
 
     info = _render(bench(pot_lib), tmp_path, pot_lib)
@@ -280,7 +285,7 @@ def test_roundtrip_agrees_for_x_v_i_and_params(tmp_path, pot_lib):
     assert re.search(r"^XRV\d+ .* tpot R=100k X=0.25$", exported, re.M)
 
 
-def _mutate(sch, ref, old, new):
+def _mutate(sch: Path, ref: str, old: str, new: str) -> None:
     """Replace `old` by `new` inside the (symbol ...) whose Reference is `ref`."""
     text = sch.read_text()
     m = re.search(r'\(property "Reference" "%s"' % re.escape(ref), text)
@@ -308,7 +313,7 @@ def _remove_symbol(sch, ref):
     sch.write_text("\n".join(lines[:start] + lines[end + 1 :]))
 
 
-def _ref_of(refmap, path):
+def _ref_of(refmap: dict[str, str], path: str) -> str:
     return next(r for r, p in refmap.items() if p == path)
 
 
@@ -328,7 +333,9 @@ def _ref_of(refmap, path):
         ("R1", '"Value" "1Meg"', '"Value" "1k"', "R value"),
     ],
 )
-def test_roundtrip_rejects_mutations(tmp_path, pot_lib, path, old, new, what):
+def test_roundtrip_rejects_mutations(
+    tmp_path: Path, pot_lib: Path, path: str, old: str, new: str, what: str
+) -> None:
     from yasdl.kicad_export import spice_roundtrip, to_kicad
 
     tmp_lib = tmp_path / "x"
@@ -348,7 +355,9 @@ def test_roundtrip_rejects_mutations(tmp_path, pot_lib, path, old, new, what):
 @pytest.mark.integration
 @kicad
 @pytest.mark.parametrize("path", ["VR", "V1", "I1", "U1"])
-def test_roundtrip_rejects_omitted_instances(tmp_path, pot_lib, path):
+def test_roundtrip_rejects_omitted_instances(
+    tmp_path: Path, pot_lib: Path, path: str
+) -> None:
     from yasdl.kicad_export import spice_roundtrip, to_kicad
 
     block = bench(pot_lib)
@@ -362,7 +371,7 @@ def test_roundtrip_rejects_omitted_instances(tmp_path, pot_lib, path):
 
 @pytest.mark.integration
 @kicad
-def test_roundtrip_rejects_changed_design_values(tmp_path, pot_lib):
+def test_roundtrip_rejects_changed_design_values(tmp_path: Path, pot_lib: Path) -> None:
     """The schematic of one design against the netlist of a changed design."""
     from yasdl.kicad_export import spice_roundtrip, to_kicad
 
@@ -409,7 +418,7 @@ SWAP_B = """
 
 @pytest.mark.integration
 @kicad
-def test_roundtrip_keeps_ground_and_global_identity(tmp_path):
+def test_roundtrip_keeps_ground_and_global_identity(tmp_path: Path) -> None:
     """Same terminal grouping, but GND and VCC swapped: must be rejected."""
     from yasdl.kicad_export import spice_roundtrip, to_kicad
 
@@ -440,7 +449,7 @@ JACKS = """
 """
 
 
-def test_sim_false_parts_are_left_out_of_spice():
+def test_sim_false_parts_are_left_out_of_spice() -> None:
     j = Atom("Connector_Generic:Conn_01x02", "IN", sim=False)
     block = Block("Jack", JACKS, J1=j, R1=R("1k"))
     text = spice_netlist(block)
@@ -451,7 +460,7 @@ def test_sim_false_parts_are_left_out_of_spice():
 
 @pytest.mark.integration
 @kicad
-def test_sim_false_parts_render_and_roundtrip(tmp_path):
+def test_sim_false_parts_render_and_roundtrip(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, render
     from yasdl.sexp import find, find_all, parse
 

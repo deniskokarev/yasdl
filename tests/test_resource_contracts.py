@@ -3,6 +3,7 @@
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import Block, POT, R, YasdlError
@@ -10,7 +11,7 @@ from yasdl.kicad_lib import KICAD_CLI
 from yasdl.parts import AtomOpamp5, OpampPackage
 
 
-def test_package_copies_and_freezes_caller_maps():
+def test_package_copies_and_freezes_caller_maps() -> None:
     units = {"A": {"+": 3, "-": 2, "out": 1}, "B": {"+": 5, "-": 6, "out": 7}}
     power = {"V+": 8, "V-": 4}
     descriptor = OpampPackage("IMMUTABLE_DUAL", units, power)
@@ -22,7 +23,7 @@ def test_package_copies_and_freezes_caller_maps():
         descriptor.units["A"]["+"] = "99"
 
 
-def test_opamp_model_mapping_requires_every_role_once():
+def test_opamp_model_mapping_requires_every_role_once() -> None:
     pins = {"+": 3, "-": 2, "V+": 7, "V-": 4, "out": 6}
     with pytest.raises(YasdlError, match="every role exactly once"):
         AtomOpamp5(
@@ -35,7 +36,7 @@ def test_opamp_model_mapping_requires_every_role_once():
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="kicad-cli missing")
-def test_spice_export_resolves_models_for_a_renamed_schematic(tmp_path):
+def test_spice_export_resolves_models_for_a_renamed_schematic(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, render, spice_roundtrip, to_kicad
     from yasdl.spice import parse_spice
 
@@ -55,7 +56,7 @@ def test_spice_export_resolves_models_for_a_renamed_schematic(tmp_path):
     assert spice_roundtrip(block, copied, refmap)[0]
 
 
-def test_subckt_port_order_cannot_repeat_a_port():
+def test_subckt_port_order_cannot_repeat_a_port() -> None:
     from yasdl import spice_netlist
 
     block = Block("TwoPorts", "{a}──R1──{b}", R1=R("1k"))
@@ -63,7 +64,7 @@ def test_subckt_port_order_cannot_repeat_a_port():
         spice_netlist(block, subckt="two", port_order=["a", "a"])
 
 
-def test_renaming_a_block_preserves_its_port_aliases_and_circuit():
+def test_renaming_a_block_preserves_its_port_aliases_and_circuit() -> None:
     from yasdl import netlist
 
     original = Block(
@@ -75,7 +76,7 @@ def test_renaming_a_block_preserves_its_port_aliases_and_circuit():
     assert netlist(renamed) == {"a": ["R1.1"], "b": ["R1.2"]}
 
 
-def test_spice_nodes_are_case_insensitive_but_supply_identity_is_preserved():
+def test_spice_nodes_are_case_insensitive_but_supply_identity_is_preserved() -> None:
     from yasdl.spice import compare_spice
 
     original = "R1 VCC 0 1k\nR2 vcc out 2k\n"
@@ -89,7 +90,9 @@ def test_spice_nodes_are_case_insensitive_but_supply_identity_is_preserved():
 @pytest.mark.integration
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice missing")
 @pytest.mark.parametrize("kind", ["lowpass", "highpass"])
-def test_sallen_key_explicit_roles_preserve_the_1125hz_characterization(tmp_path, kind):
+def test_sallen_key_explicit_roles_preserve_the_1125hz_characterization(
+    tmp_path: Path, kind: str
+) -> None:
     """Equal 10k series R / 20n feedback,10n shunt C and the dual HP are Butterworth."""
     from yasdl import spice_netlist, std
 

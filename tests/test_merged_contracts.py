@@ -1,5 +1,7 @@
 """Contracts of the consolidated API that neither source suite covered on its own."""
 
+from pathlib import Path
+
 import pytest
 from yasdl import (
     AtomOpamp5,
@@ -18,7 +20,7 @@ from yasdl.sexp import find, find_all, parse
 from yasdl.spice import parse_spice
 
 
-def exact_unit_pins(name):
+def exact_unit_pins(name: str) -> dict[int, dict[str, str]]:
     """{unit: {pin name: number}} of an exact KiCad Amplifier_Operational symbol,
     resolving (extends). Independent of yasdl's package factory."""
     root = parse(library_path("Amplifier_Operational").read_text())
@@ -42,7 +44,7 @@ def exact_unit_pins(name):
     reason="installed KiCad 9 Amplifier_Operational library is the reference",
 )
 @pytest.mark.parametrize("device", ["LM358", "TL072"])
-def test_default_dual_opamp_pinouts_match_exact_kicad_symbols(device):
+def test_default_dual_opamp_pinouts_match_exact_kicad_symbols(device: str) -> None:
     chip = Package(device)
     views = {
         i: {p.name: p.number for p in chip.unit(u).symbol.pins}
@@ -53,7 +55,9 @@ def test_default_dual_opamp_pinouts_match_exact_kicad_symbols(device):
         Package("NE5532")
 
 
-def test_package_model_arguments_build_one_whole_device_instance(tmp_path):
+def test_package_model_arguments_build_one_whole_device_instance(
+    tmp_path: Path,
+) -> None:
     lib = tmp_path / "dual.lib"
     lib.write_text(".subckt dual a b c d e f g h\n.ends\n")
     order = ("8", "4", "3", "2", "1", "5", "6", "7")
@@ -74,7 +78,7 @@ def test_package_model_arguments_build_one_whole_device_instance(tmp_path):
         chip.name = "other"
 
 
-def test_opamp_role_keys_accept_both_spellings(tmp_path):
+def test_opamp_role_keys_accept_both_spellings(tmp_path: Path) -> None:
     upper = AtomOpamp5("a", pins={"INP": 3, "inn": 2, "Out": 1, "V+": 8, "vm": 4})
     lower = AtomOpamp5("b", pins={"inp": 3, "inn": 2, "out": 1, "vp": 8, "V-": 4})
     assert {p.name: p.number for p in upper.symbol.pins} == {
@@ -92,7 +96,7 @@ def test_opamp_role_keys_accept_both_spellings(tmp_path):
         )
 
 
-def test_spice_instance_names_must_not_collide():
+def test_spice_instance_names_must_not_collide() -> None:
     child = Block("Child", "{x}─B1─{y}", B1=R("1k"))
     b = Block("Collide", "{a}─A1_B1─{b}\n\n{p}──A1───{q}", A1_B1=R("1k"), A1=child)
     assert len(netlist(b)) == 4
@@ -100,7 +104,7 @@ def test_spice_instance_names_must_not_collide():
         spice_netlist(b)
 
 
-def test_comparison_parser_rejects_unknown_elements_and_reads_mosfets():
+def test_comparison_parser_rejects_unknown_elements_and_reads_mosfets() -> None:
     assert parse_spice("M1 d g s b NMOD w=1u") == [
         ("M1", ["d", "g", "s", "b"], "NMOD w=1u")
     ]
@@ -108,7 +112,7 @@ def test_comparison_parser_rejects_unknown_elements_and_reads_mosfets():
         parse_spice("R1 a 0 1k\nE1 b 0 a 0 10\n")
 
 
-def test_cached_library_symbols_cannot_be_edited():
+def test_cached_library_symbols_cannot_be_edited() -> None:
     sym = load("Device:R").sexp
     with pytest.raises(TypeError, match="immutable"):
         sym.append("extra")
@@ -117,14 +121,14 @@ def test_cached_library_symbols_cannot_be_edited():
     assert load("Device:R").sexp[1] == "R"
 
 
-def test_nc_endpoints_reject_pin_labels():
+def test_nc_endpoints_reject_pin_labels() -> None:
     with pytest.raises(YasdlError, match="no pin labels"):
         Block("Labelled", "NC1{x}─R1─{out}", NC1=NC(), R1=R("1k"))
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad 9 CLI missing")
-def test_electrical_roundtrip_rejects_a_renamed_global_net(tmp_path):
+def test_electrical_roundtrip_rejects_a_renamed_global_net(tmp_path: Path) -> None:
     b = Block("Ground", "[VCC]─R1─R2─[GND]", R1=R("1k"), R2=R("1k"))
     path, refs = to_kicad(b, tmp_path / "ground.kicad_sch")
     assert roundtrip(b, path, refs)[0]

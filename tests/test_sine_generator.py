@@ -40,7 +40,7 @@ NAME_MAP = {
 }
 
 
-def test_sine_generator_spice_netlist():
+def test_sine_generator_spice_netlist() -> None:
     assert ".subckt sgen vm out vp" in spice_netlist(SGEN, subckt="sgen")  # DIP order
     text = spice_netlist(SGEN, subckt="sgen", port_order=SGEN_PINS)
     assert ".subckt sgen vp vm out" in text  # explicit supply/output order
@@ -82,7 +82,7 @@ def test_sine_generator_matches_reference_netlist():
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_sine_generator_kicad_export(tmp_path):
+def test_sine_generator_kicad_export(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     info = render(SGEN, tmp_path, svg=False, spice_libs=(BJT_MODELS,), spice=True)
@@ -93,7 +93,7 @@ def test_sine_generator_kicad_export(tmp_path):
 @pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
 @pytest.mark.parametrize("netlist", ["reference", "generated"])
-def test_sine_generator_oscillates_near_2khz(tmp_path, netlist):
+def test_sine_generator_oscillates_near_2khz(tmp_path: Path, netlist: str) -> None:
     text = (
         SINE_GENERATOR_NETLIST.read_text()
         if netlist == "reference"

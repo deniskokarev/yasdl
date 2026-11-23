@@ -1,6 +1,7 @@
 """P2.1: explicit no-connect marker groups, NC() (DECISIONS P2.1 follow-ups)."""
 
 import re
+from pathlib import Path
 
 import pytest
 from yasdl import Atom, Block, NC, netlist, R, spice_netlist, SpiceModel, YasdlError
@@ -20,7 +21,7 @@ LM386_CANVAS = """
 """
 
 
-def lm386(lib=None, sim=True):
+def lm386(lib: Path | None = None, sim: bool = True) -> Atom:
     """KiCad Amplifier_Audio:LM386: + 3, - 2, V+ 6, GND 4, BYPASS 7 (top), GAIN 1 and 8
     (bottom), out 5."""
     spice = None
@@ -35,7 +36,7 @@ def lm386(lib=None, sim=True):
     return Atom("Amplifier_Audio:LM386", "LM386", spice=spice, sim=sim)
 
 
-def test_each_marker_keeps_its_own_single_pin_net():
+def test_each_marker_keeps_its_own_single_pin_net() -> None:
     block = Block("Amp386", LM386_CANVAS, U1=lm386(sim=False), X1=NC(), X2=NC())
     nets = netlist(block)
     singles = sorted(v[0] for v in nets.values() if len(v) == 1)
@@ -45,7 +46,7 @@ def test_each_marker_keeps_its_own_single_pin_net():
     assert data["components"]["X2"]["binding"] == {"nc": 2}
 
 
-def test_group_size_comes_from_the_drawing():
+def test_group_size_comes_from_the_drawing() -> None:
     one = Block("One", "{a}──R1──X1", R1=R("1k"), X1=NC())
     three = Block(
         "Three",
@@ -79,7 +80,7 @@ def test_invalid_terminations(canvas, match):
         netlist(block)
 
 
-def test_nc_with_pin_label_or_no_wire_is_rejected():
+def test_nc_with_pin_label_or_no_wire_is_rejected() -> None:
     with pytest.raises(YasdlError, match="no wires"):
         Block("N", "{a}──R1──{b}\n\n   X1", R1=R("1k"), X1=NC())
 
@@ -99,7 +100,7 @@ INNER = Block(
 LEAF = Block("Leaf", "{i}──R1──{o}", R1=R("1k"))
 
 
-def test_child_port_may_end_at_nc_only_when_it_reaches_one_pin():
+def test_child_port_may_end_at_nc_only_when_it_reaches_one_pin() -> None:
     ok = Block("ParentOk", "{a}──LF──X1", LF=LEAF, X1=NC())
     assert ["LF.R1.2"] in netlist(ok).values()
     bad = Block("ParentBad", "{a}──IN──X1", IN=INNER, X1=NC())
@@ -107,7 +108,7 @@ def test_child_port_may_end_at_nc_only_when_it_reaches_one_pin():
         netlist(bad)
 
 
-def test_markers_are_not_spice_elements(tmp_path):
+def test_markers_are_not_spice_elements(tmp_path: Path) -> None:
     lib = tmp_path / "d.lib"
     lib.write_text(".subckt dummy386 p1 p2 p3 p4 p5 p6 p7 p8\nR1 p1 p8 1k\n.ends\n")
     text = spice_netlist(Block("Amp386", LM386_CANVAS, U1=lm386(lib), X1=NC(), X2=NC()))
@@ -121,7 +122,7 @@ def test_markers_are_not_spice_elements(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_kicad_erc_netlist_and_spice_with_nc_group(tmp_path):
+def test_kicad_erc_netlist_and_spice_with_nc_group(tmp_path: Path) -> None:
     from yasdl.kicad_export import erc, export_kicad_spice, render
     from yasdl.sexp import find_all, parse
 
@@ -146,7 +147,7 @@ def test_kicad_erc_netlist_and_spice_with_nc_group(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_hierarchical_nc_renders_clean(tmp_path):
+def test_hierarchical_nc_renders_clean(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     info = render(

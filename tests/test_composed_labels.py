@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from yasdl import Block, netlist, R
 from yasdl.kicad_export import render
@@ -6,7 +8,7 @@ from yasdl.kicad_lib import KICAD_CLI
 
 @pytest.mark.integration
 @pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad unavailable")
-def test_joined_child_local_buses_use_one_electrical_name(tmp_path):
+def test_joined_child_local_buses_use_one_electrical_name(tmp_path: Path) -> None:
     child = Block("Bus", "{a}──[bus]──R1──{b}", R1=R("1k"))
     b = Block("Composite", "[VCC]──A1──B1──{out}", A1=child, B1=child)
     assert netlist(b) == {

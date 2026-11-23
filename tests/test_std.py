@@ -6,6 +6,8 @@ import math
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from yasdl import (
@@ -81,7 +83,7 @@ BLOCKS = {
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
 @pytest.mark.parametrize("name", sorted(BLOCKS))
-def test_every_standard_block_renders_clean(tmp_path, name):
+def test_every_standard_block_renders_clean(tmp_path: Path, name: str) -> None:
     from yasdl.kicad_export import render
 
     block = BLOCKS[name]()
@@ -91,14 +93,14 @@ def test_every_standard_block_renders_clean(tmp_path, name):
     assert info["spice_ok"], info["spice_diff"]
 
 
-def test_parallel_array_crossings_are_declared():
+def test_parallel_array_crossings_are_declared() -> None:
     for n in (2, 3, 4):
         assert std.parallel(Q2N3904, n, "1").crossing_count() == n - 1
     with pytest.raises(YasdlError):
         std.parallel(Q2N3904, 1, "1")
 
 
-def test_compound_devices_share_the_transistor_interface():
+def test_compound_devices_share_the_transistor_interface() -> None:
     for blk in (
         std.darlington(Q2N3904),
         std.sziklai(Q2N3904, Q2N3906),
@@ -111,12 +113,12 @@ def test_compound_devices_share_the_transistor_interface():
         }
 
 
-def nets(block):
+def nets(block: Block) -> set[frozenset[str]]:
     return {frozenset(v) for v in netlist(block).values()}
 
 
 @pytest.mark.parametrize("re", [None, "100"])
-def test_mirror_degeneration_fixture(re):
+def test_mirror_degeneration_fixture(re: str | None) -> None:
     groups = nets(std.mirror(Q2N3904, re=re))
     assert frozenset(("Q1.3", "Q1.2", "Q2.2")) in groups
     assert frozenset(("Q2.3",)) in groups
@@ -128,7 +130,7 @@ def test_mirror_degeneration_fixture(re):
         assert frozenset(("Q1.1", "Q2.1")) in groups
 
 
-def test_diff_pair_degeneration_is_a_distinct_topology():
+def test_diff_pair_degeneration_is_a_distinct_topology() -> None:
     plain = netlist(std.diff_pair(Q2N3904))
     assert any(set(ps) == {"Q1.1", "Q2.1", "RT.1"} for ps in plain.values())
     degenerated = netlist(std.diff_pair(Q2N3904, re="100"))
@@ -136,7 +138,7 @@ def test_diff_pair_degeneration_is_a_distinct_topology():
 
 
 @pytest.mark.parametrize("tail", ["resistor", "current_sink"])
-def test_diff_pair_tail_options(tail):
+def test_diff_pair_tail_options(tail: str) -> None:
     rt = "6.8k" if tail == "resistor" else std.current_sink(Q2N3904, diode=D1N4148)
     b = std.diff_pair(Q2N3904, re="100", rt=rt)
     assert frozenset(("Q1.1", "RE1.1")) in nets(b)
@@ -151,7 +153,7 @@ def test_diff_pair_tail_options(tail):
 @pytest.mark.parametrize(
     "kind, diodes", [("bjt", 2), ("darlington", 4), ("sziklai", 2)]
 )
-def test_push_pull_core_bias_and_complementary_outputs(kind, diodes):
+def test_push_pull_core_bias_and_complementary_outputs(kind: str, diodes: int) -> None:
     from yasdl.spice import parse_spice
 
     b = std.push_pull_core(kind, Q2N3904, Q2N3906, D1N4148)
@@ -170,7 +172,7 @@ def test_push_pull_core_bias_and_complementary_outputs(kind, diodes):
     assert std.push_pull_core(kind, Q2N3904, Q2N3906, n=4).crossing_count == 6
 
 
-def test_integrator_differentiator_and_bandpass():
+def test_integrator_differentiator_and_bandpass() -> None:
     integ = spice_netlist(std.integrator("10k", "10n"))
     assert "C_RF " in integ and "R_RI " in integ
     diff = spice_netlist(std.differentiator("10n", "10k"))
@@ -179,7 +181,7 @@ def test_integrator_differentiator_and_bandpass():
     assert bp["in"] == ["HP.C1.1"] and sorted(bp["GND"]) == ["HP.R1.2", "LP.C1.2"]
 
 
-def test_invalid_kinds_are_rejected():
+def test_invalid_kinds_are_rejected() -> None:
     for build in (
         lambda: std.push_pull("wrong"),
         lambda: std.push_pull_core("wrong"),
@@ -192,7 +194,7 @@ def test_invalid_kinds_are_rejected():
 
 
 # --- simulation helpers -------------------------------------------------------------------
-def run(tmp_path, body, analyses):
+def run(tmp_path: Path, body: str, analyses: str) -> str:
     cir = tmp_path / "tb.cir"
     cir.write_text(
         f"* tb\n.include {JELLYBEAN_MODEL}\n{body}\n.control\n{analyses}\n.endc\n.end\n"
@@ -201,13 +203,13 @@ def run(tmp_path, body, analyses):
     return out.stdout + out.stderr
 
 
-def value(text, name):
+def value(text: str, name: str) -> float:
     m = re.search(rf"^\s*{re.escape(name)}\s*=\s*(\S+)", text, re.M | re.I)
     assert m, f"{name} missing:\n{text[-3000:]}"
     return float(m.group(1))
 
 
-def sub(block, name, order):
+def sub(block: Block, name: str, order: list[str]) -> str:
     return spice_netlist(block, subckt=name, port_order=order)
 
 
@@ -222,7 +224,7 @@ def sub(block, name, order):
         (std.noninverting("10k", "1k", std.powered(OP5)), 11.0),
     ],
 )
-def test_opamp_circuit_gains(tmp_path, block, gain):
+def test_opamp_circuit_gains(tmp_path: Path, block: Block, gain: float) -> None:
     body = (
         sub(block, "amp", ["in", "out"])
         + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.1\nX1 in out amp\n"
@@ -240,7 +242,7 @@ def test_opamp_circuit_gains(tmp_path, block, gain):
         (std.rc_highpass("1u", "1k"), "hp", 1 / (2 * math.pi * 1e-3)),
     ],
 )
-def test_filter_corner(tmp_path, block, kind, f0):
+def test_filter_corner(tmp_path: Path, block: Block, kind: str, f0: float) -> None:
     """Butterworth-sized sections: |H(f0)| = 1/sqrt(2) (both first and second order here)."""
     body = (
         sub(block, "flt", ["in", "out"])
@@ -265,7 +267,9 @@ def test_filter_corner(tmp_path, block, kind, f0):
         (std.wilson, 10.0, 0.99, 1.01),  # high output resistance: still ~1 at 10 V
     ],
 )
-def test_current_mirrors(tmp_path, factory, vout, lo, hi):
+def test_current_mirrors(
+    tmp_path: Path, factory: Callable[..., Block], vout: float, lo: float, hi: float
+) -> None:
     body = sub(factory(Q2N3904), "mir", ["in", "out", "vn"]) + (
         f"VCC vcc 0 10\nIIN vcc in 1m\nVOUT out 0 {vout}\nX1 in out 0 mir\n"
     )
@@ -276,7 +280,7 @@ def test_current_mirrors(tmp_path, factory, vout, lo, hi):
 
 @pytest.mark.integration
 @ngspice
-def test_diff_pairs_amplify_the_difference(tmp_path):
+def test_diff_pairs_amplify_the_difference(tmp_path: Path) -> None:
     for block, outs in (
         (
             std.diff_pair(Q2N3904, rc="10k", rt="10k"),
@@ -297,7 +301,7 @@ def test_diff_pairs_amplify_the_difference(tmp_path):
         assert vals[1] > vals[0] + 0.1  # raising inp raises the inn-side output
 
 
-def push_pull_bench(kind, diodes=None):
+def push_pull_bench(kind: str, diodes: int | None = None) -> str:
     pp = std.push_pull(
         kind,
         Q2N3904,
@@ -342,7 +346,9 @@ def test_push_pull_bias_matches_its_output_variant(
 @pytest.mark.parametrize(
     "kind, bias", [("bjt", 0.68), ("darlington", 1.3), ("sziklai", 0.68)]
 )
-def test_push_pull_core_follows_its_drive(tmp_path, kind, bias):
+def test_push_pull_core_follows_its_drive(
+    tmp_path: Path, kind: str, bias: float
+) -> None:
     """{hi} driven with the half-string bias plus 0.2 V peak, a 3 mA sink at {lo}: the
     output follows into 100 ohm without clipping."""
     core = std.push_pull_core(kind, Q2N3904, Q2N3906, D1N4148)
@@ -360,7 +366,7 @@ def test_push_pull_core_follows_its_drive(tmp_path, kind, bias):
     assert value(out, "output") < 0.5
 
 
-def test_vbe_multiplier_connections():
+def test_vbe_multiplier_connections() -> None:
     """Fixture (2N3904 TO-92: 1 = E, 2 = B, 3 = C): R1 collector-base, R2 base-emitter,
     collector = {a}, emitter = {k}. Resistor pin numbers are ignored (symmetric parts)."""
     nets = netlist(std.vbe_multiplier(Q2N3904, "2.7k", "1k"))
@@ -377,7 +383,7 @@ def test_vbe_multiplier_connections():
 
 @pytest.mark.integration
 @ngspice
-def test_vbe_multiplier_scales_vbe(tmp_path):
+def test_vbe_multiplier_scales_vbe(tmp_path: Path) -> None:
     """2 mA into {a}: V(a, k) = Vbe (1 + R1/R2) with Vbe of a small NPN at ~1.5 mA
     (0.6-0.75 V); doubling R1/R2 + 1 doubles the voltage (within base-current error)."""
     volts = []
@@ -403,13 +409,13 @@ LOWER_PLUS = """
 """
 
 
-def test_lone_plus_label_mirrors_supplies_too():
+def test_lone_plus_label_mirrors_supplies_too() -> None:
     """Documented trap: + on the lower input mirrors the whole symbol, so V- moves up."""
     nets = netlist(Block("Trap", LOWER_PLUS, U1=OPAMP()))
     assert nets["VCC"] == ["U1.4"] and nets["VEE"] == ["U1.3"]  # V- on VCC!
 
 
-def test_supply_labels_reject_the_mirror():
+def test_supply_labels_reject_the_mirror() -> None:
     canvas = """
           [VCC]
             │
@@ -425,7 +431,7 @@ def test_supply_labels_reject_the_mirror():
         Block("Labelled", canvas, U1=OPAMP())
 
 
-def test_powered_wrapper_keeps_supplies_when_mirrored():
+def test_powered_wrapper_keeps_supplies_when_mirrored() -> None:
     host = Block(
         "Host",
         """
@@ -443,7 +449,7 @@ def test_powered_wrapper_keeps_supplies_when_mirrored():
 
 @pytest.mark.integration
 @ngspice
-def test_powered_inverting_stage_simulates(tmp_path):
+def test_powered_inverting_stage_simulates(tmp_path: Path) -> None:
     amp = std.inverting("10k", "47k", std.powered(OP5))
     text = sub(amp, "inv", ["in", "out"])
     assert ".global VCC VEE" in text
@@ -455,7 +461,7 @@ def test_powered_inverting_stage_simulates(tmp_path):
 
 @pytest.mark.integration
 @ngspice
-def test_package_units_in_standard_circuits(tmp_path):
+def test_package_units_in_standard_circuits(tmp_path: Path) -> None:
     chip = Package(IDEAL_DUAL, "U1")
     top = Block(
         "Chain",

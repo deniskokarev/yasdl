@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
-from .block import Atom, Block, NCMarker
+from .block import Atom, Block, Bound, NCMarker
 from .kicad_lib import (
     compose,
     orient_vec,
@@ -62,7 +63,7 @@ class Result:
     labels: list = field(default_factory=list)  # (text, (x, y))
     nc: list = field(default_factory=list)  # no-connect marker points (x, y)
 
-    def shape(self, block_bound) -> Shape:
+    def shape(self, block_bound: Bound) -> Shape:
         pins = {id(att): self.ports[idx] for att, idx in block_bound.pin_map}
         return Shape(self.bbox, pins)
 
@@ -71,7 +72,7 @@ class Result:
         if (rot, mirror) == (0, None):
             return self
 
-        def orient(point):
+        def orient(point: tuple[float, float]) -> tuple[float, ...]:
             return tuple(
                 round(value, 4) + 0.0
                 for value in orient_vec(point[0], point[1], rot, mirror)
@@ -99,7 +100,7 @@ class Result:
             [orient(point) for point in self.nc],
         )
 
-    def translated(self, dx, dy, prefix):
+    def translated(self, dx: float, dy: float, prefix: str) -> Result:
         t = lambda p: (round(p[0] + dx, 4), round(p[1] + dy, 4))  # noqa: E731
         return Result(
             (
@@ -155,14 +156,14 @@ def _atom_shape(bound) -> Shape:
 
 # --- difference-constraint solver ---------------------------------------------------
 class _System:
-    def __init__(self, n):
+    def __init__(self, n: int) -> None:
         self.n = n
-        self.edges = []  # (i, j, w): v[j] >= v[i] + w
+        self.edges: list[tuple[int, int, float]] = []  # (i, j, w): v[j] >= v[i] + w
 
-    def ge(self, j, i, w):
+    def ge(self, j: int, i: int, w: float) -> None:
         self.edges.append((i, j, w))
 
-    def eq(self, j, i, w):  # v[j] == v[i] + w
+    def eq(self, j: int, i: int, w: float) -> None:  # v[j] == v[i] + w
         self.edges += [(i, j, w), (j, i, -w)]
 
     def solve(self, extra=()):
@@ -181,17 +182,17 @@ class _System:
 
 # --- layout ---------------------------------------------------------------------------
 class Layout:
-    def __init__(self, block: Block, cache: dict | None = None):
+    def __init__(self, block: Block, cache: dict | None = None) -> None:
         self.block, self.cv = block, block.canvas
         if block.unbound:
             raise LayoutError(f"{block.name}: unbound components {block.unbound}")
-        self.cache = {} if cache is None else cache
+        self.cache: dict[int, Result] = {} if cache is None else cache
         self.children: dict[str, Result] = {}
         self.shapes: dict[str, Shape] = {}
         from .atoms import POWER_NETS  # registry of global nets drawn as power symbols
 
         # label index -> (Atom, rot, extent): dangling global labels drawn as power symbols
-        self.power = {}
+        self.power: dict[int, tuple[Atom, int, tuple[float, ...]]] = {}
         for i, lab in enumerate(self.cv.labels):
             if (
                 lab.kind == "global"
@@ -201,7 +202,7 @@ class Layout:
                 atom = Atom(POWER_NETS[lab.text], lab.text)
                 rot = rot_with_pin_on(atom.symbol, lab.entries[0])
                 self.power[i] = (atom, rot, symbol_extent(atom, rot, None, ""))
-        self.nc_comps = set()
+        self.nc_comps: set[str] = set()
         for name, b in block.bound.items():
             if isinstance(
                 b.obj, NCMarker
@@ -218,7 +219,9 @@ class Layout:
                 self.shapes[name] = self.children[name].shape(b)
 
     # Items occupying the canvas, for adjacency: per cell -> ("wire"|"label"|"comp", key).
-    def _item_at(self, r, c):
+    def _item_at(
+        self, r: int, c: int
+    ) -> tuple[str, tuple[int, int]] | tuple[str, int] | tuple[str, str] | None:
         cv = self.cv
         if (r, c) in cv.wires:
             return ("wire", (r, c))
@@ -230,7 +233,9 @@ class Layout:
 
     def run(self) -> Result:
         jogs = {name: {s: set() for s in "NESW"} for name in self.shapes}
-        self.sep = {
+        self.sep: dict[
+            str, set[tuple[tuple[str, int | str], tuple[str, int | str]]]
+        ] = {
             "x": set(),
             "y": set(),
         }  # extra pairwise separations (spilling shapes)
@@ -248,12 +253,14 @@ class Layout:
         return self._emit(xs, ys, ox, oy, jogs)
 
     # --- constraints ---------------------------------------------------------------
-    def _solve(self, jogs, axis):
+    def _solve(
+        self, jogs: dict[str, dict[str, set[int]]], axis: str
+    ) -> tuple[list[float], dict[str, float]]:
         cv = self.cv
         horiz = axis == "x"  # x positions are constrained along rows
         n_lines = cv.W if horiz else cv.H
         comps = sorted(self.shapes)
-        var = {("line", i): i for i in range(n_lines)}
+        var: dict[tuple[str, int | str], int] = {("line", i): i for i in range(n_lines)}
         for k, name in enumerate(comps):
             var[("comp", name)] = n_lines + k
         sys_ = _System(len(var))
@@ -362,7 +369,14 @@ class Layout:
         r, c = b[1]
         return ("W" if horiz else "N") in self.cv.wires[(r, c)]
 
-    def _find_overlaps(self, xs, ys, ox, oy, jogs) -> bool:
+    def _find_overlaps(
+        self,
+        xs: list[float],
+        ys: list[float],
+        ox: dict[str, float],
+        oy: dict[str, float],
+        jogs: dict[str, dict[str, set[int]]],
+    ) -> bool:
         """Separate boxes (components, net labels) that overlap physically although they sit in
         different rows/columns: in Y if their canvas rows are disjoint, else in X."""
         cv = self.cv
@@ -408,7 +422,13 @@ class Layout:
                 changed = True
         return changed
 
-    def _find_jogs(self, jogs, pos, origin, axis):
+    def _find_jogs(
+        self,
+        jogs: dict[str, dict[str, set[int]]],
+        pos: list[float],
+        origin: dict[str, float],
+        axis: str,
+    ) -> bool:
         horiz = axis == "x"
         changed = False
         for name, comp in self.cv.comps.items():
@@ -428,12 +448,19 @@ class Layout:
         return changed
 
     # --- geometry --------------------------------------------------------------------
-    def _emit(self, xs, ys, ox, oy, jogs) -> Result:
+    def _emit(
+        self,
+        xs: list[float],
+        ys: list[float],
+        ox: dict[str, float],
+        oy: dict[str, float],
+        jogs: dict[str, dict[str, set[int]]],
+    ) -> Result:
         cv = self.cv
         res = Result(bbox=(0, 0, 0, 0), ports=[])
         pt = lambda r, c: (xs[c], ys[r])  # noqa: E731
 
-        def node_point(cell):
+        def node_point(cell: tuple[int, int]) -> tuple[float, float]:
             """One point per node: a label's point is its vertical-wire column, else its '<'."""
             if cell in cv.label_at:
                 lab = cv.labels[cv.label_at[cell]]
@@ -452,7 +479,7 @@ class Layout:
                 res.symbols.append((name, b.obj, ox[name], oy[name], b.rot, b.mirror))
 
         # Wires between cells (crossings pass straight through).
-        def walk(cell, arm):
+        def walk(cell: tuple[int, int], arm: str) -> tuple[int, int]:
             """Follow `arm` from `cell` through crossings; return the next real node cell."""
             dr, dc = {"N": (-1, 0), "S": (1, 0), "E": (0, 1), "W": (0, -1)}[arm]
             r, c = cell[0] + dr, cell[1] + dc
@@ -548,7 +575,13 @@ class Layout:
         res.bbox = (x0, y0, x1, y1)
         return res
 
-    def _comp_box(self, name, ox, oy, jogs):
+    def _comp_box(
+        self,
+        name: str,
+        ox: dict[str, float],
+        oy: dict[str, float],
+        jogs: dict[str, dict[str, set[int]]],
+    ) -> tuple[float, float, float, float]:
         x0, y0, x1, y1 = self.shapes[name].bbox
         j = jogs[name]
         return (
@@ -558,7 +591,9 @@ class Layout:
             oy[name] + y1 + PITCH * len(j["S"]),
         )
 
-    def _label_box(self, i, xs, ys):
+    def _label_box(
+        self, i: int, xs: list[float], ys: list[float]
+    ) -> tuple[float, float, float, float]:
         lab = self.cv.labels[i]
         if i in self.power:
             x0, y0, x1, y1 = self.power[i][2]
@@ -573,7 +608,11 @@ class Layout:
 
 
 # --- ladder routing --------------------------------------------------------------------
-def _route_side(side, items, where):
+def _route_side(
+    side: str,
+    items: Iterable[tuple[tuple[float, float], tuple[float, float]]],
+    where: str,
+) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     """Connect wire points to pin points on one component side without crossings.
 
     Each item is (wire point, pin point). Aligned items get a straight wire; the others get a
@@ -618,7 +657,9 @@ def _route_side(side, items, where):
     return segs
 
 
-def _crosses(p, q):
+def _crosses(
+    p: Sequence[tuple[float, float]], q: Sequence[tuple[float, float]]
+) -> bool:
     """Do two axis-aligned polylines intersect anywhere?"""
     for a1, a2 in zip(p, p[1:]):
         for b1, b2 in zip(q, q[1:]):
@@ -627,7 +668,12 @@ def _crosses(p, q):
     return False
 
 
-def _seg_hit(a1, a2, b1, b2):
+def _seg_hit(
+    a1: tuple[float, float],
+    a2: tuple[float, float],
+    b1: tuple[float, float],
+    b2: tuple[float, float],
+) -> bool:
     ax0, ax1 = sorted((a1[0], a2[0]))
     ay0, ay1 = sorted((a1[1], a2[1]))
     bx0, bx1 = sorted((b1[0], b2[0]))

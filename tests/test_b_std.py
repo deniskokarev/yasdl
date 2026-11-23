@@ -6,8 +6,7 @@ import shutil
 import subprocess
 
 import pytest
-from yasdl import Block, netlist, OPAMP, OPAMP_IDEAL, R, spice_netlist, V
-from yasdl import std
+from yasdl import Block, netlist, OPAMP, OPAMP_IDEAL, R, spice_netlist, std, V
 from yasdl.kicad_lib import JELLYBEAN_MODEL, KICAD_CLI
 from yasdl.parts import D1N4148, Q2N3904, Q2N3906
 
@@ -20,13 +19,20 @@ def stage(variant, n=None):
     """A push-pull stage of the given variant with jellybean parts (n: output arrays)."""
     npn, pnp = Q2N3904(), Q2N3906()
     if n:
-        npn, pnp = std.parallel(npn, n, name=f"ArrN{n}"), std.parallel(pnp, n, name=f"ArrP{n}")
+        npn, pnp = (
+            std.parallel(npn, n, name=f"ArrN{n}"),
+            std.parallel(pnp, n, name=f"ArrP{n}"),
+        )
     upper, lower = {
         "bjt": (npn, pnp),
-        "darlington": (std.darlington(Q2N3904(), npn, name="DarlN"),
-                       std.darlington(Q2N3906(), pnp, name="DarlP")),
-        "sziklai": (std.sziklai(Q2N3904(), pnp, name="SzN"),
-                    std.sziklai(Q2N3906(), npn, name="SzP")),
+        "darlington": (
+            std.darlington(Q2N3904(), npn, name="DarlN"),
+            std.darlington(Q2N3906(), pnp, name="DarlP"),
+        ),
+        "sziklai": (
+            std.sziklai(Q2N3904(), pnp, name="SzN"),
+            std.sziklai(Q2N3906(), npn, name="SzP"),
+        ),
     }[variant]
     return std.push_pull(variant, upper, lower, diode=D1N4148())
 
@@ -35,12 +41,23 @@ def stage(variant, n=None):
 def test_darlington_and_sziklai_connections():
     d = netlist(std.darlington(Q2N3904(), Q2N3904()))
     assert sorted(d["c"]) == ["Q1.3", "Q2.3"]  # collectors tied
-    assert sorted(next(v for v in d.values() if "Q1.1" in v)) == ["Q1.1", "Q2.2", "RX.1"]
+    assert sorted(next(v for v in d.values() if "Q1.1" in v)) == [
+        "Q1.1",
+        "Q2.2",
+        "RX.1",
+    ]
     assert sorted(d["e"]) == ["Q2.1", "RX.2"]
     s = netlist(std.sziklai(Q2N3904(), Q2N3906()))
     assert sorted(s["e"]) == ["Q1.1", "Q2.3"]  # driver emitter = output collector
-    assert sorted(s["c"]) == ["Q2.1", "RX.1"]  # output emitter is the compound collector
-    assert sorted(next(v for v in s.values() if "Q1.3" in v)) == ["Q1.3", "Q2.2", "RX.2"]
+    assert sorted(s["c"]) == [
+        "Q2.1",
+        "RX.1",
+    ]  # output emitter is the compound collector
+    assert sorted(next(v for v in s.values() if "Q1.3" in v)) == [
+        "Q1.3",
+        "Q2.2",
+        "RX.2",
+    ]
 
 
 @pytest.mark.parametrize("n", [2, 4])
@@ -50,19 +67,30 @@ def test_parallel_array(n):
     assert sorted(nets["b"]) == [f"Q{k}.2" for k in range(1, n + 1)]
     assert sorted(nets["c"]) == [f"Q{k}.3" for k in range(1, n + 1)]
     assert sorted(nets["e"]) == [f"RE{k}.2" for k in range(1, n + 1)]
-    assert len(arr.canvas.crossings) == n - 1  # three-terminal parts in parallel: non-planar
-    assert [(p.side, p.name) for p in sorted(arr.ports, key=lambda p: p.side)] == \
-        [("N", "c"), ("S", "e"), ("W", "b")]
+    assert (
+        len(arr.canvas.crossings) == n - 1
+    )  # three-terminal parts in parallel: non-planar
+    assert [(p.side, p.name) for p in sorted(arr.ports, key=lambda p: p.side)] == [
+        ("N", "c"),
+        ("S", "e"),
+        ("W", "b"),
+    ]
 
 
-@pytest.mark.parametrize("variant, diodes", [("bjt", 1), ("darlington", 2), ("sziklai", 1)])
+@pytest.mark.parametrize(
+    "variant, diodes", [("bjt", 1), ("darlington", 2), ("sziklai", 1)]
+)
 def test_push_pull_bias_string_matches_variant(variant, diodes):
     b = stage(variant)
     nets = netlist(b)
     dh = sorted(k for k in b.bound if k.startswith("DH"))
-    assert len(dh) == diodes and len([k for k in b.bound if k.startswith("DL")]) == diodes
+    assert (
+        len(dh) == diodes and len([k for k in b.bound if k.startswith("DL")]) == diodes
+    )
     upper_base = next(v for v in nets.values() if "RT.2" in v)
-    assert f"DH1.2" in upper_base  # string top: anode of the first diode, upper base, RT
+    assert (
+        f"DH1.2" in upper_base
+    )  # string top: anode of the first diode, upper base, RT
     assert any(p.startswith("QH.") for p in upper_base)
     assert f"DH{diodes}.1" in nets["in"] and "RQ.1" in nets["in"]
     assert sorted(nets["out"]) == ["RH.2", "RL.1"]
@@ -78,7 +106,12 @@ def test_mirrors_and_pairs():
     assert p["vp"] == ["RT.1"] and sorted(p["vn"]) == ["RC1.2", "RC2.2"]
     pm = netlist(std.diff_pair_mirror(Q2N3904(), Q2N3906()))
     assert sorted(pm["out"]) == ["Q2.3", "Q4.3"]
-    assert sorted(next(v for v in pm.values() if "Q3.3" in v)) == ["Q1.3", "Q3.2", "Q3.3", "Q4.2"]
+    assert sorted(next(v for v in pm.values() if "Q3.3" in v)) == [
+        "Q1.3",
+        "Q3.2",
+        "Q3.3",
+        "Q4.2",
+    ]
 
 
 def test_opamp_circuits_take_any_three_terminal_opamp():
@@ -99,8 +132,12 @@ STANDALONE = {
     "push_pull_sziklai": lambda: stage("sziklai"),
     "mirror_pnp": lambda: std.mirror(Q2N3906(), "pnp"),
     "diff_pair_mirror_pnp": lambda: std.diff_pair_mirror(Q2N3906(), Q2N3904(), "pnp"),
-    "sallen_key_lp": lambda: std.sallen_key_lowpass("10k", "10k", "10n", "22n", OPAMP_IDEAL()),
-    "noninverting": lambda: std.NONINVERTING.bind(RG=R("1k"), RF=R("3k"), U1=OPAMP_IDEAL()),
+    "sallen_key_lp": lambda: std.sallen_key_lowpass(
+        "10k", "10k", "10n", "22n", OPAMP_IDEAL()
+    ),
+    "noninverting": lambda: std.NONINVERTING.bind(
+        RG=R("1k"), RF=R("3k"), U1=OPAMP_IDEAL()
+    ),
 }
 
 
@@ -110,8 +147,13 @@ STANDALONE = {
 def test_standard_blocks_render_cleanly(tmp_path, key):
     from yasdl.kicad_export import render
 
-    info = render(STANDALONE[key](), tmp_path, svg=False, spice=True,
-                  spice_libs=(str(JELLYBEAN_MODEL),))
+    info = render(
+        STANDALONE[key](),
+        tmp_path,
+        svg=False,
+        spice=True,
+        spice_libs=(str(JELLYBEAN_MODEL),),
+    )
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
     assert info["erc"] == [], info["erc"]
     assert info["spice_ok"], info["spice_diff"]
@@ -120,8 +162,13 @@ def test_standard_blocks_render_cleanly(tmp_path, key):
 # --- ngspice characterization -------------------------------------------------------------------
 def run(tmp_path, deck, name="tb.cir"):
     (tmp_path / name).write_text(deck)
-    out = subprocess.run(["ngspice", "-b", name], cwd=tmp_path, capture_output=True, text=True,
-                         timeout=600)
+    out = subprocess.run(
+        ["ngspice", "-b", name],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "error" not in out.stdout.lower().replace("errors: 0", ""), out.stdout
     return out.stdout
@@ -156,8 +203,10 @@ def thd(text):
 
 @pytest.mark.integration
 @ngspice
-@pytest.mark.parametrize("variant, n", [("bjt", None), ("darlington", 2), ("sziklai", None),
-                                        ("darlington", None)])
+@pytest.mark.parametrize(
+    "variant, n",
+    [("bjt", None), ("darlington", 2), ("sziklai", None), ("darlington", None)],
+)
 def test_push_pull_variants_are_biased_and_linear(tmp_path, variant, n):
     """Quiescent current flows (no dead band), gain near 1 into 8 ohm at 2 Vpk, THD < 2 %."""
     quiet = run(tmp_path, stage_bench(stage(variant, n), 0.0), "q.cir")
@@ -176,15 +225,24 @@ def test_darlington_needs_its_own_bias_string(tmp_path):
     alone would accept them, so the variant must choose the bias network deliberately."""
     up = std.darlington(Q2N3904(), Q2N3904(), name="DarlN")
     lo = std.darlington(Q2N3906(), Q2N3906(), name="DarlP")
-    right = run(tmp_path, stage_bench(std.push_pull("darlington", up, lo), 1.0), "a.cir")
+    right = run(
+        tmp_path, stage_bench(std.push_pull("darlington", up, lo), 1.0), "a.cir"
+    )
     wrong = run(tmp_path, stage_bench(std.push_pull("bjt", up, lo), 1.0), "b.cir")
     assert thd(wrong) > 3 * thd(right)
 
 
 @pytest.mark.integration
 @ngspice
-@pytest.mark.parametrize("kind, q, wilson", [("npn", Q2N3904, False), ("pnp", Q2N3906, False),
-                                             ("npn", Q2N3904, True), ("pnp", Q2N3906, True)])
+@pytest.mark.parametrize(
+    "kind, q, wilson",
+    [
+        ("npn", Q2N3904, False),
+        ("pnp", Q2N3906, False),
+        ("npn", Q2N3904, True),
+        ("pnp", Q2N3906, True),
+    ],
+)
 def test_mirrors_copy_the_reference_current(tmp_path, kind, q, wilson):
     block = std.wilson(q(), kind) if wilson else std.mirror(q(), kind, re="100")
     rail = "vn" if kind == "npn" else "vp"
@@ -210,8 +268,12 @@ def test_sallen_key_corner(tmp_path, kind):
         block = std.sallen_key_lowpass("10k", "10k", "11.25n", "22.5n", OPAMP_IDEAL())
     else:
         block = std.sallen_key_highpass("10n", "10n", "22.5k", "11.25k", OPAMP_IDEAL())
-    bench = Block("SKBench", "  ┌──SK──{out}\n  +\n  V1\n  │\n[GND]\n", V1=V("dc 0 ac 1"),
-                  SK=block)
+    bench = Block(
+        "SKBench",
+        "  ┌──SK──{out}\n  +\n  V1\n  │\n[GND]\n",
+        V1=V("dc 0 ac 1"),
+        SK=block,
+    )
     deck = spice_netlist(bench) + (
         ".ac dec 200 10 100k\n.control\nrun\n"
         "meas ac f3db when vdb(out)=-3.0103\n.endc\n.end\n"

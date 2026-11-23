@@ -200,24 +200,64 @@ labels; the labels choose the orientation.
 ## API
 
 ```python
-from yasdl import (Block, Sketch, R, C, L, D, NPN, PNP, OPAMP, OPAMP_IDEAL, V, I, GND, VCC, VEE, C_POL,
-                   POT, NC, Atom, netlist, spice_netlist, register_power_net, SpiceModel)
-from yasdl import std                                   # standard reusable blocks
-from yasdl.parts import Q2N3904, Q2N3906, BD139, BD140, D1N4148, AtomNPN, Package, dual_opamp
+from yasdl import (
+    Block,
+    Sketch,
+    R,
+    C,
+    L,
+    D,
+    NPN,
+    PNP,
+    OPAMP,
+    OPAMP_IDEAL,
+    V,
+    I,
+    GND,
+    VCC,
+    VEE,
+    C_POL,
+    POT,
+    NC,
+    Atom,
+    netlist,
+    spice_netlist,
+    register_power_net,
+    SpiceModel,
+)
+from yasdl import std  # standard reusable blocks
+from yasdl.parts import (
+    Q2N3904,
+    Q2N3906,
+    BD139,
+    BD140,
+    D1N4148,
+    AtomNPN,
+    Package,
+    dual_opamp,
+)
 from yasdl.kicad_export import render
-from yasdl.kicad_lib import JELLYBEAN_MODEL             # 2N3904, 2N3906, 1N4148 models
+from yasdl.kicad_lib import JELLYBEAN_MODEL  # 2N3904, 2N3906, 1N4148 models
 
 STAGE = Block("Stage", canvas_text, R1=R("10k"), Q1=NPN("2N3904"), SUB=OTHER)
-STAGE.unbound                     # components without a binding = open interface
-TOP = TEMPLATE.bind(IN=R("1k"))   # bind later
-STAGE.ports                       # Port(side, index, name, dip, aliases)
-STAGE.port("vp")                  # lookup by alias, "W0" or "D2"
-netlist(STAGE)                    # {net: ["path.pin", ...]}
-spice_netlist(STAGE, subckt="name", port_order=["vp", "vm", "out"], includes=("models.lib",))
-render(STAGE, "out", spice_libs=("models.lib",), spice=True)  # .kicad_sch + .svg + checks
-render(STAGE, "out", references="names", values=False)  # refs = yasdl names, values hidden
-render(HALF.bind(Q1=NPN("2N3904")), "out", export_name="HalfN")  # file stem != block name
-STAGE.to_dict()                   # JSON view for debugging
+STAGE.unbound  # components without a binding = open interface
+TOP = TEMPLATE.bind(IN=R("1k"))  # bind later
+STAGE.ports  # Port(side, index, name, dip, aliases)
+STAGE.port("vp")  # lookup by alias, "W0" or "D2"
+netlist(STAGE)  # {net: ["path.pin", ...]}
+spice_netlist(
+    STAGE, subckt="name", port_order=["vp", "vm", "out"], includes=("models.lib",)
+)
+render(
+    STAGE, "out", spice_libs=("models.lib",), spice=True
+)  # .kicad_sch + .svg + checks
+render(
+    STAGE, "out", references="names", values=False
+)  # refs = yasdl names, values hidden
+render(
+    HALF.bind(Q1=NPN("2N3904")), "out", export_name="HalfN"
+)  # file stem != block name
+STAGE.to_dict()  # JSON view for debugging
 Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 ```
 
@@ -292,9 +332,10 @@ returns electrical track position. `Sketch.crossing_count` counts deliberate cro
 
 ```python
 from yasdl.analysis import Circuit
-ckt = Circuit(top)                                  # R, C, L, V, I, OPAMP_IDEAL
-ckt.transfer("V1", "out", s=2j * math.pi * f)       # numeric H(jw), stdlib only
-ckt.transfer_symbolic("V1", "out")                  # sympy H(s) in element names
+
+ckt = Circuit(top)  # R, C, L, V, I, OPAMP_IDEAL
+ckt.transfer("V1", "out", s=2j * math.pi * f)  # numeric H(jw), stdlib only
+ckt.transfer_symbolic("V1", "out")  # sympy H(s) in element names
 ```
 Use it to check a design against its target in milliseconds; confirm the final one in ngspice.
 
@@ -308,9 +349,9 @@ s = Sketch()
 s.text(0, 0, "{in}").hline(0, 4, 7).text(0, 8, "R1").hline(0, 10, 13)
 s.hline(0, 15, 18).text(0, 19, "{out}")
 s.vline(14, 1, 1).text(2, 14, "C1")
-s.junction(0, 14)                          # ┬: explicit, in the empty cell the wires meet
-s.wire([(3, 14), (4, 14), (4, 8)])         # a route; the elbow ┘ is generated
-s.text(4, 3, "[GND]")                      # (ports must stay on the canvas edge)
+s.junction(0, 14)  # ┬: explicit, in the empty cell the wires meet
+s.wire([(3, 14), (4, 14), (4, 8)])  # a route; the elbow ┘ is generated
+s.text(4, 3, "[GND]")  # (ports must stay on the canvas edge)
 LPF = Block("LPF", s.render(), R1=R("1k"), C1=C("100n"))
 # s.hline(r, c0, c1, cross=1) would declare one deliberate crossing
 ```

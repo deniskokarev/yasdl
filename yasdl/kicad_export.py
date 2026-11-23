@@ -12,14 +12,14 @@ from .block import Block, flat_names, netlist, partition, YasdlError
 from .kicad_lib import (
     BUNDLED_DIR,
     DERIVED_LIB,
-    KiCadCommandFailed,
     derived_symbols,
-    write_derived_library,
+    KiCadCommandFailed,
     library_names,
     library_path,
     run_cli,
     TEMPLATE_DIR,
     to_screen,
+    write_derived_library,
     YasdlDependencyError,
 )
 from .kicad_sch import export_netlist, export_svg, run_erc, Schematic, snap
@@ -139,7 +139,9 @@ def to_kicad(
                 if pkg.sim and pkg.descriptor not in packages_used:
                     packages_used.append(pkg.descriptor)
             if bundle_models and "Sim.Library" in fields:
-                fields["Sim.Library"] = _bundle(Path(path).parent, fields["Sim.Library"], copies)
+                fields["Sim.Library"] = _bundle(
+                    Path(path).parent, fields["Sim.Library"], copies
+                )
             sch.add_symbol(
                 atom.lib_id,
                 ref,
@@ -213,7 +215,9 @@ def to_kicad(
             # rendered on its own whose [Vref] or [x] reaches one part): add a test point.
             counters["TP"] += 1
             ref = f"TP{counters['TP']}"
-            sch.add_symbol("Connector:TestPoint", ref, "", anchor[0], anchor[1], rot, helper=True)
+            sch.add_symbol(
+                "Connector:TestPoint", ref, "", anchor[0], anchor[1], rot, helper=True
+            )
             refmap[ref] = None
         for anchor, rot in _power_flags(placed, wires, labels, [t(p) for p in res.nc]):
             ref = sch.add_symbol(
@@ -240,7 +244,9 @@ def _label_net_names(block: Block, uf, names) -> dict[str, str]:
         for i, lab in enumerate(current.canvas.labels):
             if lab.kind in ("local", "global"):
                 root = uf.find((prefix, current.canvas.uf.find(("l", i))))
-                out[prefix + lab.text if lab.kind == "local" else lab.text] = names[root]
+                out[prefix + lab.text if lab.kind == "local" else lab.text] = names[
+                    root
+                ]
         for name, b in current.bound.items():
             if isinstance(b.obj, Block):
                 visit(b.obj, f"{prefix}{name}.")
@@ -276,17 +282,30 @@ def _package_sim_fields(pkg, out_dir: Path, spice_libs=()) -> dict:
         from .parts import subckt_pins
 
         lib = d.library or model_library(model, spice_libs)
-        mapping = getattr(d, 'spice', None)
+        mapping = getattr(d, "spice", None)
         if lib is None:
-            return {'Sim.Device': 'SUBCKT', 'Sim.Name': model, **({'Sim.Pins': mapping.sim_pins} if mapping and mapping.sim_pins else {})}
+            return {
+                "Sim.Device": "SUBCKT",
+                "Sim.Name": model,
+                **(
+                    {"Sim.Pins": mapping.sim_pins}
+                    if mapping and mapping.sim_pins
+                    else {}
+                ),
+            }
         nodes = subckt_pins(model, lib)
         pins = " ".join(f"{n}={m}" for n, m in zip(order, nodes))
-    fields = {"Sim.Device": "SUBCKT", "Sim.Library": lib, "Sim.Name": model, "Sim.Pins": pins}
-    mapping = getattr(d, 'spice', None)
+    fields = {
+        "Sim.Device": "SUBCKT",
+        "Sim.Library": lib,
+        "Sim.Name": model,
+        "Sim.Pins": pins,
+    }
+    mapping = getattr(d, "spice", None)
     if mapping is not None and mapping.sim_pins:
-        fields['Sim.Pins'] = mapping.sim_pins
+        fields["Sim.Pins"] = mapping.sim_pins
     if mapping is not None and mapping.params:
-        fields['Sim.Params'] = mapping.params
+        fields["Sim.Params"] = mapping.params
     return fields
 
 
@@ -309,7 +328,9 @@ def _bundle(out_dir: Path, lib, cache=None, relative: bool = False) -> str:
     return f"{MODEL_DIR}/{copied.name}"
 
 
-def _write_package_lib(out_dir: Path, descriptors, bundle: bool = True, spice_libs=()) -> None:
+def _write_package_lib(
+    out_dir: Path, descriptors, bundle: bool = True, spice_libs=()
+) -> None:
     """Whole-package wrapper subcircuits (and the includes they need) for KiCad's export,
     merged with wrappers already written to this directory by other renders."""
     import re as _re
@@ -321,7 +342,11 @@ def _write_package_lib(out_dir: Path, descriptors, bundle: bool = True, spice_li
     text = path.read_text() if path.exists() else "* yasdl package wrappers\n"
     for d in wanted:
         source = d.library or model_library(d.model, spice_libs)
-        lib = (_bundle(out_dir, source, relative=True) if bundle else source) if source else None
+        lib = (
+            (_bundle(out_dir, source, relative=True) if bundle else source)
+            if source
+            else None
+        )
         block = (f".include {lib}\n" if lib else "") + d.wrapper()
         m = _re.search(
             rf"(?ms)^(\.include [^\n]*\n)?\.subckt {d.wrapper_name()} .*?^\.ends {d.wrapper_name()}\n",
@@ -584,6 +609,7 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     """Compare the KiCad netlist of `sch_path` with yasdl's netlist (power symbols excluded)."""
     kicad = export_netlist(sch_path)
     power_paths = {p for r, p in refmap.items() if r.startswith("#PWR")}
+
     def ypin(r, pin):  # a multi-unit reference maps each physical pin to its unit view
         target = refmap[r]
         path = target.pin_path.get(pin) if isinstance(target, PackageRef) else target
@@ -619,7 +645,9 @@ def roundtrip(block: Block, sch_path, refmap) -> tuple[bool, set, set]:
     global_names = {n for n, _ in want_named}
     got_named = set()
     for net, nodes in kicad.items():
-        name = str(net).removeprefix("/").casefold()  # one flat sheet: labels are "/name"
+        name = (
+            str(net).removeprefix("/").casefold()
+        )  # one flat sheet: labels are "/name"
         members = frozenset(
             ypin(r, pin)
             for r, pin in nodes
@@ -655,7 +683,9 @@ def check_models(block: Block, spice_libs=(), require: bool = True) -> None:
 
     for lib in spice_libs:
         if not Path(lib).is_file():
-            raise YasdlDependencyError(f"SPICE model library {lib} (spice_libs) not found; file does not exist")
+            raise YasdlDependencyError(
+                f"SPICE model library {lib} (spice_libs) not found; file does not exist"
+            )
     if not require:
         return
     for path, _, atom in _instances(block):
@@ -702,7 +732,9 @@ def user_net_names(*decks) -> set[str]:
     return names
 
 
-def spice_roundtrip(block: Block, sch_path, refmap, *, kicad_text=None, yasdl_text=None) -> tuple[bool, str]:
+def spice_roundtrip(
+    block: Block, sch_path, refmap, *, kicad_text=None, yasdl_text=None
+) -> tuple[bool, str]:
     """Compare kicad-cli's SPICE export of the schematic with yasdl's own SPICE netlist.
 
     Every top-level R/C/L/D/Q, V/I and X element is compared by identity (the reference
@@ -723,7 +755,9 @@ def spice_roundtrip(block: Block, sch_path, refmap, *, kicad_text=None, yasdl_te
             for name, nodes, value in parse_spice(kicad_text)
         ]
         ours = parse_spice(
-            spice_netlist(block, validate_values=False) if yasdl_text is None else yasdl_text
+            spice_netlist(block, validate_values=False)
+            if yasdl_text is None
+            else yasdl_text
         )
     except YasdlError as e:  # a deck the comparison can't read is not equal
         return False, f"unreadable SPICE deck: {e}"
@@ -732,8 +766,12 @@ def spice_roundtrip(block: Block, sch_path, refmap, *, kicad_text=None, yasdl_te
     mine = spice_partition(ours, lambda n: _eid(n.split("_", 1)[1]), named)
     diff = _compare_spice(mine, theirs)
     if diff:
-        diff.append('raw values: ours ' + repr([(n, v.casefold()) for n, _, v in ours])
-                    + '; KiCad ' + repr([(n, v.casefold()) for n, _, v in kicad]))
+        diff.append(
+            "raw values: ours "
+            + repr([(n, v.casefold()) for n, _, v in ours])
+            + "; KiCad "
+            + repr([(n, v.casefold()) for n, _, v in kicad])
+        )
     return not diff, "; ".join(diff)
 
 

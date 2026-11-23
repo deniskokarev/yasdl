@@ -45,7 +45,10 @@ J1J1J1J1
 
 def test_group_size_comes_from_the_drawing():
     cv = Canvas("X1-U1-X2\nX1-U1-X2\nX1-U1-X2\n   U1----{only_usable}\n")
-    counts = {n: {s: len(v) for s, v in c.attachments.items() if v} for n, c in cv.comps.items()}
+    counts = {
+        n: {s: len(v) for s, v in c.attachments.items() if v}
+        for n, c in cv.comps.items()
+    }
     assert counts["X1"] == {"E": 3} and counts["X2"] == {"W": 3}
     assert counts["U1"] == {"W": 3, "E": 4}
     assert len(GROUP_EW.bound["X1"].pin_map) == 3
@@ -56,7 +59,9 @@ def test_group_size_comes_from_the_drawing():
 
 def test_each_marked_pin_keeps_its_own_net():
     nets = netlist(GROUP_EW)
-    singles = sorted(pins for pins in nets.values() if len(pins) == 1 and pins[0][0] == "J")
+    singles = sorted(
+        pins for pins in nets.values() if len(pins) == 1 and pins[0][0] == "J"
+    )
     assert singles == [["J1.2"], ["J1.3"], ["J1.4"]]
     assert sorted(nets["out"]) == ["R1.2"]
     assert not any("X1" in p for pins in nets.values() for p in pins)  # no marker pins
@@ -90,12 +95,24 @@ def test_marker_is_not_a_spice_element_but_the_pin_keeps_a_node():
 @pytest.mark.parametrize(
     "canvas, bindings, match",
     [
-        ("{a}──R1──┬──R2──{b}\n         │\n         X1\n", {"R2": R()}, "several device pins"),
+        (
+            "{a}──R1──┬──R2──{b}\n         │\n         X1\n",
+            {"R2": R()},
+            "several device pins",
+        ),
         ("{a}──R1──┬──[Shared]\n         │\n         X1\n", {}, "global net"),
         ("{a}──R1──┬──[local]\n         │\n         X1\n", {}, r"labelled \[local\]"),
         ("{a}──R1──┬──{b}\n         │\n         X1\n", {}, "block port"),
-        ("{a}──R1──┬──X1\n         │\n         X2\n", {"X2": NC()}, "terminate the same net"),
-        ("{a}──R1──{b}\n\nX1──CH", {"CH": Block("Stub", "{p}────[stub]")}, "no device pin"),
+        (
+            "{a}──R1──┬──X1\n         │\n         X2\n",
+            {"X2": NC()},
+            "terminate the same net",
+        ),
+        (
+            "{a}──R1──{b}\n\nX1──CH",
+            {"CH": Block("Stub", "{p}────[stub]")},
+            "no device pin",
+        ),
     ],
 )
 def test_invalid_nc_nets(canvas, bindings, match):
@@ -138,7 +155,10 @@ def _no_connects(sch_path):
     from yasdl.sexp import find, find_all, parse
 
     root = parse(sch_path.read_text())
-    marks = {(float(find(n, "at")[1]), float(find(n, "at")[2])) for n in find_all(root, "no_connect")}
+    marks = {
+        (float(find(n, "at")[1]), float(find(n, "at")[2]))
+        for n in find_all(root, "no_connect")
+    }
     wires = [
         tuple((float(xy[1]), float(xy[2])) for xy in find_all(find(w, "pts"), "xy"))
         for w in find_all(root, "wire")

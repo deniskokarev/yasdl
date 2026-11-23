@@ -24,6 +24,8 @@ changes.
 ## Code
 
 - Python 3.12, stdlib only (no runtime dependencies).
+- Format with ruff (config in `pyproject.toml`): `ruff check --fix . && ruff format .`
+  before committing.
 - Modules: `canvas.py` (parsing), `block.py` (binding, netlist, NC markers), `layout.py`
   (grid-bag), `kicad_lib.py` (library symbols, derived definitions, orientation, KiCad
   discovery and CLI), `kicad_sch.py` (file writer, kicad-cli), `kicad_export.py` (block →

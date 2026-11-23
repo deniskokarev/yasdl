@@ -18,13 +18,25 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .block import Block, YasdlError, flat_names, ground_root
+from .block import Block, flat_names, ground_root, YasdlError
 from .spice import _instances, check_value, spice_model
 
-_SUFFIX = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "m": 1e-3, "u": 1e-6, "µ": 1e-6,
-           "n": 1e-9, "p": 1e-12, "f": 1e-15}
-_NUMBER = re.compile(r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(meg|[tgkmuµnpf])?",
-                     re.IGNORECASE)
+_SUFFIX = {
+    "t": 1e12,
+    "g": 1e9,
+    "meg": 1e6,
+    "k": 1e3,
+    "m": 1e-3,
+    "u": 1e-6,
+    "µ": 1e-6,
+    "n": 1e-9,
+    "p": 1e-12,
+    "f": 1e-15,
+}
+_NUMBER = re.compile(
+    r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(meg|[tgkmuµnpf])?",
+    re.IGNORECASE,
+)
 
 
 def parse_value(text: str) -> float | None:
@@ -48,8 +60,15 @@ class Element:
     value: float | None
 
 
-_KIND = {"Device:R": "R", "Device:C": "C", "Device:C_Polarized": "C", "Device:L": "L",
-         "Simulation_SPICE:VDC": "V", "Simulation_SPICE:IDC": "I", "yasdl:OPAMP_IDEAL": "OPAMP"}
+_KIND = {
+    "Device:R": "R",
+    "Device:C": "C",
+    "Device:C_Polarized": "C",
+    "Device:L": "L",
+    "Simulation_SPICE:VDC": "V",
+    "Simulation_SPICE:IDC": "I",
+    "yasdl:OPAMP_IDEAL": "OPAMP",
+}
 
 
 def elements(block: Block) -> list[Element]:
@@ -65,15 +84,20 @@ def elements(block: Block) -> list[Element]:
         return "0" if root == gnd else names[root]
 
     # Non-simulated physical parts (connectors, jacks) are left out, as in spice_netlist().
-    insts = [(path, atom) for path, _, atom in _instances(block)
-             if not atom.symbol.is_power and atom.sim]
+    insts = [
+        (path, atom)
+        for path, _, atom in _instances(block)
+        if not atom.symbol.is_power and atom.sim
+    ]
     leaves = [p.rsplit(".", 1)[-1] for p, _ in insts]
     unique = len({x.casefold() for x in leaves}) == len(leaves)
     out = []
     for (path, atom), leaf in zip(insts, leaves):
         kind = _KIND.get(atom.lib_id)
         if kind is None:
-            raise YasdlError(f"{path}: {atom.lib_id} is not a linear element analysis supports")
+            raise YasdlError(
+                f"{path}: {atom.lib_id} is not a linear element analysis supports"
+            )
         m = spice_model(atom)
         assert m is not None  # every linear element kind has a SPICE model
         nodes = []
@@ -84,7 +108,15 @@ def elements(block: Block) -> list[Element]:
         if kind in "RCL":
             check_value(path, kind, atom.value)
         value = _source_value(atom.value) if kind in "VI" else parse_value(atom.value)
-        out.append(Element(leaf if unique else path.replace(".", "_"), path, kind, tuple(nodes), value))
+        out.append(
+            Element(
+                leaf if unique else path.replace(".", "_"),
+                path,
+                kind,
+                tuple(nodes),
+                value,
+            )
+        )
     return out
 
 
@@ -111,7 +143,11 @@ class Circuit:
 
     @property
     def values(self) -> dict[str, float]:
-        return {e.name: e.value for e in self.elements if e.value is not None and e.kind in "RCL"}
+        return {
+            e.name: e.value
+            for e in self.elements
+            if e.value is not None and e.kind in "RCL"
+        }
 
     # -- assembly, generic over the number type (complex or sympy) ---------------------------
     def _system(self, s, val, sources, zero, one):
@@ -135,7 +171,9 @@ class Circuit:
             elif e.kind == "I":
                 i = sources.get(e.name, zero)
                 p, q = row(e.nodes[0]), row(e.nodes[1])
-                if p is not None:  # SPICE: current flows from n+ through the source to n-
+                if (
+                    p is not None
+                ):  # SPICE: current flows from n+ through the source to n-
                     b[p] = b[p] - i
                 if q is not None:
                     b[q] = b[q] + i
@@ -143,7 +181,10 @@ class Circuit:
             k = len(self.nodes) + j
             if e.kind in ("V", "L"):
                 p, q = row(e.nodes[0]), row(e.nodes[1])
-                add(p, k, one), add(q, k, -one)  # branch current enters n+ ... leaves n-
+                (
+                    add(p, k, one),
+                    add(q, k, -one),
+                )  # branch current enters n+ ... leaves n-
                 add(k, p, one), add(k, q, -one)
                 if e.kind == "V":
                     b[k] = sources.get(e.name, zero)
@@ -162,15 +203,22 @@ class Circuit:
             sources = {source: 1}
         return sources
 
-    def solve(self, s: complex, source: str | None = None, sources: dict | None = None,
-              values: dict | None = None) -> dict[str, complex]:
+    def solve(
+        self,
+        s: complex,
+        source: str | None = None,
+        sources: dict | None = None,
+        values: dict | None = None,
+    ) -> dict[str, complex]:
         """Node voltages at complex frequency s. `source` drives one source with 1 (others 0);
         `sources` sets each source's value. `values` overrides element values by name."""
         vals = {**self.values, **(values or {})}
 
         def val(e):
             if e.name not in vals:
-                raise YasdlError(f"{e.name}: no numeric value; bind one or pass values=")
+                raise YasdlError(
+                    f"{e.name}: no numeric value; bind one or pass values="
+                )
             return complex(vals[e.name])
 
         A, b = self._system(complex(s), val, self._sources(source, sources), 0j, 1 + 0j)
@@ -179,8 +227,14 @@ class Circuit:
         out.update({n: x[i] for n, i in self.index.items()})
         return out
 
-    def transfer(self, source: str, out: str, ref: str = "0", s: complex = 1j,
-                 values: dict | None = None) -> complex:
+    def transfer(
+        self,
+        source: str,
+        out: str,
+        ref: str = "0",
+        s: complex = 1j,
+        values: dict | None = None,
+    ) -> complex:
         """(V(out) - V(ref)) / source at complex frequency s."""
         v = self.solve(s, source, values=values)
         for n in (out, ref):
@@ -188,19 +242,32 @@ class Circuit:
                 raise YasdlError(f"no net {n!r}; nets: {', '.join(self.nodes)}")
         return v[out] - v[ref]
 
-    def transfer_symbolic(self, source: str, out: str, ref: str = "0", numeric: bool = False,
-                          simplify: bool = True):
+    def transfer_symbolic(
+        self,
+        source: str,
+        out: str,
+        ref: str = "0",
+        numeric: bool = False,
+        simplify: bool = True,
+    ):
         """Exact H(s) as a sympy expression in s and the element names (numeric=True plugs in
         the bound values as exact rationals). Cramer's rule, determinants over a polynomial
         ring."""
         import sympy as sp
 
         s = sp.Symbol("s")
-        syms = {e.name: sp.Symbol(e.name, positive=True) for e in self.elements if e.kind in "RCL"}
+        syms = {
+            e.name: sp.Symbol(e.name, positive=True)
+            for e in self.elements
+            if e.kind in "RCL"
+        }
         # Resistors are stamped as conductance symbols so every matrix entry is a polynomial:
         # determinants over a polynomial ring are much faster than over its fraction field.
-        cond = {e.name: sp.Dummy("G_" + e.name, positive=True) for e in self.elements
-                if e.kind == "R" and not numeric}
+        cond = {
+            e.name: sp.Dummy("G_" + e.name, positive=True)
+            for e in self.elements
+            if e.kind == "R" and not numeric
+        }
 
         def val(e):
             if numeric:
@@ -213,7 +280,9 @@ class Circuit:
 
         from sympy.polys.matrices import DomainMatrix
 
-        A, b = self._system(s, val, self._sources(source, None), sp.Integer(0), sp.Integer(1))
+        A, b = self._system(
+            s, val, self._sources(source, None), sp.Integer(0), sp.Integer(1)
+        )
         n = len(A)
 
         def det(rows):
@@ -224,13 +293,17 @@ class Circuit:
 
         d = det(A)
         if d == 0:
-            raise YasdlError(f"{source} -> {out}: the circuit has no unique solution (singular MNA)")
+            raise YasdlError(
+                f"{source} -> {out}: the circuit has no unique solution (singular MNA)"
+            )
 
         def node_numerator(node):
             if node == "0":
                 return sp.Integer(0)
             k = self.index[node]
-            return det([[b[r] if c == k else A[r][c] for c in range(n)] for r in range(n)])
+            return det(
+                [[b[r] if c == k else A[r][c] for c in range(n)] for r in range(n)]
+            )
 
         h = (node_numerator(out) - node_numerator(ref)) / d
         h = h.xreplace({g: 1 / syms[name] for name, g in cond.items()})

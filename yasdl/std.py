@@ -107,12 +107,6 @@ def rc_bandpass(c1: str, r1: str, r2: str, c2: str) -> Block:
     )
 
 
-
-
-
-
-
-
 # --- compound transistors (ports c N, b W, e S) ------------------------------------------------
 _DARLINGTON_PLAIN = """
             {c}
@@ -157,9 +151,15 @@ def diode_string(n: int, diode: Atom | None = None, name: str | None = None) -> 
     """n diodes in series, anode end {a} on top, cathode end {k} at the bottom."""
     if n < 1:
         raise YasdlError("diode_string() needs at least one diode")
-    canvas = _DIODE_HEAD + "".join(_DIODE_CELL.format(k=k + 1) for k in range(n)) + _DIODE_TAIL
+    canvas = (
+        _DIODE_HEAD
+        + "".join(_DIODE_CELL.format(k=k + 1) for k in range(n))
+        + _DIODE_TAIL
+    )
     d = diode or D("1N4148")
-    return Block(name or f"Diodes{n}", canvas, bindings={f"D{k + 1}": d for k in range(n)})
+    return Block(
+        name or f"Diodes{n}", canvas, bindings={f"D{k + 1}": d for k in range(n)}
+    )
 
 
 VBE_MULTIPLIER = """
@@ -178,12 +178,19 @@ VBE_MULTIPLIER = """
 """
 
 
-def vbe_multiplier(q: Atom | None = None, r1: str = "2.7k", r2: str = "1k",
-                   name: str | None = None) -> Block:
+def vbe_multiplier(
+    q: Atom | None = None, r1: str = "2.7k", r2: str = "1k", name: str | None = None
+) -> Block:
     """Adjustable bias "diode" for push_pull(bias=...): V(a, k) = Vbe (1 + R1/R2), R1 from
     collector to base, R2 from base to emitter. Ports {a} N, {k} S, like diode_string.
     Mount the transistor on the output devices' heatsink so the bias tracks them."""
-    return Block(name or "VbeMultiplier", VBE_MULTIPLIER, Q1=q or NPN("2N3904"), R1=R(r1), R2=R(r2))
+    return Block(
+        name or "VbeMultiplier",
+        VBE_MULTIPLIER,
+        Q1=q or NPN("2N3904"),
+        R1=R(r1),
+        R2=R(r2),
+    )
 
 
 PUSH_PULL_KINDS = {"bjt": 2, "darlington": 4, "sziklai": 2}
@@ -218,10 +225,16 @@ def push_pull_template() -> str:
 
 
 def push_pull_vas(
-    kind: str = "bjt", npn: Atom | None = None, pnp: Atom | None = None,
-    diode: Atom | None = None, rb: str | Atom | Block = "2.2k", re: str = "1",
-    qn: Atom | Block | None = None, qp: Atom | Block | None = None,
-    bias: Block | None = None, name: str | None = None,
+    kind: str = "bjt",
+    npn: Atom | None = None,
+    pnp: Atom | None = None,
+    diode: Atom | None = None,
+    rb: str | Atom | Block = "2.2k",
+    re: str = "1",
+    qn: Atom | Block | None = None,
+    qp: Atom | Block | None = None,
+    bias: Block | None = None,
+    name: str | None = None,
 ) -> Block:
     """Complementary class-AB output stage. Ports: {vp} N, {in} W (drive: the bottom of the
     bias string, e.g. a VAS collector), {out} E, {vn} S. RB feeds the bias string from vp.
@@ -247,9 +260,14 @@ def push_pull_vas(
     qn, qp = qn or devices[0], qp or devices[1]
     bias = bias or diode_string(PUSH_PULL_KINDS[kind], diode)
     return Block(
-        name or f"PushPull_{kind}", PUSH_PULL_VAS,
-        QN=qn, QP=qp, BIAS=bias, RB=R(rb) if isinstance(rb, str) else rb,
-        RE1=R(re), RE2=R(re),
+        name or f"PushPull_{kind}",
+        PUSH_PULL_VAS,
+        QN=qn,
+        QP=qp,
+        BIAS=bias,
+        RB=R(rb) if isinstance(rb, str) else rb,
+        RE1=R(re),
+        RE2=R(re),
     )
 
 
@@ -432,6 +450,7 @@ def sziklai(
     b = SZIKLAI.bind(Q1=driver, Q2=output, RX=R(rx))
     return b if name is None else Block(name, b.text, bindings=b.bindings)
 
+
 # parallel(): the {b} strip, then one literal 8-column strip per device (its transistor in
 # strip column 2), side by side. The first strip carries the {c}/{e} ports and starts the
 # collector and emitter buses, the last ends them. The base bus on row 8 crosses the
@@ -502,7 +521,9 @@ def parallel(device, n: int, re: str = "1", name: str | None = None) -> Block:
     rows = []
     for r in range(len(_PAR_FIRST)):
         line = _PAR_LEFT[r].ljust(4)
-        line += "".join(strip[r].replace("#", str(k + 1)).ljust(8) for k, strip in enumerate(strips))
+        line += "".join(
+            strip[r].replace("#", str(k + 1)).ljust(8) for k, strip in enumerate(strips)
+        )
         rows.append(line.rstrip())
     bindings = {f"Q{k + 1}": device for k in range(n)}
     bindings.update({f"RE{k + 1}": R(re) for k in range(n)})
@@ -599,9 +620,17 @@ PUSH_PULL_BUFFER = {
 }
 
 
-def push_pull_buffer(variant: str, upper, lower, diode: Atom | None = None, rt: str | None = None,
-              rb: str | None = None, rq: str | None = None, re: str = "0.22",
-              name: str | None = None) -> Block:
+def push_pull_buffer(
+    variant: str,
+    upper,
+    lower,
+    diode: Atom | None = None,
+    rt: str | None = None,
+    rb: str | None = None,
+    rq: str | None = None,
+    re: str = "0.22",
+    name: str | None = None,
+) -> Block:
     """Class-AB push-pull output stage (unity-gain buffer): {vp} N, {in} W, {out} E, {vn} S.
 
     variant: "bjt", "darlington" or "sziklai" sets the bias string: PUSH_PULL_DIODES[variant]
@@ -612,17 +641,22 @@ def push_pull_buffer(variant: str, upper, lower, diode: Atom | None = None, rt: 
     is the middle of the string: drive it from a low-impedance or current-mode source whose
     quiescent point is 0 V."""
     if variant not in PUSH_PULL_DIODES:
-        raise YasdlError(f"push_pull variant {variant!r}: use one of {sorted(PUSH_PULL_DIODES)}")
+        raise YasdlError(
+            f"push_pull variant {variant!r}: use one of {sorted(PUSH_PULL_DIODES)}"
+        )
     n = PUSH_PULL_DIODES[variant]
     diode = diode or D("1N4148")
     rt = rt or PUSH_PULL_DEFAULTS[variant]["rt"]
     rb = rb or rt
     rq = rq or PUSH_PULL_DEFAULTS[variant]["rq"]
     canvas = PUSH_PULL_BUFFER[n]
-    bindings = dict(QH=upper, QL=lower, RT=R(rt), RB=R(rb), RH=R(re), RL=R(re), RQ=R(rq))
+    bindings = dict(
+        QH=upper, QL=lower, RT=R(rt), RB=R(rb), RH=R(re), RL=R(re), RQ=R(rq)
+    )
     bindings.update({f"DH{k + 1}": diode for k in range(n)})
     bindings.update({f"DL{k + 1}": diode for k in range(n)})
     return Block(name or f"PushPull_{variant}", canvas, bindings=bindings)
+
 
 _MIRROR_NPN = """
  {in}       {out}
@@ -808,6 +842,7 @@ _LTP_MIRROR_PNP = """
                {vn}
 """
 
+
 def _check_kind(kind):
     if kind not in ("npn", "pnp"):
         raise YasdlError(f"kind must be 'npn' or 'pnp', not {kind!r}")
@@ -889,23 +924,32 @@ def diff_pair_mirror(
         RT=_two_terminal(rt),
     )
 
-RC_LOWPASS = Block("RCLowPass", """
+
+RC_LOWPASS = Block(
+    "RCLowPass",
+    """
 {in}──R1──┬──{out}
           │
           C1
           │
         [GND]
-""")
+""",
+)
 
-RC_HIGHPASS = Block("RCHighPass", """
+RC_HIGHPASS = Block(
+    "RCHighPass",
+    """
 {in}──C1──┬──{out}
           │
           R1
           │
         [GND]
-""")
+""",
+)
 
-SALLEN_KEY = Block("SallenKey", """
+SALLEN_KEY = Block(
+    "SallenKey",
+    """
              ┌──────ZF────────┐
              │                │
 {in}──ZA─────┴──ZB──┬───+U1U1 │
@@ -915,23 +959,31 @@ SALLEN_KEY = Block("SallenKey", """
                     ZS └──────┘
                     │
                   [GND]
-""")
+""",
+)
 
-def sallen_key_lowpass(r1: str, r2: str, c_shunt: str, c_feedback: str, u=None,
-                       name: str | None = None) -> Block:
+
+def sallen_key_lowpass(
+    r1: str, r2: str, c_shunt: str, c_feedback: str, u=None, name: str | None = None
+) -> Block:
     """Second-order low-pass (R, R in series; C to ground; C as feedback)."""
     b = SALLEN_KEY.bind(ZA=R(r1), ZB=R(r2), ZS=C(c_shunt), ZF=C(c_feedback))
     b = b.bind(U1=u or OPAMP_IDEAL())
     return b if name is None else Block(name, b.text, bindings=b.bindings)
 
-def sallen_key_highpass(c1: str, c2: str, r_shunt: str, r_feedback: str, u=None,
-                        name: str | None = None) -> Block:
+
+def sallen_key_highpass(
+    c1: str, c2: str, r_shunt: str, r_feedback: str, u=None, name: str | None = None
+) -> Block:
     """Second-order high-pass (C, C in series; R to ground; R as feedback)."""
     b = SALLEN_KEY.bind(ZA=C(c1), ZB=C(c2), ZS=R(r_shunt), ZF=R(r_feedback))
     b = b.bind(U1=u or OPAMP_IDEAL())
     return b if name is None else Block(name, b.text, bindings=b.bindings)
 
-INVERTING = Block("Inverting", """
+
+INVERTING = Block(
+    "Inverting",
+    """
           ┌──RF──┐
           │      │
 {in}──RI──┴─U1U1 │
@@ -939,9 +991,12 @@ INVERTING = Block("Inverting", """
           ┌+U1U1
           │
         [GND]
-""")
+""",
+)
 
-NONINVERTING = Block("NonInverting", """
+NONINVERTING = Block(
+    "NonInverting",
+    """
 {in}───+U1U1
         U1U1──┬──{out}
      ┌──U1U1  │
@@ -951,16 +1006,21 @@ NONINVERTING = Block("NonInverting", """
      RG
      │
    [GND]
-""")
+""",
+)
 
-OPAMP_UNUSED = Block("OpampUnused", """
+OPAMP_UNUSED = Block(
+    "OpampUnused",
+    """
     ┌───────┐
     └──U1U1 │
        U1U1─┘
      ┌+U1U1
      │
    [GND]
-""")
+""",
+)
+
 
 def push_pull(
     kind="bjt",
@@ -980,9 +1040,24 @@ def push_pull(
     """Class AB stage. rt/rq select the center-driven buffer. qn/qp/bias or a lone rb
     select the bottom-driven VAS stage. Prefer push_pull_buffer/push_pull_vas when choosing
     the drive point explicitly; their input ports are electrically different."""
-    if qn is not None or qp is not None or bias is not None or (rb is not None and rt is None and rq is None):
-        return push_pull_vas(kind, npn, pnp, diode, rb=rb or "2.2k", re=re or "1",
-                             qn=qn, qp=qp, bias=bias, name=name)
+    if (
+        qn is not None
+        or qp is not None
+        or bias is not None
+        or (rb is not None and rt is None and rq is None)
+    ):
+        return push_pull_vas(
+            kind,
+            npn,
+            pnp,
+            diode,
+            rb=rb or "2.2k",
+            re=re or "1",
+            qn=qn,
+            qp=qp,
+            bias=bias,
+            name=name,
+        )
     npn, pnp = npn or NPN("2N3904"), pnp or PNP("2N3906")
     if kind == "darlington":
         npn = darlington(npn) if isinstance(npn, Atom) else npn

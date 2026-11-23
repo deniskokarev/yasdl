@@ -8,7 +8,16 @@ S-expression reader. Physical pin numbers are checked through KiCad's own netlis
 import re
 
 import pytest
-from yasdl import AtomNPN, AtomOpamp5, AtomPNP, Block, netlist, R, spice_netlist, YasdlError
+from yasdl import (
+    AtomNPN,
+    AtomOpamp5,
+    AtomPNP,
+    Block,
+    netlist,
+    R,
+    spice_netlist,
+    YasdlError,
+)
 from yasdl.kicad_lib import JELLYBEAN_MODEL, KICAD_CLI, load, SYMBOL_DIR
 from yasdl.sexp import find, find_all, parse
 
@@ -24,8 +33,16 @@ DATASHEET = {
     "1N4148": {"1": "K", "2": "A"},  # Nexperia/Vishay, DO-35, cathode band = pin 1
 }
 # TI TL072 datasheet (SLOS080W) table 4-3, same as LM358 (SNOSBT3): 8-pin dual.
-DUAL = {"1": "A.out", "2": "A.-", "3": "A.+", "4": "V-", "5": "B.+", "6": "B.-",
-        "7": "B.out", "8": "V+"}
+DUAL = {
+    "1": "A.out",
+    "2": "A.-",
+    "3": "A.+",
+    "4": "V-",
+    "5": "B.+",
+    "6": "B.-",
+    "7": "B.out",
+    "8": "V+",
+}
 
 
 def kicad_pins(lib, name):
@@ -61,22 +78,37 @@ def factory_pins(atom_or_type):
 def test_standard_parts_match_datasheets(name):
     from yasdl import parts
 
-    factory = {"2N3904": parts.Q2N3904, "2N3906": parts.Q2N3906, "BD139": parts.BD139,
-               "BD140": parts.BD140, "1N4148": parts.D1N4148}[name]
+    factory = {
+        "2N3904": parts.Q2N3904,
+        "2N3906": parts.Q2N3906,
+        "BD139": parts.BD139,
+        "BD140": parts.BD140,
+        "1N4148": parts.D1N4148,
+    }[name]
     assert factory_pins(factory()) == DATASHEET[name]
 
 
 @pytest.mark.skipif(not have_libs, reason="KiCad device libraries missing")
 @pytest.mark.parametrize(
-    "name, lib", [("2N3904", "Transistor_BJT"), ("2N3906", "Transistor_BJT"),
-                  ("BD139", "Transistor_BJT"), ("BD140", "Transistor_BJT"),
-                  ("1N4148", "Diode")],
+    "name, lib",
+    [
+        ("2N3904", "Transistor_BJT"),
+        ("2N3906", "Transistor_BJT"),
+        ("BD139", "Transistor_BJT"),
+        ("BD140", "Transistor_BJT"),
+        ("1N4148", "Diode"),
+    ],
 )
 def test_standard_parts_match_kicad_device_symbols(name, lib):
     from yasdl import parts
 
-    factory = {"2N3904": parts.Q2N3904, "2N3906": parts.Q2N3906, "BD139": parts.BD139,
-               "BD140": parts.BD140, "1N4148": parts.D1N4148}[name]
+    factory = {
+        "2N3904": parts.Q2N3904,
+        "2N3906": parts.Q2N3906,
+        "BD139": parts.BD139,
+        "BD140": parts.BD140,
+        "1N4148": parts.D1N4148,
+    }[name]
     assert factory_pins(factory()) == kicad_pins(lib, name)
 
 
@@ -124,7 +156,10 @@ TWO_PINOUTS = Block(
   │    │   │    │
 [GND][GND][GND][GND]
 """,
-    R1=R("1k"), R2=R("1k"), R3=R("1k"), R4=R("1k"),
+    R1=R("1k"),
+    R2=R("1k"),
+    R3=R("1k"),
+    R4=R("1k"),
 )
 
 
@@ -149,12 +184,16 @@ def test_two_pinouts_in_one_schematic(tmp_path):
     from yasdl.parts import BD139, Q2N3904
 
     block = TWO_PINOUTS.bind(Q1=Q2N3904(), Q2=BD139(model="2N3904"))
-    info = render(block, tmp_path, svg=False, spice=True, spice_libs=(str(JELLYBEAN_MODEL),))
+    info = render(
+        block, tmp_path, svg=False, spice=True, spice_libs=(str(JELLYBEAN_MODEL),)
+    )
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
     assert info["erc"] == [], info["erc"]
     assert info["spice_ok"], info["spice_diff"]
     nets, comps = export_netlist_full(info["schematic"])
-    assert {("Q1", "3"), ("Q2", "2")} <= nets["VCC"]  # collectors: TO-92 pin 3, TO-126 pin 2
+    assert {("Q1", "3"), ("Q2", "2")} <= nets[
+        "VCC"
+    ]  # collectors: TO-92 pin 3, TO-126 pin 2
     base1 = next(n for n in nets.values() if ("Q1", "2") in n)
     base2 = next(n for n in nets.values() if ("Q2", "3") in n)
     assert ("R1", "1") in base1 and ("R3", "1") in base2
@@ -172,8 +211,10 @@ def test_generic_parts_keep_blank_metadata(tmp_path):
     from yasdl.kicad_export import render
     from yasdl.kicad_sch import export_netlist_full
 
-    block = TWO_PINOUTS.bind(Q1=NPN("2N3904"), Q2=AtomNPN("PLAIN", {"E": "1", "B": "2", "C": "3"},
-                                                            model="2N3904"))
+    block = TWO_PINOUTS.bind(
+        Q1=NPN("2N3904"),
+        Q2=AtomNPN("PLAIN", {"E": "1", "B": "2", "C": "3"}, model="2N3904"),
+    )
     info = render(block, tmp_path, svg=False)
     assert info["roundtrip_ok"] and info["erc"] == [], info
     _, comps = export_netlist_full(info["schematic"])
@@ -183,11 +224,19 @@ def test_generic_parts_keep_blank_metadata(tmp_path):
 
 def test_opamp5_factory_maps_model_pins(tmp_path):
     lib = tmp_path / "single.lib"
-    lib.write_text(".subckt SINGLE 1 2 3 4 5\n* noninv inv vcc vee out\nB1 5 0 V=1e5*(V(1)-V(2))\n.ends\n")
-    tl071 = AtomOpamp5("TL071_T", {"+": "3", "-": "2", "V+": "7", "V-": "4", "out": "6"},
-                       model="SINGLE", library=lib)
+    lib.write_text(
+        ".subckt SINGLE 1 2 3 4 5\n* noninv inv vcc vee out\nB1 5 0 V=1e5*(V(1)-V(2))\n.ends\n"
+    )
+    tl071 = AtomOpamp5(
+        "TL071_T",
+        {"+": "3", "-": "2", "V+": "7", "V-": "4", "out": "6"},
+        model="SINGLE",
+        library=lib,
+    )
     assert tl071.spice.pins == ("3", "2", "7", "4", "6")
     assert tl071.spice.sim_pins == "3=1 2=2 7=3 4=4 6=5"
     assert factory_pins(tl071) == {"3": "+", "2": "-", "7": "V+", "4": "V-", "6": "out"}
     with pytest.raises(YasdlError, match="exactly the roles"):
-        AtomOpamp5("TL071_U", {"+": "3", "-": "2", "out": "6"}, model="SINGLE", library=lib)
+        AtomOpamp5(
+            "TL071_U", {"+": "3", "-": "2", "out": "6"}, model="SINGLE", library=lib
+        )

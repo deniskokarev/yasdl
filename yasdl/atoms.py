@@ -74,11 +74,13 @@ def pot_position(rotation: float, taper: str = "lin") -> float:
     if taper == "lin":
         return rotation
     if taper == "log":
-        return (81.0 ** rotation - 1) / 80
+        return (81.0**rotation - 1) / 80
     return 1 - (81.0 ** (1 - rotation) - 1) / 80
 
 
-def POT(value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotation=None) -> Atom:
+def POT(
+    value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotation=None
+) -> Atom:
     """Three-terminal potentiometer (Device:R_Potentiometer), pins by role (spec 6.2):
     pin 1 = `ccw` end (top in the library), pin 2 = wiper `w` (right), pin 3 = `cw` end
     (bottom). position: shaft rotation from fully counterclockwise (0, wiper at ccw) to fully
@@ -87,20 +89,29 @@ def POT(value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotati
     ccw and the wiper. A volume control takes its input on cw and has ccw grounded, so
     turning clockwise is louder. Simulates as the bundled yasdl_pot with instance
     parameters, so every pot keeps its own setting through the SPICE round trip."""
+    import re
+
     from .spice import check_value, SpiceModel
 
-    import re
-    if not re.fullmatch(r"\d+(?:\.\d*)?(?:[eE][-+]?\d+)?(?:meg|[fpnumkgt])?", value, re.IGNORECASE):
-        raise YasdlError(f"POT value {value!r}: use a plain SPICE number such as 10k or 1MEG")
+    if not re.fullmatch(
+        r"\d+(?:\.\d*)?(?:[eE][-+]?\d+)?(?:meg|[fpnumkgt])?", value, re.IGNORECASE
+    ):
+        raise YasdlError(
+            f"POT value {value!r}: use a plain SPICE number such as 10k or 1MEG"
+        )
     if rotation is not None:
         params = f"R={value} POS={pot_position(rotation, taper):.6g}"
     else:
         params = f"R={value} POS={float(position):g} TAPER={POT_TAPERS.get(taper)}"
 
     if not 0.0 <= float(position) <= 1.0:
-        raise YasdlError(f"POT position must be within 0..1 (0 = fully ccw), not {position}")
+        raise YasdlError(
+            f"POT position must be within 0..1 (0 = fully ccw), not {position}"
+        )
     if taper not in POT_TAPERS:
-        raise YasdlError(f"POT taper must be one of {sorted(POT_TAPERS)}, not {taper!r}")
+        raise YasdlError(
+            f"POT taper must be one of {sorted(POT_TAPERS)}, not {taper!r}"
+        )
     check_value("POT", "R", value)
     return Atom(
         "Device:R_Potentiometer",
@@ -117,7 +128,9 @@ def POT(value: str = "10k", position: float = 0.5, taper: str = "lin", *, rotati
     )
 
 
-def Pot(resistance: str = "10k", *, position: float = 0.5, taper: str = "linear") -> Atom:
+def Pot(
+    resistance: str = "10k", *, position: float = 0.5, taper: str = "linear"
+) -> Atom:
     """Keyword form of POT with the same pins and model: Pot("100k", position=0.25).
     A linear setting is written as the electrical fraction P ("R=100k P=0.25"); "log" and
     "rlog" tapers emit POS and TAPER exactly as POT does."""
@@ -129,7 +142,9 @@ def Pot(resistance: str = "10k", *, position: float = 0.5, taper: str = "linear"
         or not math.isfinite(position)
         or not 0 <= position <= 1
     ):
-        raise YasdlError(f"Pot: position must be a finite number within 0..1, not {position!r}")
+        raise YasdlError(
+            f"Pot: position must be a finite number within 0..1, not {position!r}"
+        )
     if taper not in ("linear", "lin", "log", "rlog"):
         raise YasdlError(f"Pot: taper must be 'linear', 'log' or 'rlog', not {taper!r}")
     resistance = str(resistance)
@@ -138,12 +153,17 @@ def Pot(resistance: str = "10k", *, position: float = 0.5, taper: str = "linear"
 
     _num = ngspice_number(resistance)
     if not _num or _num <= 0:
-        raise YasdlError(f"Pot: resistance {resistance!r} must be positive (use MEG for mega)")
+        raise YasdlError(
+            f"Pot: resistance {resistance!r} must be positive (use MEG for mega)"
+        )
     if taper in ("linear", "lin"):
         from dataclasses import replace
 
         assert pot.spice is not None  # POT() always carries a SPICE model
-        pot = replace(pot, spice=replace(pot.spice, params=f"R={resistance} P={float(position):g}"))
+        pot = replace(
+            pot,
+            spice=replace(pot.spice, params=f"R={resistance} P={float(position):g}"),
+        )
     return pot
 
 
@@ -152,8 +172,12 @@ def transistor(name: str) -> Atom:
     or "BD140" (see yasdl.parts)."""
     from . import parts
 
-    found = {"2N3904": parts.Q2N3904, "2N3906": parts.Q2N3906, "BD139": parts.BD139,
-             "BD140": parts.BD140}
+    found = {
+        "2N3904": parts.Q2N3904,
+        "2N3906": parts.Q2N3906,
+        "BD139": parts.BD139,
+        "BD140": parts.BD140,
+    }
     if name not in found:
         raise YasdlError(
             f"no verified standard transistor {name!r}; choose one of {sorted(found)} or "
@@ -203,11 +227,24 @@ def VEE() -> Atom:
 
 
 def __getattr__(name):
-    if name in {'AtomNPN', 'AtomPNP', 'AtomDiode', 'AtomOpamp3', 'AtomOpamp5', 'OpampPackage',
-                'Q2N3904', 'Q2N3906', 'D1N4148', 'BD139', 'BD140'}:
+    if name in {
+        "AtomNPN",
+        "AtomPNP",
+        "AtomDiode",
+        "AtomOpamp3",
+        "AtomOpamp5",
+        "OpampPackage",
+        "Q2N3904",
+        "Q2N3906",
+        "D1N4148",
+        "BD139",
+        "BD140",
+    }:
         from . import parts
+
         return getattr(parts, name)
-    if name == 'NC':
+    if name == "NC":
         from .block import NC
+
         return NC
     raise AttributeError(name)

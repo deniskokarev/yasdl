@@ -6,7 +6,7 @@ import shutil
 import subprocess
 
 import pytest
-from yasdl import Block, NPN, netlist, R, spice_netlist, V, YasdlError
+from yasdl import Block, netlist, NPN, R, spice_netlist, V, YasdlError
 from yasdl.kicad_lib import _symbol_sexp, BUNDLED_MODELS, derive_symbol, KICAD_CLI, load
 from yasdl.parts import (
     AtomNPN,
@@ -71,8 +71,13 @@ def test_standard_bjt_pinouts_match_datasheet_and_kicad_device_symbol(name):
 
 def test_diode_and_dual_opamp_pinouts_match_kicad():
     assert roles(D1N4148) == {"K": "1", "A": "2"}
-    kicad_dual = [{p.name: p.number for p in load("Amplifier_Operational:LM2904", u).pins} for u in (1, 2, 3)]
-    ours = [{p.name: p.number for p in load(IDEAL_DUAL.lib_id, u).pins} for u in (1, 2, 3)]
+    kicad_dual = [
+        {p.name: p.number for p in load("Amplifier_Operational:LM2904", u).pins}
+        for u in (1, 2, 3)
+    ]
+    ours = [
+        {p.name: p.number for p in load(IDEAL_DUAL.lib_id, u).pins} for u in (1, 2, 3)
+    ]
     assert ours == kicad_dual
 
 
@@ -84,7 +89,9 @@ def test_generic_base_is_not_modified():
 
 def test_derived_definitions_are_immutable():
     derive_symbol("Device:Q_NPN", "TEST_IMM", {"E": 1, "B": 2, "C": 3})
-    derive_symbol("Device:Q_NPN", "TEST_IMM", {"E": 1, "B": 2, "C": 3})  # identical: fine
+    derive_symbol(
+        "Device:Q_NPN", "TEST_IMM", {"E": 1, "B": 2, "C": 3}
+    )  # identical: fine
     with pytest.raises(ValueError, match="already defined differently"):
         derive_symbol("Device:Q_NPN", "TEST_IMM", {"E": 1, "B": 3, "C": 2})
 
@@ -124,11 +131,22 @@ def test_kicad_physical_pins_metadata_and_checks(tmp_path):
     from yasdl.kicad_lib import JELLYBEAN_MODEL
 
     syntax_only = tmp_path / "bd139.lib"
-    syntax_only.write_text(".model BD139 NPN(BF=100)\n")  # pin test, not characterisation
-    info = render(block, tmp_path, svg=False, spice=True, spice_libs=(JELLYBEAN_MODEL, syntax_only))
+    syntax_only.write_text(
+        ".model BD139 NPN(BF=100)\n"
+    )  # pin test, not characterisation
+    info = render(
+        block,
+        tmp_path,
+        svg=False,
+        spice=True,
+        spice_libs=(JELLYBEAN_MODEL, syntax_only),
+    )
     assert info["roundtrip_ok"] and info["erc"] == [] and info["spice_ok"], info
     nets = export_netlist(info["schematic"])
-    base = {name: sorted(p for r, p in nodes if r.startswith("Q")) for name, nodes in nets.items()}
+    base = {
+        name: sorted(p for r, p in nodes if r.startswith("Q"))
+        for name, nodes in nets.items()
+    }
     assert base["/a"] == ["2"] and base["/c"] == ["3"] and base["/d"] == ["B"]
     root = parse(info["schematic"].read_text())
     props = {}
@@ -139,11 +157,19 @@ def test_kicad_physical_pins_metadata_and_checks(tmp_path):
         fields = {str(p[1]): str(p[2]) for p in find_all(sym, "property")}
         props[str(lib[1])] = fields
     assert props["yasdl_parts:2N3904"]["Footprint"] == "Package_TO_SOT_THT:TO-92_Inline"
-    assert props["yasdl_parts:BD139"]["Footprint"] == "Package_TO_SOT_THT:TO-126-3_Vertical"
+    assert (
+        props["yasdl_parts:BD139"]["Footprint"]
+        == "Package_TO_SOT_THT:TO-126-3_Vertical"
+    )
     assert "onsemi" in props["yasdl_parts:2N3904"]["Datasheet"]
-    assert props["Device:Q_NPN"]["Footprint"] == "" and props["Device:Q_NPN"]["Datasheet"] == ""
+    assert (
+        props["Device:Q_NPN"]["Footprint"] == ""
+        and props["Device:Q_NPN"]["Datasheet"] == ""
+    )
     assert (tmp_path / "yasdl_parts.kicad_sym").exists()
-    assert "${KIPRJMOD}/yasdl_parts.kicad_sym" in (tmp_path / "sym-lib-table").read_text()
+    assert (
+        "${KIPRJMOD}/yasdl_parts.kicad_sym" in (tmp_path / "sym-lib-table").read_text()
+    )
 
 
 @pytest.mark.integration
@@ -154,19 +180,25 @@ def test_conflicting_part_definition_in_one_directory(tmp_path):
     lib_id = derive_symbol("Device:Q_NPN", "TEST_DIR", {"E": 1, "B": 2, "C": 3})
     from yasdl import Atom
 
-    blk = Block("T", "     │\n{b}─Q1\n     │\n   [GND]", Q1=Atom(lib_id, "TEST_DIR", sim=False))
+    blk = Block(
+        "T", "     │\n{b}─Q1\n     │\n   [GND]", Q1=Atom(lib_id, "TEST_DIR", sim=False)
+    )
     render(blk, tmp_path, svg=False)
     lib = tmp_path / "yasdl_parts.kicad_sym"
     lib.write_text(lib.read_text().replace('(number "2"', '(number "9"'))
-    with pytest.raises(Exception, match="already defines yasdl_parts:TEST_DIR differently"):
+    with pytest.raises(
+        Exception, match="already defines yasdl_parts:TEST_DIR differently"
+    ):
         render(blk, tmp_path, svg=False)
 
 
 # --- single op-amps ---------------------------------------------------------------------------
 def test_opamp_factories_map_roles_to_pins_and_model_nodes():
     single = AtomOpamp5(
-        "TEST_OP5", {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
-        model="yasdl_ideal_opamp5", library=BUNDLED_MODELS,
+        "TEST_OP5",
+        {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
+        model="yasdl_ideal_opamp5",
+        library=BUNDLED_MODELS,
     )
     assert roles(single) == {"+": "3", "-": "2", "V+": "7", "V-": "4", "~": "6"}
     assert single.spice.pins == ("3", "2", "7", "4", "6")
@@ -174,8 +206,12 @@ def test_opamp_factories_map_roles_to_pins_and_model_nodes():
     three = AtomOpamp3("TEST_OP3", model="yasdl_ideal_opamp", library=BUNDLED_MODELS)
     assert three.spice.sim_pins == "1=inp 2=inn 3=out"
     with pytest.raises(YasdlError, match="has 3 pins"):
-        AtomOpamp5("TEST_BAD5", {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
-                   model="yasdl_ideal_opamp", library=BUNDLED_MODELS)
+        AtomOpamp5(
+            "TEST_BAD5",
+            {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
+            model="yasdl_ideal_opamp",
+            library=BUNDLED_MODELS,
+        )
 
 
 # --- packages -------------------------------------------------------------------------------
@@ -260,11 +296,16 @@ def test_every_unit_once():
 @pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
 def test_package_simulates_per_unit(tmp_path):
-    deck = spice_netlist(two_unit_design(Package(IDEAL_DUAL, "U1")), subckt="two",
-                         port_order=["in", "out"])
+    deck = spice_netlist(
+        two_unit_design(Package(IDEAL_DUAL, "U1")),
+        subckt="two",
+        port_order=["in", "out"],
+    )
     cir = tmp_path / "two.cir"
-    cir.write_text("* two\n" + deck + "VP VCC 0 12\nVN VEE 0 -12\nVI in 0 1.5\nX1 in out two\n"
-                   ".control\nop\nprint v(out)\n.endc\n.end\n")
+    cir.write_text(
+        "* two\n" + deck + "VP VCC 0 12\nVN VEE 0 -12\nVI in 0 1.5\nX1 in out two\n"
+        ".control\nop\nprint v(out)\n.endc\n.end\n"
+    )
     run = subprocess.run(["ngspice", "-b", str(cir)], capture_output=True, text=True)
     m = re.search(r"v\(out\) = (\S+)", run.stdout)
     assert m, run.stdout + run.stderr
@@ -277,7 +318,9 @@ def test_package_kicad_reference_erc_and_spice(tmp_path):
     from yasdl.kicad_export import export_kicad_spice, render, spice_roundtrip, to_kicad
     from yasdl.sexp import find, find_all, parse
 
-    info = render(two_unit_design(Package(IDEAL_DUAL, "U1")), tmp_path, svg=False, spice=True)
+    info = render(
+        two_unit_design(Package(IDEAL_DUAL, "U1")), tmp_path, svg=False, spice=True
+    )
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
     assert info["erc"] == [] and info["spice_ok"], info
     root = parse(info["schematic"].read_text())
@@ -304,6 +347,7 @@ def test_package_needs_descriptor_and_valid_maps():
         Package("Amplifier_Operational:LM358", "U1")
     with pytest.raises(YasdlError, match="used twice"):
         dual_opamp("TEST_BADDUAL").__class__(
-            "TEST_BADDUAL2", units={"A": {"+": 3, "-": 2, "out": 1}, "B": {"+": 5, "-": 6, "out": 1}},
+            "TEST_BADDUAL2",
+            units={"A": {"+": 3, "-": 2, "out": 1}, "B": {"+": 5, "-": 6, "out": 1}},
             power={"V+": 8, "V-": 4},
         )

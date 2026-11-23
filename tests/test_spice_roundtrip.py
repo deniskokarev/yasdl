@@ -157,7 +157,9 @@ def test_values_with_inner_spaces_are_rejected(value):
         spice_netlist(block)
 
 
-@pytest.mark.parametrize("value", ["1Meg", "1m", "4.7k", "100nF", "2.2", "{RV}", "1.5kOhm"])
+@pytest.mark.parametrize(
+    "value", ["1Meg", "1m", "4.7k", "100nF", "2.2", "{RV}", "1.5kOhm"]
+)
 def test_unambiguous_values_pass_through_unchanged(value):
     text = spice_netlist(Block("Val", "{a}──C1──{b}", C1=C(value)))
     assert f"C_C1 a b {value}" in text
@@ -168,7 +170,9 @@ def test_sources_are_not_value_checked():
 
 
 def test_instance_params_on_the_element_line(tmp_path):
-    block = Block("Trim", "{a}──VR──{b}\n    {2}\n     │\n   [GND]", VR=pot_atom("x.lib"))
+    block = Block(
+        "Trim", "{a}──VR──{b}\n    {2}\n     │\n   [GND]", VR=pot_atom("x.lib")
+    )
     assert re.search(r"^X_VR a 0 b tpot R=100k X=0.25$", spice_netlist(block), re.M)
 
 
@@ -228,7 +232,9 @@ def test_global_supply_reaches_subckt_in_ngspice(tmp_path):
             "* rails\n" + deck + "VS VCC 0 12\nX1 out rails\n"
             ".control\nop\nprint v(out)\n.endc\n.end\n"
         )
-        out = subprocess.run(["ngspice", "-b", str(cir)], capture_output=True, text=True)
+        out = subprocess.run(
+            ["ngspice", "-b", str(cir)], capture_output=True, text=True
+        )
         m = re.search(r"v\(out\) = (\S+)", out.stdout)
         assert m, out.stdout + out.stderr
         return float(m.group(1))
@@ -242,7 +248,13 @@ def test_global_supply_reaches_subckt_in_ngspice(tmp_path):
 def _render(block, tmp_path, lib):
     from yasdl.kicad_export import render
 
-    return render(block, tmp_path, svg=False, spice=True, spice_libs=(str(lib), str(JELLYBEAN_MODEL)))
+    return render(
+        block,
+        tmp_path,
+        svg=False,
+        spice=True,
+        spice_libs=(str(lib), str(JELLYBEAN_MODEL)),
+    )
 
 
 @pytest.fixture
@@ -359,7 +371,9 @@ def test_roundtrip_rejects_changed_design_values(tmp_path, pot_lib):
     )
     for over in (
         dict(VR=pot_atom(pot_lib, "R=100k X=0.3")),
-        dict(VR=pot_atom(pot_lib, "X=0.25 R=100k")),  # reordered text: unequal (documented)
+        dict(
+            VR=pot_atom(pot_lib, "X=0.25 R=100k")
+        ),  # reordered text: unequal (documented)
         dict(V1=V("dc 0 ac 2 sin(0 0.5 1k)")),
         dict(I1=I("1m")),
         dict(V2=V("15")),
@@ -447,7 +461,10 @@ def test_sim_false_parts_render_and_roundtrip(tmp_path):
     assert info["roundtrip_ok"] and info["erc"] == [] and info["spice_ok"], info
     assert not re.search(r"^\w*J1 ", export_kicad_spice(info["schematic"]), re.M)
     root = parse(info["schematic"].read_text())
-    conn = [s for s in find_all(root, "symbol") if find(s, "lib_id") and
-            find(s, "lib_id")[1] == "Connector_Generic:Conn_01x02"]
+    conn = [
+        s
+        for s in find_all(root, "symbol")
+        if find(s, "lib_id") and find(s, "lib_id")[1] == "Connector_Generic:Conn_01x02"
+    ]
     assert str(find(conn[0], "exclude_from_sim")[1]) == "yes"
     assert str(find(conn[0], "in_bom")[1]) == "yes"

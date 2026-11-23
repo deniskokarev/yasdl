@@ -195,9 +195,13 @@ class Canvas:
             if c is not None
             else ""
         )
-        return "".join(out) + where + (
-            f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
-            f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
+        return (
+            "".join(out)
+            + where
+            + (
+                f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
+                f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
+            )
         )
 
     def inside(self, r, c):
@@ -328,7 +332,12 @@ class Canvas:
                     f" (the other {name} spans rows {first.r0}-{first.r1}, cols "
                     f"{first.c0}-{first.c1}; if both are one component, a row is shifted)"
                 )
-            self.err(f"duplicate component {name}{hint}", r0, c0, rows=(min(r0, first.r0), max(r1, first.r1)))
+            self.err(
+                f"duplicate component {name}{hint}",
+                r0,
+                c0,
+                rows=(min(r0, first.r0), max(r1, first.r1)),
+            )
         self.comps[name] = Comp(name, r0, c0, r1, c1)
         for cell in cells:
             self.comp_at[cell] = name

@@ -6,8 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
-from yasdl import Atom, Block, NPN, R
-from yasdl import kicad_lib
+from yasdl import Atom, Block, kicad_lib, NPN, R
 from yasdl.kicad_lib import YasdlDependencyError
 
 
@@ -27,7 +26,11 @@ def test_yasdl_kicad_overrides_discovery(monkeypatch, tmp_path):
 
 def test_discovery_picks_the_first_installed_candidate(monkeypatch, tmp_path):
     monkeypatch.delenv("YASDL_KICAD", raising=False)
-    empty, prefix, mac = tmp_path / "none", tmp_path / "usr", tmp_path / "Apps" / "KiCad"
+    empty, prefix, mac = (
+        tmp_path / "none",
+        tmp_path / "usr",
+        tmp_path / "Apps" / "KiCad",
+    )
     (prefix / "share" / "kicad" / "symbols").mkdir(parents=True)
     (mac / "KiCad.app" / "Contents" / "MacOS").mkdir(parents=True)
     (mac / "KiCad.app" / "Contents" / "MacOS" / "kicad-cli").touch()
@@ -70,9 +73,13 @@ def test_erc_without_report_is_an_error_not_a_pass(monkeypatch, tmp_path):
 
 
 def test_missing_library_and_symbol():
-    with pytest.raises(YasdlDependencyError, match="symbol library 'NoSuchLib' not found"):
+    with pytest.raises(
+        YasdlDependencyError, match="symbol library 'NoSuchLib' not found"
+    ):
         Atom("NoSuchLib:R").symbol
-    with pytest.raises(YasdlDependencyError, match=r"Device:Q_NPX not found.*did you mean"):
+    with pytest.raises(
+        YasdlDependencyError, match=r"Device:Q_NPX not found.*did you mean"
+    ):
         Atom("Device:Q_NPX").symbol
 
 
@@ -94,7 +101,11 @@ def test_spice_model_resources(tmp_path):
     from yasdl.kicad_export import render
 
     q = Block("Q", "     │\n{b}─Q1\n     │\n   [GND]", Q1=NPN("2N9999"))
-    with pytest.raises(YasdlDependencyError, match=r"'2N9999' is not defined in spice_libs"):
-        render(q, tmp_path, svg=False, spice=True, spice_libs=(kicad_lib.JELLYBEAN_MODEL,))
+    with pytest.raises(
+        YasdlDependencyError, match=r"'2N9999' is not defined in spice_libs"
+    ):
+        render(
+            q, tmp_path, svg=False, spice=True, spice_libs=(kicad_lib.JELLYBEAN_MODEL,)
+        )
     with pytest.raises(YasdlDependencyError, match="not found"):
         render(q, tmp_path, svg=False, spice_libs=(tmp_path / "missing.lib",))

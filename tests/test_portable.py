@@ -33,13 +33,20 @@ def test_moved_project_still_checks_and_simulates(tmp_path):
     from yasdl.kicad_export import erc, export_kicad_spice, render
 
     chip = Package(IDEAL_DUAL, "U1")
-    term = Block("Term", "[GND]──+U1U1\n     ┌──U1U1──┐\n     │        │\n     └────────┘\n")
-    term2 = Block("Term2", "[GND]──+U1U1\n     ┌──U1U1──┐\n     │        │\n     └────────┘\n")
+    term = Block(
+        "Term", "[GND]──+U1U1\n     ┌──U1U1──┐\n     │        │\n     └────────┘\n"
+    )
+    term2 = Block(
+        "Term2", "[GND]──+U1U1\n     ┌──U1U1──┐\n     │        │\n     └────────┘\n"
+    )
     top = Block(
         "Portable",
         DESIGN + "\n  TA   TB\n",
-        PW=chip.power(), Q1=Q2N3904, VR1=POT("10k", 0.3, "log"),
-        TA=term.bind(U1=chip.unit("A")), TB=term2.bind(U1=chip.unit("B")),
+        PW=chip.power(),
+        Q1=Q2N3904,
+        VR1=POT("10k", 0.3, "log"),
+        TA=term.bind(U1=chip.unit("A")),
+        TB=term2.bind(U1=chip.unit("B")),
     )
     a = tmp_path / "a"
     info = render(top, a, svg=False, spice=True)

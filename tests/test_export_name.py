@@ -2,7 +2,7 @@
 
 import pytest
 from docs.examples.blocks import DARLINGTON
-from yasdl import NPN, netlist, PNP
+from yasdl import netlist, NPN, PNP
 from yasdl.kicad_lib import KICAD_CLI
 
 have_kicad = KICAD_CLI.exists()
@@ -26,7 +26,9 @@ def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
     assert "Q_PNP" in b["schematic"].read_text()
     # the blocks keep their identity and circuit
     assert upper.name == lower.name == "Darlington"
-    assert netlist(upper) == netlist(DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")))
+    assert netlist(upper) == netlist(
+        DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904"))
+    )
     assert not (tmp_path / "Darlington.kicad_sch").exists()
 
 
@@ -35,7 +37,9 @@ def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
 def test_default_name_is_the_block_name(tmp_path):
     from yasdl.kicad_export import render
 
-    info = render(DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")), tmp_path, svg=False)
+    info = render(
+        DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")), tmp_path, svg=False
+    )
     assert info["schematic"] == tmp_path / "Darlington.kicad_sch"
 
 

@@ -195,7 +195,11 @@ class Schematic:
 
     def add_no_connect(self, p):
         self.items.append(
-            [Sym("no_connect"), [Sym("at"), _num(p[0]), _num(p[1])], [Sym("uuid"), _uid()]]
+            [
+                Sym("no_connect"),
+                [Sym("at"), _num(p[0]), _num(p[1])],
+                [Sym("uuid"), _uid()],
+            ]
         )
 
     def add_label(self, name: str, p, angle: int = 0):
@@ -309,8 +313,10 @@ def export_netlist_full(sch_path):
     kicad-cli's netlist export; components with several units are one entry."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "net.net"
-        run_cli("KiCad netlist export", ["sch", "export", "netlist", "--format",
-                                       "kicadsexpr", "-o", out, sch_path])
+        run_cli(
+            "KiCad netlist export",
+            ["sch", "export", "netlist", "--format", "kicadsexpr", "-o", out, sch_path],
+        )
         root = parse(out.read_text())
     nets = {}
     for net in find_all(find(root, "nets"), "net"):

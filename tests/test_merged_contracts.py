@@ -5,12 +5,12 @@ from yasdl import (
     AtomOpamp5,
     Block,
     NC,
+    netlist,
     Package,
     R,
+    spice_netlist,
     SpiceModel,
     YasdlError,
-    netlist,
-    spice_netlist,
 )
 from yasdl.kicad_export import roundtrip, to_kicad
 from yasdl.kicad_lib import BUNDLED_MODELS, KICAD_CLI, library_path, load
@@ -62,7 +62,9 @@ def test_package_model_arguments_build_one_whole_device_instance(tmp_path):
     assert (m.pins, m.model, m.library) == (order, "dual", str(lib))
     assert chip.unit("C").spice is m
     default = Package().unit("B").spice
-    assert default.model == "yasdl_dual_opamp" and default.library == str(BUNDLED_MODELS)
+    assert default.model == "yasdl_dual_opamp" and default.library == str(
+        BUNDLED_MODELS
+    )
     assert default.pins == ("3", "2", "1", "5", "6", "7", "8", "4")
     with pytest.raises(YasdlError, match="every package pin once"):
         Package(model_order=("3", "2", "1"))
@@ -92,9 +94,7 @@ def test_opamp_role_keys_accept_both_spellings(tmp_path):
 
 def test_spice_instance_names_must_not_collide():
     child = Block("Child", "{x}─B1─{y}", B1=R("1k"))
-    b = Block(
-        "Collide", "{a}─A1_B1─{b}\n\n{p}──A1───{q}", A1_B1=R("1k"), A1=child
-    )
+    b = Block("Collide", "{a}─A1_B1─{b}\n\n{p}──A1───{q}", A1_B1=R("1k"), A1=child)
     assert len(netlist(b)) == 4
     with pytest.raises(YasdlError, match="instance name collision: R_A1_B1"):
         spice_netlist(b)

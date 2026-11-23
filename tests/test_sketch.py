@@ -16,8 +16,6 @@ def test_route_generates_elbows():
     assert s.render() == "   ┌──┐\n   │  │\n───┘  │"
 
 
-
-
 def _base():
     """{in}──R1──┐ with a vertical wire below the elbow and a label."""
     s = Sketch().text(0, 0, "{in}").hline(0, 4, 5).text(0, 6, "R1").hline(0, 8, 9)
@@ -35,7 +33,10 @@ def _base():
         (lambda s: s.hline(0, 3, 4), "already holds"),  # same-direction overlap
         (lambda s: s.vline(4, 0, 2), "already holds"),  # wire ends on a wire
         (lambda s: s.hline(0, 9, 11), "already holds"),  # through the elbow
-        (lambda s: s.wire([(2, 7), (2, 10), (3, 10)]), "already holds"),  # turns on a wire
+        (
+            lambda s: s.wire([(2, 7), (2, 10), (3, 10)]),
+            "already holds",
+        ),  # turns on a wire
         (lambda s: s.hline(2, 11, 14), "implied T"),  # dead end against a wire's side
         (lambda s: s.text(2, 11, "R9"), None),  # text beside a wire is fine
     ],
@@ -70,7 +71,9 @@ def test_error_names_location_content_and_operation():
 def test_crossing_needs_explicit_count():
     s = _base()
     before = snapshot(s)
-    with pytest.raises(SketchError, match=r"creates 1 crossing\(s\) at \(2, 10\), expected cross=0"):
+    with pytest.raises(
+        SketchError, match=r"creates 1 crossing\(s\) at \(2, 10\), expected cross=0"
+    ):
         s.hline(2, 8, 12)
     assert snapshot(s) == before
     s.hline(2, 8, 12, cross=1)
@@ -181,7 +184,9 @@ def test_composed_crossings_are_the_sum_of_drawn_ones():
     assert len(wire_crossings(layout(parent))) == 3
 
 
-@pytest.mark.parametrize("name", ["SGEN", "CROSSING_SUPPLY", "SERIES_PARALLEL", "SHUNT"])
+@pytest.mark.parametrize(
+    "name", ["SGEN", "CROSSING_SUPPLY", "SERIES_PARALLEL", "SHUNT"]
+)
 def test_examples_have_only_drawn_crossings(name):
     import docs.examples.blocks as ex
     import docs.examples.sgen as sg

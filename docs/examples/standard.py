@@ -3,8 +3,8 @@
 Renders every example with the netlist and SPICE round trips and ERC.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from yasdl import Atom, Block, D1N4148, NC, Package, Pot, Q2N3904, Q2N3906, R, std
 from yasdl.kicad_export import render

@@ -6,7 +6,6 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-
 from typing import TYPE_CHECKING
 
 from .block import Atom, Block, flat_names, ground_root, YasdlError
@@ -50,9 +49,13 @@ class SpiceModel:
         if not self.pins or len(set(self.pins)) != len(self.pins):
             raise YasdlError("SpiceModel: pins must be nonempty and unique")
         if self.params and any(ch in self.params for ch in "\n\r"):
-            raise YasdlError("SpiceModel: params must be a single-line instance specification")
+            raise YasdlError(
+                "SpiceModel: params must be a single-line instance specification"
+            )
         if self.params and self.prefix != "X":
-            raise YasdlError("SpiceModel: instance params are supported for X subcircuits")
+            raise YasdlError(
+                "SpiceModel: instance params are supported for X subcircuits"
+            )
 
 
 # Defaults by KiCad lib_id. Model-based parts take the model name from the atom's value.
@@ -91,15 +94,43 @@ def spice_model(atom: Atom) -> SpiceModel | None:
 # M = milli), and ignores any letters after it. KiCad reads M as mega, m as milli, and lets a
 # prefix or R stand for the decimal point (4k7, 2R2). Spec 6.2: values whose two readings
 # differ are rejected rather than rewritten.
-_NG_SCALE = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "mil": 25.4e-6, "m": 1e-3,
-             "u": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15, "a": 1e-18}
+_NG_SCALE = {
+    "t": 1e12,
+    "g": 1e9,
+    "meg": 1e6,
+    "k": 1e3,
+    "mil": 25.4e-6,
+    "m": 1e-3,
+    "u": 1e-6,
+    "n": 1e-9,
+    "p": 1e-12,
+    "f": 1e-15,
+    "a": 1e-18,
+}
 _NG_NUMBER = re.compile(
     r"\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(meg|mil|[tgkmunpfa])?(\w*)\s*",
     re.IGNORECASE,
 )
-_KI_SCALE = {"T": 1e12, "G": 1e9, "M": 1e6, "Meg": 1e6, "MEG": 1e6, "meg": 1e6, "k": 1e3,
-             "K": 1e3, "R": 1.0, "r": 1.0, "": 1.0, "m": 1e-3, "u": 1e-6, "µ": 1e-6,
-             "μ": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15}
+_KI_SCALE = {
+    "T": 1e12,
+    "G": 1e9,
+    "M": 1e6,
+    "Meg": 1e6,
+    "MEG": 1e6,
+    "meg": 1e6,
+    "k": 1e3,
+    "K": 1e3,
+    "R": 1.0,
+    "r": 1.0,
+    "": 1.0,
+    "m": 1e-3,
+    "u": 1e-6,
+    "µ": 1e-6,
+    "μ": 1e-6,
+    "n": 1e-9,
+    "p": 1e-12,
+    "f": 1e-15,
+}
 _KI_NUMBER = re.compile(
     r"\s*(\d*)(?:\.(\d+))?(Meg|MEG|meg|[TGMkKRrmuµμnpf])?(\d*)\s*([A-Za-zΩ]*)\s*"
 )
@@ -253,8 +284,11 @@ def spice_netlist(
             libs.append(lib)
     for lib in dict.fromkeys([*libs, *includes]):
         if Path(lib).is_absolute() and not Path(lib).is_file():
-            models = [m.model for _, _, a in _instances(block)
-                      if (m := spice_model(a)) is not None and m.library == lib]
+            models = [
+                m.model
+                for _, _, a in _instances(block)
+                if (m := spice_model(a)) is not None and m.library == lib
+            ]
             raise MissingModelResource(
                 f"SPICE export of {block.name}: required model resource missing: {lib}"
                 + (f" (SPICE model resource for model {models[0]!r})" if models else "")
@@ -271,7 +305,12 @@ def spice_netlist(
             continue
         d = pkg.package.descriptor
         wrapper = getattr(d, "wrapper", None)  # only OpampPackage wraps units
-        if d.model and d.scope == "unit" and wrapper is not None and wrapper() not in wrappers:
+        if (
+            d.model
+            and d.scope == "unit"
+            and wrapper is not None
+            and wrapper() not in wrappers
+        ):
             wrappers.append(wrapper())
     lines += [w.rstrip("\n") for w in wrappers]
     if subckt:
@@ -330,9 +369,15 @@ def spice_netlist(
             )
         model, order = d.spice_element()
         nodes = [node(pins[pkg.pin_path[pin], pin]) for pin in order]
-        name = element_name("X_" + re.sub(r"[^A-Za-z0-9_]", "_", pkg.name), pkg.name)[2:]
-        params = getattr(d, 'spice', None)
-        lines.append(f"X_{name} {' '.join(nodes)} {model} {params.params or ''}".rstrip() if params else f"X_{name} {' '.join(nodes)} {model}")
+        name = element_name("X_" + re.sub(r"[^A-Za-z0-9_]", "_", pkg.name), pkg.name)[
+            2:
+        ]
+        params = getattr(d, "spice", None)
+        lines.append(
+            f"X_{name} {' '.join(nodes)} {model} {params.params or ''}".rstrip()
+            if params
+            else f"X_{name} {' '.join(nodes)} {model}"
+        )
     if subckt:
         lines.append(f".ends {subckt}")
     return "\n".join(lines) + "\n"
@@ -433,7 +478,9 @@ def spice_lines(text: str) -> list[str]:
     return out
 
 
-def parse_spice(text: str, subckt: str | None = None) -> list[tuple[str, list[str], str]]:
+def parse_spice(
+    text: str, subckt: str | None = None
+) -> list[tuple[str, list[str], str]]:
     """(name, nodes, value) for the top-level R/C/L/D/Q/M, V/I and X lines of a netlist, or
     with `subckt` for the lines of that named subcircuit body.
 
@@ -457,7 +504,9 @@ def parse_spice(text: str, subckt: str | None = None) -> list[tuple[str, list[st
             if depth < 0:
                 raise YasdlError("SPICE .ends without .subckt")
             continue
-        if (depth != 0 if subckt is None else depth != 1 or not selected) or line[0] in ".;":
+        if (depth != 0 if subckt is None else depth != 1 or not selected) or line[
+            0
+        ] in ".;":
             continue
         kind = line[0].upper()
         parts = line.split()
@@ -525,7 +574,7 @@ def compare_spice(ours, theirs, rename_ours=None, rename_theirs=None, named=()):
         a = spice_partition(parse_spice(ours), rename_ours or (lambda n: n), named)
         b = spice_partition(parse_spice(theirs), rename_theirs or (lambda n: n), named)
         diff = compare_spice(a, b)
-        return not diff, '; '.join(diff)
+        return not diff, "; ".join(diff)
     (o_part, o_vals), (t_part, t_vals) = ours, theirs
     diff = []
     o_ids = {e for e, _ in o_vals}
@@ -540,9 +589,9 @@ def compare_spice(ours, theirs, rename_ours=None, rename_theirs=None, named=()):
             other = sorted(w for f, w in t_vals if f == e)
             diff.append(f"{e}: value {v!r} vs {other[0] if other else None!r}")
     if o_part != t_part:
-        for net in sorted({m[1] for p in o_part | t_part for m in p if m[0] == '='}):
-            a = {p for p in o_part if ('=', net) in p}
-            b = {p for p in t_part if ('=', net) in p}
+        for net in sorted({m[1] for p in o_part | t_part for m in p if m[0] == "="}):
+            a = {p for p in o_part if ("=", net) in p}
+            b = {p for p in t_part if ("=", net) in p}
             if a != b:
                 diff.append(f"net {net}: terminal membership differs")
         fmt = lambda s: sorted(sorted(map(str, net)) for net in s)  # noqa: E731

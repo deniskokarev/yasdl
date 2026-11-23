@@ -8,8 +8,17 @@ import shutil
 import subprocess
 
 import pytest
-from yasdl import Block, netlist, OPAMP, OPAMP_IDEAL, R, spice_netlist, V, YasdlError
-from yasdl import std
+from yasdl import (
+    Block,
+    netlist,
+    OPAMP,
+    OPAMP_IDEAL,
+    R,
+    spice_netlist,
+    std,
+    V,
+    YasdlError,
+)
 from yasdl.kicad_lib import BUNDLED_MODELS, JELLYBEAN_MODEL, KICAD_CLI
 from yasdl.parts import AtomOpamp5, D1N4148, IDEAL_DUAL, Package, Q2N3904, Q2N3906
 
@@ -18,8 +27,10 @@ have_ngspice = shutil.which("ngspice") is not None
 ngspice = pytest.mark.skipif(not have_ngspice, reason="ngspice missing")
 
 OP5 = AtomOpamp5(
-    "IDEAL_OP5", {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
-    model="yasdl_ideal_opamp5", library=BUNDLED_MODELS,
+    "IDEAL_OP5",
+    {"+": 3, "-": 2, "out": 6, "V+": 7, "V-": 4},
+    model="yasdl_ideal_opamp5",
+    library=BUNDLED_MODELS,
 )
 
 BLOCKS = {
@@ -60,7 +71,9 @@ BLOCKS = {
         "sziklai", Q2N3904, Q2N3906, D1N4148
     ),
     "push_pull_bjt": lambda: std.push_pull("bjt", Q2N3904, Q2N3906, D1N4148),
-    "push_pull_darlington": lambda: std.push_pull("darlington", Q2N3904, Q2N3906, D1N4148),
+    "push_pull_darlington": lambda: std.push_pull(
+        "darlington", Q2N3904, Q2N3906, D1N4148
+    ),
     "push_pull_sziklai": lambda: std.push_pull("sziklai", Q2N3904, Q2N3906, D1N4148),
 }
 
@@ -86,8 +99,16 @@ def test_parallel_array_crossings_are_declared():
 
 
 def test_compound_devices_share_the_transistor_interface():
-    for blk in (std.darlington(Q2N3904), std.sziklai(Q2N3904, Q2N3906), std.parallel(Q2N3904, 2, "1")):
-        assert {(p.side, p.name) for p in blk.ports} == {("N", "c"), ("W", "b"), ("S", "e")}
+    for blk in (
+        std.darlington(Q2N3904),
+        std.sziklai(Q2N3904, Q2N3906),
+        std.parallel(Q2N3904, 2, "1"),
+    ):
+        assert {(p.side, p.name) for p in blk.ports} == {
+            ("N", "c"),
+            ("W", "b"),
+            ("S", "e"),
+        }
 
 
 def nets(block):
@@ -173,7 +194,9 @@ def test_invalid_kinds_are_rejected():
 # --- simulation helpers -------------------------------------------------------------------
 def run(tmp_path, body, analyses):
     cir = tmp_path / "tb.cir"
-    cir.write_text(f"* tb\n.include {JELLYBEAN_MODEL}\n{body}\n.control\n{analyses}\n.endc\n.end\n")
+    cir.write_text(
+        f"* tb\n.include {JELLYBEAN_MODEL}\n{body}\n.control\n{analyses}\n.endc\n.end\n"
+    )
     out = subprocess.run(["ngspice", "-b", str(cir)], capture_output=True, text=True)
     return out.stdout + out.stderr
 
@@ -200,7 +223,10 @@ def sub(block, name, order):
     ],
 )
 def test_opamp_circuit_gains(tmp_path, block, gain):
-    body = sub(block, "amp", ["in", "out"]) + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.1\nX1 in out amp\n"
+    body = (
+        sub(block, "amp", ["in", "out"])
+        + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.1\nX1 in out amp\n"
+    )
     out = run(tmp_path, body, "op\nprint v(out)")
     assert value(out, "v(out)") == pytest.approx(0.1 * gain, rel=1e-4)
 
@@ -216,7 +242,10 @@ def test_opamp_circuit_gains(tmp_path, block, gain):
 )
 def test_filter_corner(tmp_path, block, kind, f0):
     """Butterworth-sized sections: |H(f0)| = 1/sqrt(2) (both first and second order here)."""
-    body = sub(block, "flt", ["in", "out"]) + "VI in 0 dc 0 ac 1\nX1 in out flt\nRL out 0 1e9\n"
+    body = (
+        sub(block, "flt", ["in", "out"])
+        + "VI in 0 dc 0 ac 1\nX1 in out flt\nRL out 0 1e9\n"
+    )
     out = run(tmp_path, body, f"ac lin 1 {f0} {f0}\nprint vm(out)")
     assert value(out, "vm(out)") == pytest.approx(1 / math.sqrt(2), rel=0.01)
 
@@ -226,7 +255,12 @@ def test_filter_corner(tmp_path, block, kind, f0):
 @pytest.mark.parametrize(
     "factory, vout, lo, hi",
     [
-        (std.mirror, 0.7, 0.98, 1.0),  # matched Vce: only the base-current error, 2/beta
+        (
+            std.mirror,
+            0.7,
+            0.98,
+            1.0,
+        ),  # matched Vce: only the base-current error, 2/beta
         (std.mirror, 10.0, 1.05, 1.15),  # Early effect (VAF = 100 V) at Vce = 10 V
         (std.wilson, 10.0, 0.99, 1.01),  # high output resistance: still ~1 at 10 V
     ],
@@ -264,8 +298,15 @@ def test_diff_pairs_amplify_the_difference(tmp_path):
 
 
 def push_pull_bench(kind, diodes=None):
-    pp = std.push_pull(kind, Q2N3904, Q2N3906, D1N4148, rb="2.2k", re="2.2",
-                       bias=None if diodes is None else std.diode_string(diodes, D1N4148))
+    pp = std.push_pull(
+        kind,
+        Q2N3904,
+        Q2N3906,
+        D1N4148,
+        rb="2.2k",
+        re="2.2",
+        bias=None if diodes is None else std.diode_string(diodes, D1N4148),
+    )
     return sub(pp, "pp", ["vp", "in", "out", "vn"]) + (
         "VP vp 0 12\nVN vn 0 -12\nVS sig 0 dc 0 sin(0 1 1k)\nCC sig in 1000u\n"
         "RS in vn 2.2k\nX1 vp in out vn pp\nRL out 0 8\n"
@@ -276,9 +317,15 @@ def push_pull_bench(kind, diodes=None):
 @ngspice
 @pytest.mark.parametrize(
     "kind, right, wrong, max_thd, min_wrong_thd",
-    [("bjt", 2, 1, 5.0, 15.0), ("darlington", 4, 2, 1.0, 30.0), ("sziklai", 2, 1, 2.0, 10.0)],
+    [
+        ("bjt", 2, 1, 5.0, 15.0),
+        ("darlington", 4, 2, 1.0, 30.0),
+        ("sziklai", 2, 1, 2.0, 10.0),
+    ],
 )
-def test_push_pull_bias_matches_its_output_variant(tmp_path, kind, right, wrong, max_thd, min_wrong_thd):
+def test_push_pull_bias_matches_its_output_variant(
+    tmp_path, kind, right, wrong, max_thd, min_wrong_thd
+):
     """Open loop, 1 V peak at 1 kHz into 8 ohm, AC-coupled drive: the bias string sized for
     the variant keeps crossover distortion low; one string short of it does not."""
     analyses = "op\nprint v(out)\ntran 2u 25m 5m\nfourier 1k v(out)"
@@ -317,8 +364,10 @@ def test_vbe_multiplier_connections():
     """Fixture (2N3904 TO-92: 1 = E, 2 = B, 3 = C): R1 collector-base, R2 base-emitter,
     collector = {a}, emitter = {k}. Resistor pin numbers are ignored (symmetric parts)."""
     nets = netlist(std.vbe_multiplier(Q2N3904, "2.7k", "1k"))
-    parts = {name: {p.split(".")[0] if p[0] == "R" else p for p in pins}
-             for name, pins in nets.items()}
+    parts = {
+        name: {p.split(".")[0] if p[0] == "R" else p for p in pins}
+        for name, pins in nets.items()
+    }
     assert parts["a"] == {"Q1.3", "R1"}
     assert parts["k"] == {"Q1.1", "R2"}
     assert sorted(map(sorted, parts.values())) == sorted(
@@ -399,7 +448,9 @@ def test_powered_inverting_stage_simulates(tmp_path):
     text = sub(amp, "inv", ["in", "out"])
     assert ".global VCC VEE" in text
     body = text + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.1\nX1 in out inv\n"
-    assert value(run(tmp_path, body, "op\nprint v(out)"), "v(out)") == pytest.approx(-0.47, rel=1e-4)
+    assert value(run(tmp_path, body, "op\nprint v(out)"), "v(out)") == pytest.approx(
+        -0.47, rel=1e-4
+    )
 
 
 @pytest.mark.integration
@@ -421,5 +472,10 @@ def test_package_units_in_standard_circuits(tmp_path):
         IV=std.inverting("10k", "10k", chip.unit("B")),
         PW=chip.power(),
     )
-    body = sub(top, "chain", ["in", "out"]) + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.2\nX1 in out chain\n"
-    assert value(run(tmp_path, body, "op\nprint v(out)"), "v(out)") == pytest.approx(-0.4, rel=1e-4)
+    body = (
+        sub(top, "chain", ["in", "out"])
+        + "VP VCC 0 15\nVN VEE 0 -15\nVI in 0 0.2\nX1 in out chain\n"
+    )
+    assert value(run(tmp_path, body, "op\nprint v(out)"), "v(out)") == pytest.approx(
+        -0.4, rel=1e-4
+    )

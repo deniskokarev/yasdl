@@ -14,7 +14,11 @@ have_ngspice = shutil.which("ngspice") is not None
 
 def test_symbol_pins_and_roles():
     pins = {p.number: p.side for p in load("Device:R_Potentiometer").pins}
-    assert pins == {"1": "N", "2": "E", "3": "S"}  # CCW end top, wiper right, CW end bottom
+    assert pins == {
+        "1": "N",
+        "2": "E",
+        "3": "S",
+    }  # CCW end top, wiper right, CW end bottom
     pot = POT("10k")
     assert pot.aliases == {"ccw": "1", "w": "2", "wiper": "2", "cw": "3"}
 
@@ -37,8 +41,14 @@ def test_labels_orient_the_pot():
 
 @pytest.mark.parametrize(
     "rotation, taper, pos",
-    [(0.0, "lin", 0.0), (0.25, "lin", 0.25), (1.0, "lin", 1.0),
-     (0.0, "log", 0.0), (0.5, "log", 0.1), (1.0, "log", 1.0)],
+    [
+        (0.0, "lin", 0.0),
+        (0.25, "lin", 0.25),
+        (1.0, "lin", 1.0),
+        (0.0, "log", 0.0),
+        (0.5, "log", 0.1),
+        (1.0, "log", 1.0),
+    ],
 )
 def test_position_and_taper(rotation, taper, pos):
     assert pot_position(rotation, taper) == pytest.approx(pos)
@@ -46,8 +56,11 @@ def test_position_and_taper(rotation, taper, pos):
 
 @pytest.mark.parametrize(
     "kwargs, match",
-    [({"rotation": -0.1}, "rotation"), ({"rotation": 1.5}, "rotation"),
-     ({"taper": "exp"}, "taper")],
+    [
+        ({"rotation": -0.1}, "rotation"),
+        ({"rotation": 1.5}, "rotation"),
+        ({"taper": "exp"}, "taper"),
+    ],
 )
 def test_invalid_settings(kwargs, match):
     with pytest.raises(YasdlError, match=match):
@@ -96,8 +109,13 @@ def test_wiper_voltage_in_ngspice(tmp_path, rotation, taper, expected):
     block = DIVIDER.bind(RV=POT("10k", rotation=rotation, taper=taper))
     deck = spice_netlist(block) + ".control\nop\nprint v(out)\n.endc\n.end\n"
     (tmp_path / "pot.cir").write_text(deck)
-    out = subprocess.run(["ngspice", "-b", "pot.cir"], cwd=tmp_path, capture_output=True,
-                         text=True, timeout=120)
+    out = subprocess.run(
+        ["ngspice", "-b", "pot.cir"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     m = re.search(r"^v\(out\)\s*=\s*([-+\d.eE]+)", out.stdout, re.M)
     assert m, out.stdout + out.stderr
@@ -135,13 +153,18 @@ def test_settings_survive_the_round_trip(tmp_path):
     assert info["spice_ok"], info["spice_diff"]
     kicad_text = export_kicad_spice(info["schematic"])
     assert "POS=0.2" in kicad_text and "POS=0.7" in kicad_text
-    swapped = spice_netlist(TWO_POTS).replace("POS=0.2", "POS=X").replace(
-        "POS=0.7", "POS=0.2").replace("POS=X", "POS=0.7")
+    swapped = (
+        spice_netlist(TWO_POTS)
+        .replace("POS=0.2", "POS=X")
+        .replace("POS=0.7", "POS=0.2")
+        .replace("POS=X", "POS=0.7")
+    )
     from yasdl.kicad_export import to_kicad
 
     sch, refmap = to_kicad(TWO_POTS, tmp_path / "t.kicad_sch")
-    ok, diff = spice_roundtrip(TWO_POTS, sch, refmap, kicad_text=kicad_text,
-                               yasdl_text=swapped)
+    ok, diff = spice_roundtrip(
+        TWO_POTS, sch, refmap, kicad_text=kicad_text, yasdl_text=swapped
+    )
     assert not ok and "pos=" in diff
 
 

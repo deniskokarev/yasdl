@@ -16,7 +16,7 @@ from yasdl.kicad_lib import KICAD_CLI
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not KICAD_CLI.exists(),reason='KiCad unavailable')
+@pytest.mark.skipif(not KICAD_CLI.exists(), reason="KiCad unavailable")
 def test_generic_opamp_physical_maps_and_powered_wrapper_mirror(tmp_path):
     lib = tmp_path / "opamp.lib"
     lib.write_text(
@@ -41,16 +41,28 @@ def test_generic_opamp_physical_maps_and_powered_wrapper_mirror(tmp_path):
 
 
 def test_model_order_requires_every_role(tmp_path):
-    with pytest.raises(YasdlError,match='all five opamp roles'):
-        AtomOpamp5('Bad',{'inp':3,'inn':2,'out':1,'vp':8,'vm':4},tmp_path/'model.lib','opamp',model_order=('inp','inp','vp','vm','out'))
+    with pytest.raises(YasdlError, match="all five opamp roles"):
+        AtomOpamp5(
+            "Bad",
+            {"inp": 3, "inn": 2, "out": 1, "vp": 8, "vm": 4},
+            tmp_path / "model.lib",
+            "opamp",
+            model_order=("inp", "inp", "vp", "vm", "out"),
+        )
 
 
 def test_package_physical_ports_are_independent_reference_map():
     from test_devices import package_block
-    b=package_block(Package())
-    assert netlist(b)=={'a':['A1.U1.3'],'oa':['A1.U1.1','A1.U1.2'],
-                      'b':['B1.U1.5'],'ob':['B1.U1.6','B1.U1.7'],
-                      'VCC':['P1.U1.8'],'VEE':['P1.U1.4']}
+
+    b = package_block(Package())
+    assert netlist(b) == {
+        "a": ["A1.U1.3"],
+        "oa": ["A1.U1.1", "A1.U1.2"],
+        "b": ["B1.U1.5"],
+        "ob": ["B1.U1.6", "B1.U1.7"],
+        "VCC": ["P1.U1.8"],
+        "VEE": ["P1.U1.4"],
+    }
 
 
 def test_generic_role_aliases_ignore_case(tmp_path):

@@ -32,7 +32,10 @@ def test_excerpt_and_source_coordinates():
 
 def test_ragged_component_lists_row_extents_and_points_at_the_shifted_row():
     msg = error("Rag", "──Q1Q1\n  Q1Q1\n   Q1Q1\n")
-    assert "row 0: 'Q1Q1' at cols 2-5; row 1: 'Q1Q1' at cols 2-5; row 2: 'Q1Q1' at cols 3-6" in msg
+    assert (
+        "row 0: 'Q1Q1' at cols 2-5; row 1: 'Q1Q1' at cols 2-5; row 2: 'Q1Q1' at cols 3-6"
+        in msg
+    )
     assert "at row 2, col 3" in msg
     assert re.search(r"2 \|    Q1Q1\n +\|    \^", msg)
 

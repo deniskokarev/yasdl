@@ -11,21 +11,20 @@ from yasdl import (
     AtomOpamp3,
     AtomOpamp5,
     Block,
+    I,
     NC,
+    netlist,
     Package,
     Pot,
     Q2N3904,
     Q2N3906,
     R,
-    V,
-    I,
-    SpiceModel,
-    YasdlError,
-    netlist,
     spice_netlist,
+    SpiceModel,
+    transistor as standard_transistor,
+    V,
+    YasdlError,
 )
-from yasdl import transistor as standard_transistor
-from yasdl.kicad_lib import KICAD_CLI, load, JELLYBEAN_MODEL
 from yasdl.kicad_export import (
     compare_spice,
     export_kicad_spice,
@@ -34,8 +33,9 @@ from yasdl.kicad_export import (
     spice_roundtrip,
     to_kicad,
 )
+from yasdl.kicad_lib import JELLYBEAN_MODEL, KICAD_CLI, load
 from yasdl.kicad_sch import export_netlist
-from yasdl.sexp import Sym, dumps, find, find_all, parse
+from yasdl.sexp import dumps, find, find_all, parse, Sym
 from yasdl.spice import parse_spice
 
 live = pytest.mark.skipif(
@@ -84,7 +84,9 @@ def test_verified_standard_physical_pinouts():
         fixture = exact_pinout(name)
         assert fixture == {"E": "1", "B": "2", "C": "3"}
         assert {p.name: p.number for p in factory().symbol.pins} == fixture
-        assert {p.name: p.number for p in standard_transistor(name).symbol.pins} == fixture
+        assert {
+            p.name: p.number for p in standard_transistor(name).symbol.pins
+        } == fixture
     # A differently numbered exact variant, the BD139 regression map (TO-126).
     assert exact_pinout("BD139") == {"E": "1", "B": "3", "C": "2"}
 

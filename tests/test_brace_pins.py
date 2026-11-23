@@ -1,11 +1,9 @@
 """Brace pin labels and interface declarations are distinguished by adjacency."""
 
 import pytest
-
 from yasdl import Block, CanvasError, netlist, NPN, R, spice_netlist
 from yasdl.canvas import Canvas
 from yasdl.kicad_lib import JELLYBEAN_MODEL, KICAD_CLI
-
 
 TRANSISTOR = """
            [VCC]

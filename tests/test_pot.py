@@ -63,11 +63,17 @@ def test_invalid_settings(kwargs, match):
 
 def test_wrong_role_label_is_rejected():
     with pytest.raises(YasdlError, match="does not fit"):
-        Block("Bad", VOLUME.replace("{cw}", "{w}  ").replace("VR1{w}", "VR1{cw}"), VR1=POT())
+        Block(
+            "Bad",
+            VOLUME.replace("{cw}", "{w}  ").replace("VR1{w}", "VR1{cw}"),
+            VR1=POT(),
+        )
 
 
 def _ratio(tmp_path, pot):
-    deck = spice_netlist(Block("Vol", VOLUME, VR1=pot), subckt="vol", port_order=["in", "out"])
+    deck = spice_netlist(
+        Block("Vol", VOLUME, VR1=pot), subckt="vol", port_order=["in", "out"]
+    )
     cir = tmp_path / "vol.cir"
     cir.write_text(
         "* vol\n" + deck + "V1 in 0 1\nX1 in out vol\nRL out 0 1e12\n"
@@ -94,7 +100,9 @@ def _ratio(tmp_path, pot):
 )
 def test_volume_divider_in_ngspice(tmp_path, position, taper, want):
     """Input on cw, ccw grounded: the output is F(position) of the input."""
-    assert _ratio(tmp_path, POT("10k", position, taper)) == pytest.approx(want, abs=1e-4)
+    assert _ratio(tmp_path, POT("10k", position, taper)) == pytest.approx(
+        want, abs=1e-4
+    )
 
 
 @pytest.mark.integration

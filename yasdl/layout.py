@@ -203,7 +203,9 @@ class Layout:
                 self.power[i] = (atom, rot, symbol_extent(atom, rot, None, ""))
         self.nc_comps = set()
         for name, b in block.bound.items():
-            if isinstance(b.obj, NCMarker):  # markers sit on wire ends; no body of their own
+            if isinstance(
+                b.obj, NCMarker
+            ):  # markers sit on wire ends; no body of their own
                 self.nc_comps.add(name)
                 self.shapes[name] = Shape((0.0, 0.0, 0.0, 0.0), {})
             elif isinstance(b.obj, Atom):
@@ -650,9 +652,9 @@ def wire_crossings(res: Result) -> list[tuple[float, float]]:
     hs = [(a, b) for a, b in wires if abs(a[1] - b[1]) < 1e-6 and a != b]
     vs = [(a, b) for a, b in wires if abs(a[0] - b[0]) < 1e-6 and a != b]
     out = set()
-    for (h1, h2) in hs:
+    for h1, h2 in hs:
         y, x0, x1 = h1[1], min(h1[0], h2[0]), max(h1[0], h2[0])
-        for (v1, v2) in vs:
+        for v1, v2 in vs:
             x, y0, y1 = v1[0], min(v1[1], v2[1]), max(v1[1], v2[1])
             if x0 + 1e-6 < x < x1 - 1e-6 and y0 + 1e-6 < y < y1 - 1e-6:
                 out.add((round(x, 4), round(y, 4)))

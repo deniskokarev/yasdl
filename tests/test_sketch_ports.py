@@ -2,21 +2,24 @@
 time (before Block parsing), naming the port and its distance from the edge."""
 
 import pytest
-
 from yasdl import Block, R, Sketch, SketchError
 
 
 def test_east_port_inside_edge_is_rejected_with_distance():
     s = Sketch()
     s.hline(0, 0, 3).text(0, 4, "{out}").text(0, 10, "R1")
-    with pytest.raises(SketchError, match=r"port \{out\}.*3 cell\(s\) inside the east edge"):
+    with pytest.raises(
+        SketchError, match=r"port \{out\}.*3 cell\(s\) inside the east edge"
+    ):
         s.render()
 
 
 def test_west_port_inside_edge_is_rejected_with_distance():
     s = Sketch()
     s.text(0, 2, "{in}").hline(0, 6, 9).text(0, 12, "R1").hline(1, 0, 1)
-    with pytest.raises(SketchError, match=r"port \{in\}.*2 cell\(s\) inside the west edge"):
+    with pytest.raises(
+        SketchError, match=r"port \{in\}.*2 cell\(s\) inside the west edge"
+    ):
         s.render()
 
 
@@ -29,7 +32,9 @@ def test_south_port_inside_edge_is_rejected_with_distance():
 
 def test_ports_on_the_edge_render_and_parse():
     s = Sketch()
-    s.text(0, 0, "{in}").hline(0, 4, 6).text(0, 7, "R1").hline(0, 9, 11).text(0, 12, "{out}")
+    s.text(0, 0, "{in}").hline(0, 4, 6).text(0, 7, "R1").hline(0, 9, 11).text(
+        0, 12, "{out}"
+    )
     canvas = s.render()
     block = Block("Ports", canvas, R1=R("1k"))
     assert {p.name for p in block.ports} == {"in", "out"}

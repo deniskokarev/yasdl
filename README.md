@@ -33,17 +33,29 @@ properly. yasdl keeps the 2D arrangement in the source.)*
 ```python
 from yasdl import Block, C, OPAMP, R
 
-SERIES = Block("Series", """
+SERIES = Block(
+    "Series",
+    """
     ──R1──R2──
-""", R1=R("1k"), R2=R("2k"))
+""",
+    R1=R("1k"),
+    R2=R("2k"),
+)
 
-PARALLEL = Block("Parallel", """
+PARALLEL = Block(
+    "Parallel",
+    """
     ──┬──R1──┬──
       │      │
       └──R2──┘
-""", R1=R("10k"), R2=R("10k"))
+""",
+    R1=R("10k"),
+    R2=R("10k"),
+)
 
-INV_AMP = Block("InvAmp", """
+INV_AMP = Block(
+    "InvAmp",
+    """
               ┌──────FB───────┐
               │               │
               │    [VEE]      │
@@ -53,9 +65,13 @@ INV_AMP = Block("InvAmp", """
               ┌─────+U1U1U1
               │      │
             [GND]  [VCC]
-""", U1=OPAMP())
+""",
+    U1=OPAMP(),
+)
 
-amp = INV_AMP.bind(IN=SERIES, FB=PARALLEL)   # sub-circuits plugged into the IN and FB holes
+amp = INV_AMP.bind(
+    IN=SERIES, FB=PARALLEL
+)  # sub-circuits plugged into the IN and FB holes
 ```
 
 ![inverting amplifier](docs/examples/generated/InvAmp.png)
@@ -144,7 +160,7 @@ a single KiCad sheet; hierarchical sheets will come later.
 from yasdl import spice_netlist
 from yasdl.kicad_export import render
 
-render(amp, "out")                                   # out/InvAmp.kicad_sch + .svg, with checks
+render(amp, "out")  # out/InvAmp.kicad_sch + .svg, with checks
 print(spice_netlist(PARALLEL, subckt="parallel"))
 ```
 
@@ -164,10 +180,14 @@ Full callable interfaces and parameter conventions: [docs/API.md](docs/API.md).
 ```python
 from yasdl import AtomNPN, Block, NC, Package, Pot, Q2N3904, R, std
 
-q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, "models.lib")   # verify maps yourself
+q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, "models.lib")  # verify maps yourself
 chip = Package("TL072", library="tl072_dual.lib", model_name="TL072_DUAL")
-pre = std.noninverting("47k", "1k", chip.unit("A"))  # one chip, units in different blocks;
-flt = std.sallen_key_lowpass("10k", "10k", "10n", "20n", chip.unit("B"))  # power unit once
+pre = std.noninverting(
+    "47k", "1k", chip.unit("A")
+)  # one chip, units in different blocks;
+flt = std.sallen_key_lowpass(
+    "10k", "10k", "10n", "20n", chip.unit("B")
+)  # power unit once
 unused = Block("Unused", "NC1─R1─{out}", NC1=NC(), R1=R("10k"))
 ```
 

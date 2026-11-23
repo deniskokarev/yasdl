@@ -24,9 +24,14 @@ def test_route_generates_corner_glyphs():
 
 @pytest.mark.parametrize(
     "points, match",
-    [([(0, 0)], "at least two"), ([(0, 0), (2, 3)], "diagonal"),
-     ([(0, 0), (0, 4), (0, 1)], "reverses"), ([(0, 0), (0, 0)], "repeated"),
-     ([(0, 0), (0, 3), (2, 3), (2, 1), (0, 1)], "twice"), ([(0, -1), (0, 2)], "negative")],
+    [
+        ([(0, 0)], "at least two"),
+        ([(0, 0), (2, 3)], "diagonal"),
+        ([(0, 0), (0, 4), (0, 1)], "reverses"),
+        ([(0, 0), (0, 0)], "repeated"),
+        ([(0, 0), (0, 3), (2, 3), (2, 1), (0, 1)], "twice"),
+        ([(0, -1), (0, 2)], "negative"),
+    ],
 )
 def test_invalid_routes(points, match):
     with pytest.raises(SketchError, match=match):
@@ -36,7 +41,9 @@ def test_invalid_routes(points, match):
 def test_crossing_requires_declaration_and_leaves_canvas_unchanged_on_mismatch():
     s = Sketch().hline(2, 0, 8)
     before = snapshot(s)
-    with pytest.raises(SketchError, match=r"creates 1 crossing\(s\) at \[\(2, 4\)\].*cross=0"):
+    with pytest.raises(
+        SketchError, match=r"creates 1 crossing\(s\) at \[\(2, 4\)\].*cross=0"
+    ):
         s.vline(4, 0, 4)
     assert snapshot(s) == before
     with pytest.raises(SketchError, match="creates 1 crossing"):
@@ -50,7 +57,9 @@ def test_crossing_requires_declaration_and_leaves_canvas_unchanged_on_mismatch()
 def test_crossing_on_a_real_block_keeps_nets_separate():
     s = Sketch()
     s.text(0, 6, "{t}").vline(7, 1, 1).text(2, 7, "R1").vline(7, 3, 6).text(7, 6, "{u}")
-    s.text(5, 0, "{a}").hline(5, 3, 11, cross=1).text(5, 12, "R2").hline(5, 14, 15).text(5, 16, "{b}")
+    s.text(5, 0, "{a}").hline(5, 3, 11, cross=1).text(5, 12, "R2").hline(
+        5, 14, 15
+    ).text(5, 16, "{b}")
     canvas = s.render()
     assert canvas.splitlines()[5] == "{a}────│────R2──{b}"
     nets = netlist(Block("Cross", canvas, R1=R("1k"), R2=R("1k")))
@@ -66,7 +75,10 @@ def test_crossing_on_a_real_block_keeps_nets_separate():
         (lambda s: s.hline(0, 0, 9), "same axis"),
         (lambda s: s.wire([(4, 0), (4, 9)], cross=1), "elbow, tee or junction"),
         (lambda s: s.vline(8, 3, 6), "components, labels or text"),
-        (lambda s: s.wire([(3, 1), (2, 1)]), "continues on both sides"),  # ends on a wire
+        (
+            lambda s: s.wire([(3, 1), (2, 1)]),
+            "continues on both sides",
+        ),  # ends on a wire
         (lambda s: s.wire([(0, 2), (0, 2)]), "repeated"),
         (lambda s: s.vline(1, 1, 2), "continues on both sides"),
         (lambda s: s.vline(2, 1, 4), "elbow, tee or junction"),
@@ -75,9 +87,9 @@ def test_crossing_on_a_real_block_keeps_nets_separate():
     ],
 )
 def test_overwrites_are_rejected_without_changes(draw, reason):
-    s = Sketch().hline(0, 0, 5)            # row 0: ──────
-    s.wire([(2, 0), (2, 4), (6, 4)])         # an elbow at (2, 4)
-    s.text(4, 7, "{x}").text(4, 2, "┬")      # a label and an explicit tee
+    s = Sketch().hline(0, 0, 5)  # row 0: ──────
+    s.wire([(2, 0), (2, 4), (6, 4)])  # an elbow at (2, 4)
+    s.text(4, 7, "{x}").text(4, 2, "┬")  # a label and an explicit tee
     before = snapshot(s)
     with pytest.raises(SketchError) as err:
         draw(s)
@@ -134,7 +146,8 @@ def test_composed_layout_adds_no_crossings():
      │
     {u}
 """,
-        R1=R("1k"), R2=R("1k"),
+        R1=R("1k"),
+        R2=R("1k"),
     )
     parent = Block(
         "TwoCross",
@@ -147,7 +160,8 @@ def test_composed_layout_adds_no_crossings():
       │        │
      {ua}     {ub}
 """,
-        C1=cross, C2=cross,
+        C1=cross,
+        C2=cross,
     )
     designs = [cross, parent, *blocks.ALL.values(), *sgen.ALL.values()]
     for design in designs:
@@ -187,7 +201,10 @@ def test_export_name_renders_two_variants_of_one_template(tmp_path):
         assert info["svg"] == tmp_path / f"{stem}.svg" and info["svg"].exists()
         assert (tmp_path / f"{stem}.kicad_pro").exists()
         assert info["roundtrip_ok"] and info["erc"] == []
-    assert "Q_PNP" in b["schematic"].read_text() and "Q_PNP" not in a["schematic"].read_text()
+    assert (
+        "Q_PNP" in b["schematic"].read_text()
+        and "Q_PNP" not in a["schematic"].read_text()
+    )
     assert upper.name == lower.name == "Darl"  # the blocks are unchanged
     assert not (tmp_path / "Darl.kicad_sch").exists()
     default = render(upper, tmp_path, svg=False)
@@ -196,9 +213,8 @@ def test_export_name_renders_two_variants_of_one_template(tmp_path):
 
 @pytest.mark.parametrize("bad", ["", "sub/name", "..", "."])
 def test_export_name_must_be_a_stem(tmp_path, bad):
-    from yasdl.kicad_export import render
-
     from yasdl import NPN
+    from yasdl.kicad_export import render
 
     with pytest.raises(ValueError, match="plain file stem"):
         render(DARL.bind(Q1=NPN("Q"), Q2=NPN("Q")), tmp_path, export_name=bad)

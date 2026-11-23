@@ -768,10 +768,17 @@ instead of loading device-specific symbols:
 | `OpampPackage(name, units, power, model=, library=, model_pins=, scope=)` | `Device:Opamp_Dual` (2 units) / `Device:Opamp_Quad` (4) | per unit `+ - out`; power `V+ V-` |
 
 ```python
-q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, models, "BD139",
-            footprint="Package_TO_SOT_THT:TO-126-3_Vertical", datasheet=url)
-op = AtomOpamp5("TL071", {"inp": 3, "inn": 2, "out": 6, "V+": 7, "V-": 4},
-                models, "TL071")             # model terminals in the order + - V+ V- out
+q = AtomNPN(
+    "BD139",
+    {"E": 1, "B": 3, "C": 2},
+    models,
+    "BD139",
+    footprint="Package_TO_SOT_THT:TO-126-3_Vertical",
+    datasheet=url,
+)
+op = AtomOpamp5(
+    "TL071", {"inp": 3, "inn": 2, "out": 6, "V+": 7, "V-": 4}, models, "TL071"
+)  # model terminals in the order + - V+ V- out
 ```
 
 - The map must name every role exactly once with distinct physical pins (positive numbers,
@@ -934,10 +941,13 @@ every drawing comes with its transfer functions, exact whatever the loading betw
 
 ```python
 from yasdl.analysis import Circuit, elements
+
 ckt = Circuit(block)
-ckt.transfer("V1", "vo", s=2j * math.pi * 1e3)   # numeric, element values from the bindings
-ckt.transfer_symbolic("V1", "vo")                 # sympy H(s) in the element names (optional dep)
-ckt.transfer_symbolic("V1", "vo", numeric=True)   # values plugged in as exact rationals
+ckt.transfer(
+    "V1", "vo", s=2j * math.pi * 1e3
+)  # numeric, element values from the bindings
+ckt.transfer_symbolic("V1", "vo")  # sympy H(s) in the element names (optional dep)
+ckt.transfer_symbolic("V1", "vo", numeric=True)  # values plugged in as exact rationals
 ```
 
 - `elements(block)`: the flattened elements (`name`, `path`, `kind`, SPICE-ordered `nodes`,

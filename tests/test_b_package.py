@@ -11,8 +11,19 @@ import shutil
 import subprocess
 
 import pytest
-from yasdl import (Atom, Block, C, netlist, OPAMP_IDEAL, Package, R, spice_netlist, SpiceModel, V,
-                   YasdlError)
+from yasdl import (
+    Atom,
+    Block,
+    C,
+    netlist,
+    OPAMP_IDEAL,
+    Package,
+    R,
+    spice_netlist,
+    SpiceModel,
+    V,
+    YasdlError,
+)
 from yasdl.kicad_lib import KICAD_CLI
 from yasdl.parts import dual_opamp
 
@@ -109,8 +120,12 @@ def test_package_api_errors(dual, tmp_path):
     with pytest.raises(YasdlError, match="every physical pin"):
         Package(dual.lib_id, spice=SpiceModel("X", ("1", "2", "3"), "testdual"))
     with pytest.raises(YasdlError, match="model_pins"):
-        dual_opamp("BADPINS", model="testdual", library=tmp_path / "dual.lib",
-                   model_pins=MODEL_PINS[:-1])
+        dual_opamp(
+            "BADPINS",
+            model="testdual",
+            library=tmp_path / "dual.lib",
+            model_pins=MODEL_PINS[:-1],
+        )
 
 
 def test_two_packages_need_distinct_names(dual):
@@ -118,8 +133,10 @@ def test_two_packages_need_distinct_names(dual):
     block = Block(
         "TwoChips",
         "{a}──FA──FB──FC──FD──{b}\n\n  PA  PB",
-        FA=FOLLOWER.bind(U1=a.unit("A")), FB=FOLLOWER.bind(U1=a.unit("B")),
-        FC=FOLLOWER.bind(U1=b.unit("A")), FD=FOLLOWER.bind(U1=b.unit("B")),
+        FA=FOLLOWER.bind(U1=a.unit("A")),
+        FB=FOLLOWER.bind(U1=a.unit("B")),
+        FC=FOLLOWER.bind(U1=b.unit("A")),
+        FD=FOLLOWER.bind(U1=b.unit("B")),
         PA=Block("P", "[VCC]\n  │\n  PW\n  │\n[VEE]", PW=a.power()),
         PB=Block("P", "[VCC]\n  │\n  PW\n  │\n[VEE]", PW=b.power()),
     )
@@ -149,7 +166,8 @@ def test_one_physical_chip_in_kicad(dual, tmp_path):
     assert ("U1", "8") in nets["VCC"] and ("U1", "4") in nets["VEE"]
     root = parse(info["schematic"].read_text())
     units = sorted(
-        int(find(s, "unit")[1]) for s in find_all(root, "symbol")
+        int(find(s, "unit")[1])
+        for s in find_all(root, "symbol")
         if find(s, "lib_id") and str(find(s, "lib_id")[1]).endswith("TESTDUAL")
     )
     assert units == [1, 2, 3]
@@ -178,10 +196,18 @@ def test_whole_device_simulates(dual, tmp_path):
         V1=V("dc 0.5"),
         CH=chain,
     )
-    deck = spice_netlist(block) + "VP VCC 0 12\nVN VEE 0 -12\n.control\nop\nprint v(b)\n.endc\n.end\n"
+    deck = (
+        spice_netlist(block)
+        + "VP VCC 0 12\nVN VEE 0 -12\n.control\nop\nprint v(b)\n.endc\n.end\n"
+    )
     (tmp_path / "tb.cir").write_text(deck)
-    out = subprocess.run(["ngspice", "-b", "tb.cir"], cwd=tmp_path, capture_output=True,
-                         text=True, timeout=120)
+    out = subprocess.run(
+        ["ngspice", "-b", "tb.cir"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     m = re.search(r"^v\(b\)\s*=\s*([-+\d.eE]+)", out.stdout, re.M)
     assert m and float(m.group(1)) == pytest.approx(0.5, abs=1e-3), out.stdout
@@ -197,7 +223,12 @@ J1J1──┐   │
     [GND] │
         [GND]
 """,
-    J1=Atom("Connector_Audio:AudioJack2", "JACK", sim=False, footprint="Connector_Audio:Jack_6.35mm_Neutrik_NJ2FD-V_Vertical"),
+    J1=Atom(
+        "Connector_Audio:AudioJack2",
+        "JACK",
+        sim=False,
+        footprint="Connector_Audio:Jack_6.35mm_Neutrik_NJ2FD-V_Vertical",
+    ),
     R1=R("1k"),
     C1=C("1n"),
 )
@@ -211,8 +242,12 @@ def test_non_simulated_part_is_left_out_of_spice_only():
 
 
 def test_part_without_model_suggests_sim_false():
-    block = Block("NoModel", "J1J1──R1──{out}\nJ1J1──┐\n      │\n    [GND]",
-                  J1=Atom("Connector_Audio:AudioJack2", "JACK"), R1=R("1k"))
+    block = Block(
+        "NoModel",
+        "J1J1──R1──{out}\nJ1J1──┐\n      │\n    [GND]",
+        J1=Atom("Connector_Audio:AudioJack2", "JACK"),
+        R1=R("1k"),
+    )
     with pytest.raises(YasdlError, match="sim=False"):
         spice_netlist(block)
 
@@ -231,9 +266,19 @@ def test_non_simulated_part_in_kicad(tmp_path):
     names = [name for name, _, _ in parse_spice(export_kicad_spice(info["schematic"]))]
     assert sorted(names) == ["C1", "R1"]  # the jack is no SPICE element
     _, comps = export_netlist_full(info["schematic"])
-    assert comps["J1"]["footprint"] == "Connector_Audio:Jack_6.35mm_Neutrik_NJ2FD-V_Vertical"  # still a board part
+    assert (
+        comps["J1"]["footprint"]
+        == "Connector_Audio:Jack_6.35mm_Neutrik_NJ2FD-V_Vertical"
+    )  # still a board part
     root = parse(info["schematic"].read_text())
-    jack = next(s for s in find_all(root, "symbol")
-                if find(s, "lib_id") and str(find(s, "lib_id")[1]) == "Connector_Audio:AudioJack2")
+    jack = next(
+        s
+        for s in find_all(root, "symbol")
+        if find(s, "lib_id")
+        and str(find(s, "lib_id")[1]) == "Connector_Audio:AudioJack2"
+    )
     assert str(find(jack, "exclude_from_sim")[1]) == "yes"
-    assert str(find(jack, "in_bom")[1]) == "yes" and str(find(jack, "on_board")[1]) == "yes"
+    assert (
+        str(find(jack, "in_bom")[1]) == "yes"
+        and str(find(jack, "on_board")[1]) == "yes"
+    )

@@ -72,9 +72,12 @@ def test_sine_generator_matches_reference_netlist():
     # The same bodies read at the top level once the .subckt/.ends lines are removed.
     strip = re.compile(r"(?m)^\.(subckt|ends).*\n?")
     assert spice_partition(parse_spice(strip.sub("", expected)), lambda n: n) == (
-        expected_part, expected_vals)
-    assert spice_partition(parse_spice(strip.sub("", actual)), lambda n: NAME_MAP[n]) == (
-        actual_part, actual_vals)
+        expected_part,
+        expected_vals,
+    )
+    assert spice_partition(
+        parse_spice(strip.sub("", actual)), lambda n: NAME_MAP[n]
+    ) == (actual_part, actual_vals)
 
 
 @pytest.mark.integration

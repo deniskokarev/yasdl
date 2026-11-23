@@ -25,7 +25,13 @@ def lm386(lib=None, sim=True):
     (bottom), out 5."""
     spice = None
     if lib is not None:
-        spice = SpiceModel("X", tuple("12345678"), "dummy386", " ".join(f"{n}={n}" for n in "12345678"), str(lib))
+        spice = SpiceModel(
+            "X",
+            tuple("12345678"),
+            "dummy386",
+            " ".join(f"{n}={n}" for n in "12345678"),
+            str(lib),
+        )
     return Atom("Amplifier_Audio:LM386", "LM386", spice=spice, sim=sim)
 
 
@@ -57,7 +63,10 @@ def test_group_size_comes_from_the_drawing():
 @pytest.mark.parametrize(
     "canvas, match",
     [
-        ("{a}──R1──┬──R2──{b}\n         │\n         X1", "exactly one device pin; it reaches 2"),
+        (
+            "{a}──R1──┬──R2──{b}\n         │\n         X1",
+            "exactly one device pin; it reaches 2",
+        ),
         ("{a}──R1──┬──[Sig]\n         │\n         X1", "global net Sig"),
         ("{a}──R1──┬──{b}\n         │\n         X1", "external port"),
         ("{a}──R1──┬──X1\n         │\n         X2", "terminate the same net"),
@@ -140,5 +149,10 @@ def test_kicad_erc_netlist_and_spice_with_nc_group(tmp_path):
 def test_hierarchical_nc_renders_clean(tmp_path):
     from yasdl.kicad_export import render
 
-    info = render(Block("ParentOk", "{a}──LF──X1", LF=LEAF, X1=NC()), tmp_path, svg=False, spice=True)
+    info = render(
+        Block("ParentOk", "{a}──LF──X1", LF=LEAF, X1=NC()),
+        tmp_path,
+        svg=False,
+        spice=True,
+    )
     assert info["roundtrip_ok"] and info["erc"] == [] and info["spice_ok"], info

@@ -22,11 +22,17 @@ def side_pins(block, comp):
 def test_library_symbol_is_canonical():
     pins = {p.number: (p.name, p.side) for p in load("Simulation_SPICE:OPAMP").pins}
     assert pins == {
-        "1": ("+", "W"), "2": ("-", "W"), "3": ("V+", "N"), "4": ("V-", "S"), "5": ("~", "E")
+        "1": ("+", "W"),
+        "2": ("-", "W"),
+        "3": ("V+", "N"),
+        "4": ("V-", "S"),
+        "5": ("~", "E"),
     }
     # + above - on the left
-    by_y = sorted((p for p in load("Simulation_SPICE:OPAMP").pins if p.side == "W"),
-                  key=lambda p: -p.y)
+    by_y = sorted(
+        (p for p in load("Simulation_SPICE:OPAMP").pins if p.side == "W"),
+        key=lambda p: -p.y,
+    )
     assert [p.name for p in by_y] == ["+", "-"]
 
 
@@ -52,7 +58,12 @@ TRAP = Block(
 def test_mirror_moves_v_minus_to_the_top():
     b = TRAP.bound["U1"]
     assert (b.rot, b.mirror) == (0, "x")
-    assert side_pins(TRAP, "U1") == {"N": ["4"], "S": ["3"], "W": ["2", "1"], "E": ["5"]}
+    assert side_pins(TRAP, "U1") == {
+        "N": ["4"],
+        "S": ["3"],
+        "W": ["2", "1"],
+        "E": ["5"],
+    }
     nets = netlist(TRAP)
     assert nets["VCC"] == ["U1.4"]  # V- on the positive rail: electrically wrong
     assert nets["GND"] == sorted(["U1.1", "U1.3"])
@@ -102,8 +113,14 @@ def test_minus_above_plus_with_v_plus_on_top_is_impossible():
             U1=OPAMP(),
         )
     msg = str(err.value)
-    assert "rot 0 mirror None: N: 3(V+); E: 5; S: 4(V-); W: 1(+), 2(-) -> label mismatch" in msg
-    assert "rot 0 mirror x: N: 4(V-); E: 5; S: 3(V+); W: 2(-), 1(+) -> label mismatch" in msg
+    assert (
+        "rot 0 mirror None: N: 3(V+); E: 5; S: 4(V-); W: 1(+), 2(-) -> label mismatch"
+        in msg
+    )
+    assert (
+        "rot 0 mirror x: N: 4(V-); E: 5; S: 3(V+); W: 2(-), 1(+) -> label mismatch"
+        in msg
+    )
     assert "canvas row 3, col 16 = source line 5, column 17" in msg
 
 
@@ -179,7 +196,9 @@ INVERTING_WITH_WRAPPER = Block(
 
 
 def test_wrapper_mirrored_in_parent_keeps_supplies():
-    assert INVERTING_WITH_WRAPPER.bound["AMP"].mirror == "x"  # - on top: mirrored wrapper
+    assert (
+        INVERTING_WITH_WRAPPER.bound["AMP"].mirror == "x"
+    )  # - on top: mirrored wrapper
     nets = netlist(INVERTING_WITH_WRAPPER)
     assert nets["VCC"] == ["AMP.U1.3"] and nets["VEE"] == ["AMP.U1.4"]
     assert nets["GND"] == ["AMP.U1.1"]
@@ -189,10 +208,15 @@ def test_wrapper_subckt_declares_global_supplies():
     from yasdl import Atom, SpiceModel
 
     model = SpiceModel("X", ("1", "2", "3", "4", "5"), "myopamp")
-    amp = POWERED.bind(U1=Atom("Simulation_SPICE:OPAMP", "myopamp", spice=model)) \
-        if "U1" in POWERED.unbound else Block(
-            "PoweredOpamp", POWERED.text, U1=Atom("Simulation_SPICE:OPAMP", "myopamp", spice=model)
+    amp = (
+        POWERED.bind(U1=Atom("Simulation_SPICE:OPAMP", "myopamp", spice=model))
+        if "U1" in POWERED.unbound
+        else Block(
+            "PoweredOpamp",
+            POWERED.text,
+            U1=Atom("Simulation_SPICE:OPAMP", "myopamp", spice=model),
         )
+    )
     block = INVERTING_WITH_WRAPPER.bind(AMP=amp)
     text = spice_netlist(block, subckt="inv", port_order=["in", "out"])
     assert ".global VCC VEE" in text

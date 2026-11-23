@@ -113,6 +113,7 @@ def test_spice_node_order_is_c_b_e_whatever_the_package():
     assert sorted(nets["VCC"]) == ["Q1.3", "Q2.2"]
 
 
+@pytest.mark.integration
 @kicad
 def test_kicad_physical_pins_metadata_and_checks(tmp_path):
     from yasdl.kicad_export import render
@@ -145,6 +146,7 @@ def test_kicad_physical_pins_metadata_and_checks(tmp_path):
     assert "${KIPRJMOD}/yasdl_parts.kicad_sym" in (tmp_path / "sym-lib-table").read_text()
 
 
+@pytest.mark.integration
 @kicad
 def test_conflicting_part_definition_in_one_directory(tmp_path):
     from yasdl.kicad_export import render

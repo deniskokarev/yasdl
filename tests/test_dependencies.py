@@ -88,6 +88,7 @@ def test_missing_symbol_dir_mentions_kicad_remedy(monkeypatch, tmp_path):
         kicad_lib.load.cache_clear()
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not kicad_lib.KICAD_CLI.exists(), reason="kicad-cli missing")
 def test_spice_model_resources(tmp_path):
     from yasdl.kicad_export import render

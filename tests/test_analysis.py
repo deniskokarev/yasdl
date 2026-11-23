@@ -148,6 +148,7 @@ def test_symbolic():
         pytest.approx(Circuit(CHAIN).transfer("V1", "vo", s=2j * math.pi * 500))
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not have_ngspice, reason="ngspice not installed")
 def test_mna_agrees_with_ngspice(tmp_path):
     deck = tmp_path / "chain.cir"

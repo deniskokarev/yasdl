@@ -71,7 +71,7 @@ def test_push_pull_bias_string_matches_variant(variant, diodes):
 def test_mirrors_and_pairs():
     m = netlist(std.mirror(Q2N3904()))
     assert sorted(m["in"]) == ["Q1.2", "Q1.3", "Q2.2"] and m["out"] == ["Q2.3"]
-    w = netlist(std.wilson_mirror(Q2N3906(), "pnp"))
+    w = netlist(std.wilson(Q2N3906(), "pnp"))
     assert sorted(w["in"]) == ["Q1.3", "Q3.2"] and w["out"] == ["Q3.3"]
     assert sorted(w["vp"]) == ["Q1.1", "Q2.1"]
     p = netlist(std.diff_pair(Q2N3906(), "pnp"))
@@ -84,7 +84,7 @@ def test_mirrors_and_pairs():
 def test_opamp_circuits_take_any_three_terminal_opamp():
     inv = std.INVERTING.bind(RI=R("10k"), RF=R("47k"), U1=OPAMP_IDEAL())
     assert netlist(inv)["GND"] == ["U1.1"]
-    wrapped = std.INVERTING.bind(RI=R("10k"), RF=R("47k"), U1=std.powered_opamp(OPAMP()))
+    wrapped = std.INVERTING.bind(RI=R("10k"), RF=R("47k"), U1=std.powered(OPAMP()))
     nets = netlist(wrapped)
     assert nets["GND"] == ["U1.U1.1"] and nets["VCC"] == ["U1.U1.3"]
     assert sorted(netlist(std.OPAMP_UNUSED.bind(U1=OPAMP_IDEAL()))["GND"]) == ["U1.1"]
@@ -98,7 +98,6 @@ STANDALONE = {
     "push_pull_darlington_arrays": lambda: stage("darlington", n=2),
     "push_pull_sziklai": lambda: stage("sziklai"),
     "mirror_pnp": lambda: std.mirror(Q2N3906(), "pnp"),
-    "wilson_npn": lambda: std.wilson_mirror(Q2N3904()),
     "diff_pair_mirror_pnp": lambda: std.diff_pair_mirror(Q2N3906(), Q2N3904(), "pnp"),
     "sallen_key_lp": lambda: std.sallen_key_lowpass("10k", "10k", "10n", "22n", OPAMP_IDEAL()),
     "noninverting": lambda: std.NONINVERTING.bind(RG=R("1k"), RF=R("3k"), U1=OPAMP_IDEAL()),
@@ -187,7 +186,7 @@ def test_darlington_needs_its_own_bias_string(tmp_path):
 @pytest.mark.parametrize("kind, q, wilson", [("npn", Q2N3904, False), ("pnp", Q2N3906, False),
                                              ("npn", Q2N3904, True), ("pnp", Q2N3906, True)])
 def test_mirrors_copy_the_reference_current(tmp_path, kind, q, wilson):
-    block = std.wilson_mirror(q(), kind) if wilson else std.mirror(q(), kind)
+    block = std.wilson(q(), kind) if wilson else std.mirror(q(), kind, re="100")
     rail = "vn" if kind == "npn" else "vp"
     sub = spice_netlist(block, subckt="m", port_order=[rail, "in", "out"])
     sign = 1 if kind == "npn" else -1

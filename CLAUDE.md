@@ -30,16 +30,15 @@ changes.
   schematic, ERC helpers, round trips), `spice.py` (SPICE export, comparison parser),
   `sketch.py` (atomic canvas construction), `atoms.py` (atom factories, pots), `parts.py`
   (generic part factories, standard parts, packages), `resources.py` (portable model copies),
-  `std.py` (standard blocks), `circuits.py` (reusable circuits), `standard.py` (positional
-  entry points to them) and `analysis.py` (MNA transfer functions; sympy optional). Bundled
-  symbols/models: `yasdl/lib/`.
+  `std.py` (standard blocks, the one library of reusable topologies) and `analysis.py` (MNA
+  transfer functions; sympy optional). Bundled symbols/models: `yasdl/lib/`.
 - Standard topologies are literal ASCII canvases in the source; parameterized families repeat
   small literal cells or strips. Don't generate them with `Sketch`.
 - Standard-part pin maps are checked against an independent reference (the exact KiCad
   symbol or the datasheet), never against the factory that produced them.
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
 - `docs/examples/blocks.py` (and `sgen.py`) are the fixtures for tests; `features.py` and
-  `standard.py` render the parts, packages and reusable circuits. Each new feature gets an
+  `standard.py` render the parts, packages and standard blocks. Each new feature gets an
   example and a test.
 - `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
   ~/.claude/skills). Keep it in sync with the API and spec.

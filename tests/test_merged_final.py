@@ -62,9 +62,8 @@ def test_standard_topologies_are_literal_canvases():
 
     import yasdl
 
-    for module in ("std.py", "circuits.py"):
-        source = (Path(yasdl.__file__).parent / module).read_text()
-        assert "Sketch" not in source, module
+    source = (Path(yasdl.__file__).parent / "std.py").read_text()
+    assert "Sketch" not in source
 
 
 

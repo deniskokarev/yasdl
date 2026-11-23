@@ -79,7 +79,7 @@ def to_kicad(
 
     bundle_models: copy every SPICE model library the schematic references into
     `<dir>/spice_models/` (with their .include closure) and point Sim.Library at the copies
-    with project-relative paths, so the project still simulates after it is moved (spec 6.6).
+    with project-relative paths, so the project still simulates after it is moved (spec 6.5).
     False keeps absolute paths.
 
     refmap: {kicad reference: yasdl path}; ERC helpers (test points, power flags) map to None.

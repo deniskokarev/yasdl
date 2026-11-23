@@ -828,10 +828,11 @@ def test_p0_registered_power_names_retain_spice_global_identity(
 
 
 def test_json_preserves_differently_bound_same_name_and_nested_definitions():
-    from yasdl.circuits import Darlington, ParallelDevices, BallastedDevice
+    from yasdl import std
+    from yasdl.parts import Q2N3904, Q2N3906
 
-    upper = Darlington()
-    lower = Darlington(pnp=True)
+    upper = std.darlington(Q2N3904())
+    lower = std.darlington(Q2N3906())
     b = Block(
         "Variants",
         """
@@ -845,13 +846,13 @@ def test_json_preserves_differently_bound_same_name_and_nested_definitions():
     data = b.to_dict()
     keys = [data["components"][name]["binding"]["block"] for name in ("UP", "DN")]
     assert keys[0] != keys[1] and upper.name == lower.name == "Darlington"
-    assert data["blocks"][keys[0]]["components"]["QD"]["binding"]["value"] == "2N3904"
-    assert data["blocks"][keys[1]]["components"]["QD"]["binding"]["value"] == "2N3906"
-    pair = ParallelDevices(BallastedDevice())
-    nested = ParallelDevices(pair).to_dict()
+    assert data["blocks"][keys[0]]["components"]["Q1"]["binding"]["value"] == "2N3904"
+    assert data["blocks"][keys[1]]["components"]["Q1"]["binding"]["value"] == "2N3906"
+    pair = std.parallel(std.darlington(Q2N3904()), 2)
+    nested = std.parallel(pair, 2).to_dict()
     assert (
-        nested["components"]["K1"]["binding"]["block"]
-        == nested["components"]["K2"]["binding"]["block"]
+        nested["components"]["Q1"]["binding"]["block"]
+        == nested["components"]["Q2"]["binding"]["block"]
     )
-    key = nested["components"]["K1"]["binding"]["block"]
-    assert nested["blocks"][key]["components"]["K1"]["binding"]["block"] != key
+    key = nested["components"]["Q1"]["binding"]["block"]
+    assert nested["blocks"][key]["components"]["Q1"]["binding"]["block"] != key

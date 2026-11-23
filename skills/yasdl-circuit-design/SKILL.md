@@ -52,8 +52,8 @@ them in a tiny top-level block where each stage is just a short name:
 `$YASDL_PATH/docs/examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside
 OSCILLATOR (gain stage), then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN.
 More examples in `$YASDL_PATH/docs/examples/blocks.py`; ready-made stages are in `yasdl.std`
-and `yasdl.circuits` (Darlington and Sziklai pairs, push-pull outputs, mirrors, differential
-pairs, filters, op-amp circuits; `$YASDL_PATH/docs/examples/standard.py`). The full spec is
+(Darlington and Sziklai pairs, push-pull outputs, mirrors, differential pairs, filters,
+op-amp circuits; `$YASDL_PATH/docs/examples/standard.py`). The full spec is
 `$YASDL_PATH/docs/SPEC.md` (overview: `$YASDL_PATH/README.md`); read the parts you need.
 
 ## Setup
@@ -155,13 +155,11 @@ labels; the labels choose the orientation.
   bottom**. A `+` on its lower input flips it so − is on top, as in inverting stages, **and
   the flip moves the supply pins too**: `[VCC]` drawn above then reaches V−. Either wrap it,
   `std.powered(opamp)` (a three-port block with V+ on `[VCC]` and V− on `[VEE]` inside; any
-  rotation carries the supplies along; fits every op-amp hole; `circuits.PoweredOpamp(atom)`
-  is the same idea), or label `{V+}` above and `{V-}` below so a wrong flip fails at binding.
+  rotation carries the supplies along; fits every op-amp hole), or label `{V+}` above and `{V-}` below so a wrong flip fails at binding.
   `[VCC]` names a net; `{V+}` asserts a pin.
 - Mirroring a stage moves its parts but doesn't redesign it: an NPN stage mirrored into a
   PNP one keeps its diode bias the wrong way round. Use the complementary standard stages
-  (`std.push_pull_*`, `circuits.PushPull`, `circuits.FollowerPushPull`) whose halves and bias
-  are designed together.
+  (`std.push_pull_*`) whose halves and bias are designed together.
 - Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
   the right. Named ports also accept brace labels: `PS{in}` names the `in` port on that
   side.
@@ -270,18 +268,15 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 | Need | Block |
 |---|---|
 | five-pin op-amp in any op-amp hole | `std.powered(opamp)` |
-| buffer / gain stages | `std.follower(U)`, `std.noninverting(rf, rg, U)`, `std.inverting(ri, rf, U)` |
-| filters | `std.rc_lowpass`, `std.rc_highpass`, `std.sallen_key_lowpass`, `std.sallen_key_highpass` |
-| compound transistors (`{c}` N, `{b}` W, `{e}` S) | `std.darlington`, `std.sziklai`, `std.parallel(q, n, re)` |
-| mirrors, differential pairs | `std.mirror`, `std.wilson`, `std.diff_pair`, `std.diff_active` |
-| keyword-configured stages | `circuits.Darlington(pnp=, output=, turnoff=)`, `Sziklai`, `PushPull(variant=, parallel=, ballast=)` (driven at `{hi}`/`{lo}`), `FollowerPushPull`, `CurrentMirror(degeneration=, rail=)`, `CurrentSink`, `DifferentialPair`, `LongTailedPair`, `LowPass`/`HighPass`/`BandPass`, `SallenKey`, `NonInverting`, `Inverting`, `Integrator`; positional shortcuts in `yasdl.standard` |
-| class-AB output stage | `std.push_pull_buffer(kind, upper, lower)` or `std.push_pull_vas(kind, npn, pnp, rb=)`, kind `bjt`/`darlington`/`sziklai` (bias string sized for the kind) |
+| buffer / gain stages | `std.follower(U)`, `std.noninverting(rf, rg, U)`, `std.inverting(ri, rf, U)`, `std.integrator(ri, cf, U)`, `std.differentiator(ci, rf, U)` |
+| filters | `std.rc_lowpass(r, c)`, `std.rc_highpass(c, r)`, `std.rc_bandpass(c1, r1, r2, c2)`, `std.sallen_key_lowpass`, `std.sallen_key_highpass` |
+| compound transistors (`{c}` N, `{b}` W, `{e}` S) | `std.darlington(q1, q2, rx)`, `std.sziklai(driver, output, rx)` (`rx=None`: plain pair), `std.parallel(q, n, re)` |
+| mirrors, current sink, differential pairs | `std.mirror(q, kind, re)`, `std.wilson(q, kind)` (rail `{vn}` for `"npn"`, `{vp}` for `"pnp"`), `std.current_sink`, `std.diff_pair(q, kind, rc, re, rt)` (`rt` may be `std.current_sink()`), `std.diff_pair_mirror` |
+| class-AB output stage | `std.push_pull_buffer(kind, upper, lower)` (driven at the string center), `std.push_pull_vas(kind, npn, pnp, rb=)` (bottom), `std.push_pull_core(kind, npn, pnp, n=)` (both ends `{hi}`/`{lo}`), kind `bjt`/`darlington`/`sziklai` (bias string sized for the kind) |
 | adjustable output bias | `std.push_pull(qn=..., qp=..., bias=std.vbe_multiplier(q, r1, r2))`: V = Vbe (1 + r1/r2), for when no whole number of diodes gives the wanted quiescent current |
 
 They are literal ASCII canvases in the library source (read them to see the topology) and
-verified (KiCad round trips and ngspice characterisation). `yasdl.std` and
-`yasdl.standard` are different families: check argument order (`std.noninverting(rf, rg)`
-vs `standard.noninverting(rg, rf)`). Bind your own parts into
+verified (KiCad round trips and ngspice characterisation). Bind your own parts into
 them; for a PNP-equivalent compound, bind PNPs and let the host's `{e}` label orient it.
 
 Sallen-Key arguments put the shunt-to-ground component before feedback: low-pass

@@ -40,8 +40,25 @@ BLOCKS = {
     "vbe_multiplier": lambda: std.vbe_multiplier(Q2N3904, "2.7k", "1k"),
     "mirror": lambda: std.mirror(Q2N3904),
     "wilson": lambda: std.wilson(Q2N3904),
-    "diff_pair": lambda: std.diff_pair(Q2N3904, "10k", "10k"),
-    "diff_active": lambda: std.diff_active(Q2N3904, std.mirror(Q2N3906), "10k"),
+    "diff_pair": lambda: std.diff_pair(Q2N3904, rc="10k", rt="10k"),
+    "diff_pair_mirror": lambda: std.diff_pair_mirror(Q2N3904, Q2N3906, rt="10k"),
+    "darlington_plain": lambda: std.darlington(Q2N3904, rx=None),
+    "mirror_degenerated": lambda: std.mirror(Q2N3904, re="100"),
+    "diff_pair_degenerated": lambda: std.diff_pair(Q2N3904, re="100"),
+    "diff_pair_current_sink": lambda: std.diff_pair(
+        Q2N3904, re="100", rt=std.current_sink(Q2N3904, diode=D1N4148)
+    ),
+    "current_sink": lambda: std.current_sink(Q2N3904, diode=D1N4148),
+    "rc_bandpass": lambda: std.rc_bandpass("1u", "10k", "10k", "10n"),
+    "integrator": lambda: std.integrator("10k", "10n"),
+    "differentiator": lambda: std.differentiator("10n", "10k"),
+    "push_pull_core_bjt": lambda: std.push_pull_core("bjt", Q2N3904, Q2N3906, D1N4148),
+    "push_pull_core_darlington": lambda: std.push_pull_core(
+        "darlington", Q2N3904, Q2N3906, D1N4148
+    ),
+    "push_pull_core_sziklai": lambda: std.push_pull_core(
+        "sziklai", Q2N3904, Q2N3906, D1N4148
+    ),
     "push_pull_bjt": lambda: std.push_pull("bjt", Q2N3904, Q2N3906, D1N4148),
     "push_pull_darlington": lambda: std.push_pull("darlington", Q2N3904, Q2N3906, D1N4148),
     "push_pull_sziklai": lambda: std.push_pull("sziklai", Q2N3904, Q2N3906, D1N4148),
@@ -71,6 +88,86 @@ def test_parallel_array_crossings_are_declared():
 def test_compound_devices_share_the_transistor_interface():
     for blk in (std.darlington(Q2N3904), std.sziklai(Q2N3904, Q2N3906), std.parallel(Q2N3904, 2, "1")):
         assert {(p.side, p.name) for p in blk.ports} == {("N", "c"), ("W", "b"), ("S", "e")}
+
+
+def nets(block):
+    return {frozenset(v) for v in netlist(block).values()}
+
+
+@pytest.mark.parametrize("re", [None, "100"])
+def test_mirror_degeneration_fixture(re):
+    groups = nets(std.mirror(Q2N3904, re=re))
+    assert frozenset(("Q1.3", "Q1.2", "Q2.2")) in groups
+    assert frozenset(("Q2.3",)) in groups
+    if re:
+        assert frozenset(("Q1.1", "RA.1")) in groups
+        assert frozenset(("Q2.1", "RB.1")) in groups
+        assert frozenset(("RA.2", "RB.2")) in groups
+    else:
+        assert frozenset(("Q1.1", "Q2.1")) in groups
+
+
+def test_diff_pair_degeneration_is_a_distinct_topology():
+    plain = netlist(std.diff_pair(Q2N3904))
+    assert any(set(ps) == {"Q1.1", "Q2.1", "RT.1"} for ps in plain.values())
+    degenerated = netlist(std.diff_pair(Q2N3904, re="100"))
+    assert any(set(ps) == {"RE1.2", "RE2.2", "RT.1"} for ps in degenerated.values())
+
+
+@pytest.mark.parametrize("tail", ["resistor", "current_sink"])
+def test_diff_pair_tail_options(tail):
+    rt = "6.8k" if tail == "resistor" else std.current_sink(Q2N3904, diode=D1N4148)
+    b = std.diff_pair(Q2N3904, re="100", rt=rt)
+    assert frozenset(("Q1.1", "RE1.1")) in nets(b)
+    assert frozenset(("Q2.1", "RE2.1")) in nets(b)
+    n = netlist(b)
+    assert (n["inp"], n["inn"]) == (["Q1.2"], ["Q2.2"])
+    assert (n["o1"], n["o2"]) == (["Q1.3", "RC1.2"], ["Q2.3", "RC2.2"])
+    tail_top = "RT.1" if tail == "resistor" else "RT.Q1.3"
+    assert any(set(ps) == {"RE1.2", "RE2.2", tail_top} for ps in n.values())
+
+
+@pytest.mark.parametrize(
+    "kind, diodes", [("bjt", 2), ("darlington", 4), ("sziklai", 2)]
+)
+def test_push_pull_core_bias_and_complementary_outputs(kind, diodes):
+    from yasdl.spice import parse_spice
+
+    b = std.push_pull_core(kind, Q2N3904, Q2N3906, D1N4148)
+    elements = parse_spice(spice_netlist(b))
+    assert len([n for n, _, _ in elements if n.startswith("D_DS_")]) == diodes
+    models = {n: v for n, _, v in elements if n.startswith("Q_")}
+    if kind == "bjt":
+        assert models["Q_HI_Q1"] == "2N3904" and models["Q_LO_Q1"] == "2N3906"
+    elif kind == "darlington":
+        assert models["Q_HI_Q1"] == models["Q_HI_Q2_Q1"] == "2N3904"
+        assert models["Q_LO_Q1"] == models["Q_LO_Q2_Q1"] == "2N3906"
+    else:
+        assert models["Q_HI_Q1"] == "2N3904" and models["Q_HI_Q2_Q1"] == "2N3906"
+        assert models["Q_LO_Q1"] == "2N3906" and models["Q_LO_Q2_Q1"] == "2N3904"
+    assert b.crossing_count == 0
+    assert std.push_pull_core(kind, Q2N3904, Q2N3906, n=4).crossing_count == 6
+
+
+def test_integrator_differentiator_and_bandpass():
+    integ = spice_netlist(std.integrator("10k", "10n"))
+    assert "C_RF " in integ and "R_RI " in integ
+    diff = spice_netlist(std.differentiator("10n", "10k"))
+    assert "C_RI " in diff and "R_RF " in diff
+    bp = netlist(std.rc_bandpass("1u", "10k", "10k", "10n"))
+    assert bp["in"] == ["HP.C1.1"] and sorted(bp["GND"]) == ["HP.R1.2", "LP.C1.2"]
+
+
+def test_invalid_kinds_are_rejected():
+    for build in (
+        lambda: std.push_pull("wrong"),
+        lambda: std.push_pull_core("wrong"),
+        lambda: std.push_pull_core(n=10),
+        lambda: std.mirror(Q2N3904, "wrong"),
+        lambda: std.diff_pair(Q2N3904, "wrong"),
+    ):
+        with pytest.raises(YasdlError):
+            build()
 
 
 # --- simulation helpers -------------------------------------------------------------------
@@ -135,7 +232,7 @@ def test_filter_corner(tmp_path, block, kind, f0):
     ],
 )
 def test_current_mirrors(tmp_path, factory, vout, lo, hi):
-    body = sub(factory(Q2N3904), "mir", ["in", "out", "com"]) + (
+    body = sub(factory(Q2N3904), "mir", ["in", "out", "vn"]) + (
         f"VCC vcc 0 10\nIIN vcc in 1m\nVOUT out 0 {vout}\nX1 in out 0 mir\n"
     )
     out = run(tmp_path, body, "op\nprint -i(VOUT)")
@@ -147,8 +244,14 @@ def test_current_mirrors(tmp_path, factory, vout, lo, hi):
 @ngspice
 def test_diff_pairs_amplify_the_difference(tmp_path):
     for block, outs in (
-        (std.diff_pair(Q2N3904, "10k", "10k"), ["o1", "vp", "o2", "inp", "inn", "vn"]),
-        (std.diff_active(Q2N3904, std.mirror(Q2N3906), "10k"), ["vp", "out", "inp", "inn", "vn"]),
+        (
+            std.diff_pair(Q2N3904, rc="10k", rt="10k"),
+            ["o1", "vp", "o2", "inp", "inn", "vn"],
+        ),
+        (
+            std.diff_pair_mirror(Q2N3904, Q2N3906, rt="10k"),
+            ["vp", "out", "inp", "inn", "vn"],
+        ),
     ):
         body = sub(block, "dp", outs)
         node = "o2" if "o2" in outs else "out"
@@ -185,6 +288,29 @@ def test_push_pull_bias_matches_its_output_variant(tmp_path, kind, right, wrong,
     assert abs(value(good, "v(out)")) < 0.05  # output centred
     assert thd(good) < max_thd
     assert thd(bad) > min_wrong_thd
+
+
+@pytest.mark.integration
+@ngspice
+@pytest.mark.parametrize(
+    "kind, bias", [("bjt", 0.68), ("darlington", 1.3), ("sziklai", 0.68)]
+)
+def test_push_pull_core_follows_its_drive(tmp_path, kind, bias):
+    """{hi} driven with the half-string bias plus 0.2 V peak, a 3 mA sink at {lo}: the
+    output follows into 100 ohm without clipping."""
+    core = std.push_pull_core(kind, Q2N3904, Q2N3906, D1N4148)
+    body = sub(core, "stage", ["vp", "hi", "lo", "out", "vn"]) + (
+        f"VP vp 0 5\nVN vn 0 -5\nVH hi 0 SIN({bias} 0.2 1000)\nIL lo vn 3m\n"
+        "X1 vp hi lo out vn stage\nRL out 0 100\n"
+    )
+    analyses = (
+        "tran 1u 20m\nmeas tran output rms v(out) from=10m to=20m\n"
+        "meas tran vmax max v(out) from=10m to=20m\n"
+        "meas tran vmin min v(out) from=10m to=20m"
+    )
+    out = run(tmp_path, body, analyses)
+    assert 0.25 < value(out, "vmax") - value(out, "vmin") < 0.45
+    assert value(out, "output") < 0.5
 
 
 def test_vbe_multiplier_connections():

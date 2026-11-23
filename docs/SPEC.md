@@ -845,34 +845,45 @@ op = AtomOpamp5("TL071", {"inp": 3, "inn": 2, "out": 6, "V+": 7, "V-": 4},
 
 ### 6.4 Standard Blocks (`yasdl.std`)
 
-Reusable sub-circuits with consistent interfaces, built from functions over literal canvases:
+Reusable sub-circuits with consistent interfaces, built from functions over literal canvases.
+`yasdl.std` is the single library of standard topologies; bind your own parts into them.
 
 | Block | Interface |
 |---|---|
-| `powered(opamp5)` | `{inp,+}` W top, `{inn}` W bottom, `{out}` E; V+ on `[VCC]`, V- on `[VEE]` inside (3.2) |
-| `follower(U)`, `noninverting(rf, rg, U)`, `inverting(ri, rf, U)` | `{in}` W, `{out}` E; `U` defaults to `OPAMP_IDEAL()` |
-| `rc_lowpass(r, c)`, `rc_highpass(c, r)` | `{in}` W, `{out}` E, ground inside |
+| `powered(opamp5, name, positive="VCC", negative="VEE")` | `{inp,+}` W top, `{inn}` W bottom, `{out}` E; V+ on `[positive]`, V- on `[negative]` inside (3.2) |
+| `follower(U)`, `noninverting(rf, rg, U)`, `inverting(ri, rf, U)`, `integrator(ri, cf, U)`, `differentiator(ci, rf, U)` | `{in}` W, `{out}` E; `U` defaults to `OPAMP_IDEAL()` |
+| `rc_lowpass(r, c)`, `rc_highpass(c, r)`, `rc_bandpass(c1, r1, r2, c2)` | `{in}` W, `{out}` E, ground inside |
 | `sallen_key_lowpass(r1, r2, c_shunt, c_feedback, U)`, `sallen_key_highpass(c1, c2, r_shunt, r_feedback, U)` | unity gain; `{in}` W, `{out}` E |
-| `darlington(q1, q2)`, `sziklai(driver, output)`, `parallel(q, n, re)` | `{c}` N, `{b}` W, `{e}` S, like a transistor |
+| `darlington(q1, q2, rx)`, `sziklai(driver, output, rx)`, `parallel(q, n, re)` | `{c}` N, `{b}` W, `{e}` S, like a transistor |
 | `diode_string(n, d)`, `vbe_multiplier(q, r1, r2)` | `{a}` N, `{k}` S |
-| `mirror(q)`, `wilson(q)` | `{in}` N left, `{out}` N right, `{com}` S |
-| `diff_pair(q, rc, tail)` | `{o1} {vp} {o2}` N, `{inp}` W, `{inn}` E, `{vn}` S |
-| `diff_active(q, load, tail)` | `{vp}` N, `{inp}` W, `{out}` and `{inn}` E, `{vn}` S |
+| `current_sink(q, re, rb, d)` | `{c}` N, `{e}` S; diodes fed from `[VCC]` |
+| `mirror(q, kind, re)`, `wilson(q, kind)` | `{in}`, `{out}` away from the rail; rail `{vn}` (`kind="npn"`) or `{vp}` (`"pnp"`) |
+| `diff_pair(q, kind, rc, re, rt)` | `{vp}` N, `{o1}` and `{inp}` W, `{o2}` and `{inn}` E, `{vn}` S |
+| `diff_pair_mirror(q, load, kind, re, rt)` | `{vp}` N, `{inp}` W, `{out}` and `{inn}` E, `{vn}` S |
+| `push_pull_core(kind, npn, pnp, d, re, n)` | `{vp}` N, `{hi}`/`{lo}` W, `{out}` E, `{vn}` S |
 | `push_pull_buffer(kind, upper, lower, rt=, rb=, rq=, re=)` / `push_pull_vas(kind, npn, pnp, rb=, re=, qn=, qp=, bias=)` | `{vp}` N, `{in}` W, `{out}` E, `{vn}` S |
 
 Uppercase templates (`INVERTING`, `NONINVERTING`, `FOLLOWER`, `OPAMP_UNUSED`, `SALLEN_KEY`,
-`RC_LOWPASS`, `RC_HIGHPASS`, `DARLINGTON`, `SZIKLAI`, `PUSH_PULL_VAS`, `PUSH_PULL_BUFFER[n]`)
-expose the literal canvases for `.bind(...)` and inspection.
+`RC_LOWPASS`, `RC_HIGHPASS`, `DARLINGTON`, `SZIKLAI`, `POWERED`, `VBE_MULTIPLIER`,
+`CURRENT_SINK`, `PUSH_PULL_VAS`, `PUSH_PULL_CORE`, `PUSH_PULL_BUFFER[n]`) expose the literal
+canvases for `.bind(...)` and inspection; the lowercase functions bind them.
 
 - Compound devices have collector, base and emitter roles. Darlington and Sziklai pairs
-  include a base-emitter shunt resistor (`rx`, default 1k). The VAS stage's internally
-  constructed compound devices use the compact circuit without that shunt.
+  include the output device's base-emitter turn-off resistor (`rx`, default 1k); `rx=None`
+  draws the plain pair (the VAS stage builds its compound devices that way).
 - `diode_string(n)` repeats one literal diode cell per diode; `parallel(q, n)` (2–9
   devices) repeats one literal 8-column strip per device, the base bus crossing n−1 emitter
   legs (deliberate crossings, 7).
 - Sallen-Key arguments name the shunt to ground before the feedback from the series
   junction to the output. For a unity-gain Butterworth low-pass with equal R, choose
   C_feedback = 2 C_shunt. For an equal-C high-pass, R_shunt = 2 R_feedback.
+- `kind` is `"bjt"`, `"darlington"` or `"sziklai"` for push-pull stages. The complementary
+  halves and their bias are designed together, not mirrored: Darlington outputs need two
+  diode drops per half, BJT and Sziklai outputs one, and a Sziklai's output device has the
+  opposite polarity of its driver.
+- `push_pull_core` is the bare output stage: the enclosing driver supplies the bias current
+  into the string ends `{hi}`/`{lo}`. Each half has `n` (1–9) output transistors with
+  emitter ballast `re` (a `parallel()` array for n ≥ 2).
 - `push_pull_buffer` places `{in}` at the center of the bias string and feeds both ends
   from the rails. `rt`/`rb` feed it; `rq` trims its bias. Diodes per side: bjt 1,
   Darlington 2, Sziklai 1. Its upper/lower arguments are already composed output devices.
@@ -882,69 +893,24 @@ expose the literal canvases for `.bind(...)` and inspection.
   `vbe_multiplier` provides V(a,k) = Vbe (1 + R1/R2), with R1 collector-base and R2 base-emitter.
 - `push_pull` accepts both forms: `qn`/`qp`/`bias`, or `rb` without `rt`/`rq`, select the
   VAS form; otherwise it selects the center-driven form. Prefer the explicit entry points.
-- `mirror(q)` is the plain mirror with `{com}` (also aliased `{vn}`); `mirror(q, kind="npn"|"pnp")`
-  adds emitter degeneration and selects the corresponding rail. `wilson` is the plain
-  Wilson; `wilson_mirror(q, kind=)` provides the polarity-specific version. `diff_pair(q, rc, tail)`
-  takes any two-terminal tail; `diff_pair(q, kind=, rc=, re=, rt=)` uses a resistor tail and
-  degeneration. `diff_pair_mirror` contains its own complementary mirror load.
-- `tests/test_std.py` renders every block through KiCad and characterises it in ngspice:
-  op-amp gains, filter corners, mirror ratios, differential gain, and for each push-pull
-  variant the open-loop distortion with the matching bias string against one that is short
-  by a stage.
+- `mirror`, `wilson`, `diff_pair` and `diff_pair_mirror` draw the NPN form with the rail at
+  the bottom and the PNP form with it on top. With `re=None` (the default for `mirror` and
+  `diff_pair`), emitters are wired directly: a different drawing, not a zero-ohm resistor.
+  The tail `rt` is a resistor value or any two-terminal part or block (`current_sink()`).
+  `diff_pair_mirror` contains its own complementary mirror load.
+- Values are starting points; characterize each stage with the intended supplies, load and
+  models. Practical integrators need DC feedback; filters are loaded by what they drive.
+- `tests/test_std.py` and `tests/test_b_std.py` render every block through KiCad and
+  characterise it in ngspice: op-amp gains, filter corners, mirror ratios and output
+  resistance, differential gain, and for each push-pull variant the bias, linearity and
+  open-loop distortion with the matching bias string against one that is short by a stage.
+  `docs/examples/standard.py` renders every block.
 
-### 6.5 Reusable circuits (`yasdl.circuits`, `yasdl.standard`)
+**Every standard topology is a literal ASCII canvas in the library source** (`std.py`);
+parameterized families repeat small literal cells or strips. `Sketch` (7) remains available
+for building new canvases.
 
-`yasdl.circuits` holds small standard Blocks, each a literal canvas configured by keyword.
-Compound devices share the roles c (N), b (W), e (S), so they fit wherever a transistor is
-drawn; op-amp circuits take any three-terminal op-amp (`opamp=`, default `OPAMP_IDEAL()`).
-Supplies are the global `VCC`/`VEE`, ground `GND`. Values are starting points; characterize
-each stage with the intended supplies, load and models.
-
-| Block | Ports | Notes |
-|---|---|---|
-| `Darlington(pnp=False, output=None, turnoff="220")` | c, b, e | two Vbe; `turnoff=None` omits RD; `output` replaces the output transistor |
-| `Sziklai(pnp=False, output=None, turnoff="1k")` | c, b, e | complementary feedback pair, one Vbe; output device of opposite polarity |
-| `BallastedDevice(pnp=False, resistance="1")` | c, b, e | transistor with emitter ballast |
-| `ParallelDevices(device)` | c, b, e | two devices in parallel, one deliberate crossing; nest for 4, 8 |
-| `DiodeString(count)` | a, k | series 1N4148s (one literal cell per diode) |
-| `PushPull(variant="bjt", ballast="1", parallel=1)` | hi, lo, out | output stage driven at both ends of its bias string |
-| `BiasString(count, resistance)` | in, upper, lower | resistor-fed diode bias |
-| `FollowerPushPull(variant="bjt", ballast="1", bias_resistance="4.7k")` | in, out | self-biased unity-gain buffer |
-| `CurrentMirror(pnp=False, degeneration=None, rail=None)` | ref, out, common | `rail="VEE"` puts the emitters on a global net instead of `common` |
-| `CurrentSink(resistance="150")` | c, e | diode-referenced sink |
-| `DifferentialPair(tail="resistor", degeneration="100")` | inp, inn, left, right | degenerated pair, resistor or active (`CurrentSink`) tail |
-| `LongTailedPair(degeneration=None, tail="4.7k", collector="10k")` | inp, inn, outp, outn | resistor-loaded long-tailed pair |
-| `LowPass`, `HighPass`, `BandPass` | in, out | RC sections |
-| `SallenKey(resistance, capacitance, opamp=None)` | in, out | unity-gain low-pass |
-| `PoweredOpamp(atom, positive="VCC", negative="VEE")` | inp (`+`), inn, out | five-pin op-amp with internal supply wiring |
-| `Follower`, `NonInverting`, `Inverting`, `Integrator`, `Differentiator` | in, out | op-amp circuits |
-
-- `variant` is `"bjt"`, `"darlington"` or `"sziklai"`. The complementary halves and their
-  bias are designed together, not mirrored: Darlington outputs need two diode drops per half
-  (four in `PushPull`), BJT and Sziklai outputs one, and a Sziklai's output device has the
-  opposite polarity of its driver. `PushPull` takes its bias current from the enclosing
-  driver; `FollowerPushPull` feeds it from the rails.
-- With `degeneration=None`, mirrors and pairs have direct emitter wires: a different drawing,
-  not a zero-ohm resistor.
-- Practical integrators need DC feedback; filters are loaded by what they drive.
-
-`yasdl.standard` provides positional, lowercase entry points to the same Blocks:
-`darlington(pnp)` (plain, `turnoff=None`), `sziklai(pnp)`, `diode_string(count)`,
-`bias_string(count, resistance)`, `push_pull(variant, ballast, bias_resistance)`
-(`FollowerPushPull`), `powered_opamp(atom)`, `follower(opamp)`, `inverting(ri, rf, opamp)`,
-`noninverting(rg, rf, opamp)`, `integrator(ri, cf, opamp)`, `rc_filter(kind, r, c)`,
-`sallen_key(r, c, opamp)`, `current_mirror(degeneration)` (emitters on `VEE`) and
-`differential_pair(degeneration, tail, collector)` (`LongTailedPair`). Note that
-`yasdl.std` and `yasdl.standard` are separate families: `std.noninverting(rf, rg, U)` and
-`standard.noninverting(rg, rf, opamp)` take their resistors in different orders, and
-`std.push_pull` builds a driven stage while `standard.push_pull` builds a self-biased
-follower. `docs/examples/standard.py` renders every circuit.
-
-**Every standard topology is a literal ASCII canvas in the library source** (`std.py`,
-`circuits.py`); parameterized families repeat small literal cells or strips. `Sketch`
-(7) remains available for building new canvases.
-
-### 6.6 Portable projects
+### 6.5 Portable projects
 
 `render`/`to_kicad(..., bundle_models=True)` (the default) copies every SPICE model library
 the schematic references, with every file it reaches through `.include`/`.inc`, into
@@ -961,7 +927,7 @@ exported without its `.kicad_pro` (for example a renamed copy). A moved project 
 ERC and exports SPICE. KiCad's own symbol libraries remain an installation dependency,
 resolved where the project is opened. `bundle_models=False` keeps absolute paths.
 
-### 6.7 Linear analysis (MNA)
+### 6.6 Linear analysis (MNA)
 
 `yasdl.analysis` solves the flattened design in the s-domain by modified nodal analysis, so
 every drawing comes with its transfer functions, exact whatever the loading between stages:
@@ -1054,7 +1020,7 @@ ckt.transfer_symbolic("V1", "vo", numeric=True)   # values plugged in as exact r
   values, model bodies or equivalent expressions. Simulation and measurements remain
   circuit-specific; no simulation runs automatically. Models do not establish physical lead
   numbers or ratings.
-- Linear analysis (6.7) covers R, C, L, V, I and the ideal op-amp; other parts (diodes,
+- Linear analysis (6.6) covers R, C, L, V, I and the ideal op-amp; other parts (diodes,
   transistors, pots, packages, X models) are rejected rather than linearized.
 
 See [API.md](API.md) for the callable interfaces and parameter conventions.

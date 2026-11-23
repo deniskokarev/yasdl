@@ -45,8 +45,10 @@ changes.
 - Sine-generator tests use the bundled `yasdl/lib/jellybean.lib` models and
   `tests/test_sine_generator.lib` netlist. KiCad and ngspice tests skip only when their tools
   are unavailable.
-- Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m docs.examples.render`,
-  output in `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
+- Tests: `python -m pytest -q tests` (pytest in `~/venv`) runs the full suite;
+  `-m "not integration"` runs the unit tests only and `-m integration` the KiCad/ngspice tests
+  (`YASDL_KICAD`, ngspice on `PATH`). Render: `python -m docs.examples.render`, output in
+  `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
 
 ## KiCad
 

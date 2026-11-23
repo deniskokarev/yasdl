@@ -133,6 +133,8 @@ R1 n1 n2 4.7k
         ("2.2u", 2.2e-6, 2.2e-6),
         ("47", 47.0, 47.0),
         ("{RVAL}", None, None),
+        ("1.5 kOhms", None, 1.5),
+        ("1.5kOhm", 1.5e3, 1.5e3),
     ],
 )
 def test_ngspice_and_kicad_readings(text, ng, ki):
@@ -147,7 +149,15 @@ def test_values_read_differently_by_kicad_and_ngspice_are_rejected(value):
         spice_netlist(block)
 
 
-@pytest.mark.parametrize("value", ["1Meg", "1m", "4.7k", "100nF", "2.2", "{RV}"])
+@pytest.mark.parametrize("value", ["1.5 kOhms", "1.5 k", "4.7 n"])
+def test_values_with_inner_spaces_are_rejected(value):
+    """KiCad reads '1.5 kOhms' as 1.5 (the space ends the number) while ngspice can't read it."""
+    block = Block("Val", "{a}──R1──{b}", R1=R(value))
+    with pytest.raises(YasdlError, match="without spaces"):
+        spice_netlist(block)
+
+
+@pytest.mark.parametrize("value", ["1Meg", "1m", "4.7k", "100nF", "2.2", "{RV}", "1.5kOhm"])
 def test_unambiguous_values_pass_through_unchanged(value):
     text = spice_netlist(Block("Val", "{a}──C1──{b}", C1=C(value)))
     assert f"C_C1 a b {value}" in text

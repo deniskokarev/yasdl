@@ -127,10 +127,16 @@ def kicad_number(text: str) -> float | None:
 
 def check_value(path: str, prefix: str, value: str) -> None:
     """Reject an R/C/L value that KiCad and ngspice read as different numbers (spec 6.2):
-    USE MEG FOR MEGA, lowercase m FOR MILLI, and a decimal point instead of 4k7/2R2."""
+    USE MEG FOR MEGA, lowercase m FOR MILLI, a decimal point instead of 4k7/2R2, and no space
+    between the number and its prefix or unit."""
     if prefix not in ("R", "C", "L"):
         return
     ki, ng = kicad_number(value), ngspice_number(value)
+    if re.search(r"\s", value.strip()) or (ki is not None and ng is None):
+        raise YasdlError(
+            f"{path}: value {value!r} is not the same number to KiCad and ngspice; write the "
+            "number, prefix and unit without spaces ('1.5k' or '1.5kOhm', not '1.5 kOhms')"
+        )
     if ki is None or ng is None or math.isclose(ki, ng, rel_tol=1e-9):
         return
     raise YasdlError(

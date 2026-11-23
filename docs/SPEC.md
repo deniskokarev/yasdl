@@ -641,7 +641,7 @@ from the flattened design:
   Ports use their aliases; other nets are `n1`, `n2`, ... (sanitised, unique without case).
 - **Values: USE MEG FOR MEGA; USE lowercase m FOR MILLI.** KiCad reads `1M` as mega, ngspice
   as milli; KiCad reads `4k7`/`2R2` as 4.7k/2.2, ngspice as 4k/2 (it ignores everything after
-  the scale factor). Direct `spice_netlist` generation rejects R/C/L values that the two read differently. Rendering preserves the supplied value and reports the SPICE mismatch instead of rewriting it: write `1Meg`, `1m`, `4.7k`, `2.2`. Values both read alike
+  the scale factor); KiCad reads `1.5 kOhms` as 1.5 (a space ends the number) and ngspice not at all. Direct `spice_netlist` generation rejects R/C/L values that the two read differently, values with a space inside, and values only KiCad reads as a number. Rendering preserves the supplied value and reports the SPICE mismatch instead of rewriting it: write `1Meg`, `1m`, `4.7k`, `2.2`. Values both read alike
   (`100nF`, `2.2u`, expressions such as `{RVAL}`) pass through unchanged.
 - **Elements**: each atom becomes one element named `<letter>_<path>` (`C_PS_C1`), through a
   `SpiceModel(prefix, pins, model, sim_pins, library, params)`: `prefix` is one of

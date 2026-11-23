@@ -223,7 +223,7 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 
 - Atom values are SPICE values (`"4.7k"`, `"100n"`). **USE MEG FOR MEGA; USE lowercase m FOR
   MILLI**: `R("1Meg")`, never `R("1M")` (KiCad reads mega, ngspice milli); write `4.7k`, not
-  `4k7`. Direct SPICE generation rejects ambiguous passive values; rendering reports the actual export mismatch. Transistors and
+  `4k7`, and no space inside a value (`1.5kOhm`, not `1.5 kOhms`). Direct SPICE generation rejects ambiguous passive values; rendering reports the actual export mismatch. Transistors and
   diodes take the model name as their value (`NPN("2N3904")`, `D("1N4148")`). Models come
   from `includes`/`spice_libs`.
 - **Real parts**: prefer the verified descriptors in `yasdl.parts` (`Q2N3904`, `Q2N3906`,
@@ -342,6 +342,7 @@ repeated parts. Print `s.render()` and read it before binding.
 | `port ... is on the global ground` (SPICE) | ground is implicit in SPICE; don't give the block a ground port |
 | `... is meant to be the same component, a row is shifted` / `ragged` rows listed | a row is off by one column; the caret marks it; use `Sketch` |
 | `value '1M' means 1e+06 to KiCad but 0.001 to ngspice` | write `1Meg` (or `1m`), `4.7k` instead of `4k7` |
+| `value '1.5 kOhms' is not the same number to KiCad and ngspice` | drop the spaces: `1.5k` or `1.5kOhm` |
 | `does not fit its drawing` with an orientation list | each listed orientation names the label it contradicts; fix the label or the wires |
 | `NC ... must end a net with exactly one device pin` | the NC wire reaches several pins (or a global/port); NC marks one unused pin |
 | `package U1: units [...] are not bound` | bind every unit once, power unit included |

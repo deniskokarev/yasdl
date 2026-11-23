@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import NoReturn
 
 from .sexp import find, find_all, parse
 
@@ -55,7 +57,7 @@ DependencyError = YasdlDependencyError
 class SymbolNotFound(YasdlDependencyError, KeyError):
     """A missing library symbol, catchable as either a dependency error or KeyError."""
 
-    def __str__(self):  # KeyError would quote the message
+    def __str__(self) -> str:  # KeyError would quote the message
         return str(self.args[0]) if self.args else ""
 
 
@@ -71,7 +73,7 @@ class KiCadCommandFailed(YasdlDependencyError):
     """kicad-cli ran and exited with an error; the message holds its command and output."""
 
 
-def kicad_candidates():
+def kicad_candidates() -> list[Path]:
     """Normal installation roots, then the prefix of a kicad-cli found on PATH."""
     import shutil
 
@@ -153,7 +155,9 @@ def run_cli(operation, args=None, check: bool = True, cwd=None, ok=(0,)):
         operation = "kicad-cli " + " ".join(map(str, args[:2]))
     assert args is not None  # a string operation always comes with its args
     cmd = [str(require_cli(operation)), *map(str, args)]
-    run = subprocess.run(cmd, capture_output=True, text=True, **({'cwd': cwd} if cwd else {}))
+    run = subprocess.run(
+        cmd, capture_output=True, text=True, **({"cwd": cwd} if cwd else {})
+    )
     if check and run.returncode not in ok:
         raise KiCadCommandFailed(
             f"{operation} failed: {' '.join(cmd)} exited with {run.returncode}\n"
@@ -176,7 +180,9 @@ def library_path(lib: str) -> Path:
 
 
 def _missing_library(lib: str) -> YasdlDependencyError:
-    where = f"{BUNDLED_DIR / (lib + '.kicad_sym')} and {SYMBOL_DIR / (lib + '.kicad_sym')}"
+    where = (
+        f"{BUNDLED_DIR / (lib + '.kicad_sym')} and {SYMBOL_DIR / (lib + '.kicad_sym')}"
+    )
     if not SYMBOL_DIR.is_dir():
         return LibraryNotFound(
             f"symbol library {lib!r}: KiCad's symbol directory {SYMBOL_DIR} does not exist. "
@@ -215,7 +221,7 @@ class LibPin:
 class _FrozenList(list):
     """An S-expression list that refuses in-place edits (cached library definitions)."""
 
-    def _blocked(self, *args, **kwargs):
+    def _blocked(self, *args, **kwargs) -> NoReturn:
         raise TypeError("symbol definitions are immutable; derive a new definition")
 
     __setitem__ = __delitem__ = append = extend = insert = pop = remove = _blocked
@@ -234,14 +240,16 @@ def _freeze(value):
 @dataclass(frozen=True)
 class LibSymbol:
     lib_id: str
-    definition: list  # the (symbol ...) definition, embedded into schematics' lib_symbols
+    definition: (
+        list  # the (symbol ...) definition, embedded into schematics' lib_symbols
+    )
     pins: tuple[LibPin, ...]  # pins of this unit (plus pins common to all units)
     bbox: tuple[float, float, float, float]  # xmin, ymin, xmax, ymax (library coords)
     is_power: bool
     unit: int = 1
     unit_count: int = 1
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, "definition", _freeze(self.definition))
 
     @property
@@ -291,7 +299,9 @@ def derived_symbols() -> dict[str, list]:
     return dict(_DERIVED)
 
 
-def derive_symbol(base: str, name: str, renumber: dict, properties: dict | None = None) -> str:
+def derive_symbol(
+    base: str, name: str, renumber: dict, properties: dict | None = None
+) -> str:
     """Register `yasdl_parts:<name>`: a copy of symbol `base` whose pins get new numbers.
 
     renumber: {base pin number: physical pin number}, complete and one-to-one. properties:
@@ -305,7 +315,9 @@ def derive_symbol(base: str, name: str, renumber: dict, properties: dict | None 
 
     src = _symbol_sexp(base)
     if find(src, "extends"):
-        raise NotImplementedError(f"{base}: derive from a root symbol, not one using (extends)")
+        raise NotImplementedError(
+            f"{base}: derive from a root symbol, not one using (extends)"
+        )
     base_name = str(src[1]).split(":")[-1]
     numbers = [
         str(find(item, "number")[1])
@@ -330,12 +342,14 @@ def derive_symbol(base: str, name: str, renumber: dict, properties: dict | None 
                 item[2] = name
             elif properties and key in properties:
                 item[2] = str(properties[key])
-    present = {str(i[1]) for i in sym if isinstance(i, list) and i and str(i[0]) == "property"}
+    present = {
+        str(i[1]) for i in sym if isinstance(i, list) and i and str(i[0]) == "property"
+    }
     for key, val in (properties or {}).items():
         if key not in present:
             raise ValueError(f"{name}: {base} has no {key} field to set")
     for unit in find_all(sym, "symbol"):
-        unit[1] = name + str(unit[1])[len(base_name):]
+        unit[1] = name + str(unit[1])[len(base_name) :]
         for item in unit:
             if isinstance(item, list) and item and str(item[0]) == "pin":
                 num = find(item, "number")
@@ -347,7 +361,9 @@ def derive_symbol(base: str, name: str, renumber: dict, properties: dict | None 
     return lib_id
 
 
-def write_derived_library(path: Path, lib_ids, defs: dict | None = None) -> Path:
+def write_derived_library(
+    path: Path, lib_ids: Iterable[str], defs: dict | None = None
+) -> Path:
     """A .kicad_sym file holding the given derived definitions (for the project's table)."""
     from .sexp import dumps, Sym
 
@@ -382,16 +398,17 @@ def load(lib_id: str, unit: int = 1) -> LibSymbol:
             f"{lib_id}: symbols using (extends) are not supported; use its root symbol "
             f"({find(sym, 'extends')[1]}) or a generic part factory (AtomNPN, OpampPackage)"
         )
-    units = {
-        int(str(u[1]).rsplit("_", 2)[1]) for u in find_all(sym, "symbol")
-    } - {0}
+    units = {int(str(u[1]).rsplit("_", 2)[1]) for u in find_all(sym, "symbol")} - {0}
     unit_count = max(units) if units else 1
     if not 1 <= unit <= unit_count:
         raise ValueError(f"{lib_id} has units 1..{unit_count}, not {unit}")
     pins, xs, ys = [], [], []
     for sub in find_all(sym, "symbol"):
         _, unit_no, style = str(sub[1]).rsplit("_", 2)
-        if int(unit_no) not in (0, unit) or int(style) not in (0, 1):  # normal body style
+        if int(unit_no) not in (0, unit) or int(style) not in (
+            0,
+            1,
+        ):  # normal body style
             continue
         for item in sub:
             if not isinstance(item, list):
@@ -506,7 +523,9 @@ def rot_with_pin_on(sym: LibSymbol, side: str) -> int:
     return next(r for r in (0, 90, 180, 270) if pin_side(sym.pins[0], r, None) == side)
 
 
-def screen_bbox(sym: LibSymbol, rot: int, mirror: str | None):
+def screen_bbox(
+    sym: LibSymbol, rot: int, mirror: str | None
+) -> tuple[float, float, float, float]:
     xmin, ymin, xmax, ymax = sym.bbox
     pts = [to_screen(x, y, rot, mirror) for x in (xmin, xmax) for y in (ymin, ymax)]
     return (

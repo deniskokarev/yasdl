@@ -1,24 +1,24 @@
 """P1.1/P1.2: strict Sketch placement, explicit routes, deliberate crossings (DECISIONS P1)."""
 
+from collections.abc import Callable
+
 import pytest
 from yasdl import Block, netlist, R, Sketch
 from yasdl.sketch import SketchError
 
 
-def snapshot(s):
+def snapshot(s: Sketch) -> tuple[dict[tuple[int, int], str], set[tuple[int, int]]]:
     return dict(s.cells), set(s.crossing_cells)
 
 
-def test_route_generates_elbows():
+def test_route_generates_elbows() -> None:
     s = Sketch().wire([(0, 0), (0, 6), (3, 6)])
     assert s.render() == "──────┐\n      │\n      │\n      │"
     s = Sketch().wire([(2, 0), (2, 3), (0, 3), (0, 6), (2, 6)])
     assert s.render() == "   ┌──┐\n   │  │\n───┘  │"
 
 
-
-
-def _base():
+def _base() -> Sketch:
     """{in}──R1──┐ with a vertical wire below the elbow and a label."""
     s = Sketch().text(0, 0, "{in}").hline(0, 4, 5).text(0, 6, "R1").hline(0, 8, 9)
     s.text(0, 10, "┐").vline(10, 1, 3).text(4, 8, "[GND]")
@@ -35,12 +35,17 @@ def _base():
         (lambda s: s.hline(0, 3, 4), "already holds"),  # same-direction overlap
         (lambda s: s.vline(4, 0, 2), "already holds"),  # wire ends on a wire
         (lambda s: s.hline(0, 9, 11), "already holds"),  # through the elbow
-        (lambda s: s.wire([(2, 7), (2, 10), (3, 10)]), "already holds"),  # turns on a wire
+        (
+            lambda s: s.wire([(2, 7), (2, 10), (3, 10)]),
+            "already holds",
+        ),  # turns on a wire
         (lambda s: s.hline(2, 11, 14), "implied T"),  # dead end against a wire's side
         (lambda s: s.text(2, 11, "R9"), None),  # text beside a wire is fine
     ],
 )
-def test_collisions_are_rejected_without_changes(op, match):
+def test_collisions_are_rejected_without_changes(
+    op: Callable[[Sketch], Sketch], match: str | None
+) -> None:
     s = _base()
     before = snapshot(s)
     if match is None:
@@ -51,7 +56,7 @@ def test_collisions_are_rejected_without_changes(op, match):
     assert snapshot(s) == before
 
 
-def test_late_collision_in_a_long_wire_leaves_nothing_behind():
+def test_late_collision_in_a_long_wire_leaves_nothing_behind() -> None:
     s = _base()
     before = snapshot(s)
     with pytest.raises(SketchError, match=r"row 4, col 9"):
@@ -59,7 +64,7 @@ def test_late_collision_in_a_long_wire_leaves_nothing_behind():
     assert snapshot(s) == before
 
 
-def test_error_names_location_content_and_operation():
+def test_error_names_location_content_and_operation() -> None:
     s = _base()
     with pytest.raises(SketchError) as e:
         s.hline(0, 8, 12)
@@ -67,10 +72,12 @@ def test_error_names_location_content_and_operation():
     assert "hline(0, 8, 12)" in msg and "row 0, col 8" in msg and "'─'" in msg
 
 
-def test_crossing_needs_explicit_count():
+def test_crossing_needs_explicit_count() -> None:
     s = _base()
     before = snapshot(s)
-    with pytest.raises(SketchError, match=r"creates 1 crossing\(s\) at \(2, 10\), expected cross=0"):
+    with pytest.raises(
+        SketchError, match=r"creates 1 crossing\(s\) at \(2, 10\), expected cross=0"
+    ):
         s.hline(2, 8, 12)
     assert snapshot(s) == before
     s.hline(2, 8, 12, cross=1)
@@ -78,7 +85,7 @@ def test_crossing_needs_explicit_count():
     assert s.cells[(2, 10)] == "│"  # the existing wire stays on top
 
 
-def test_crossing_count_must_match_exactly():
+def test_crossing_count_must_match_exactly() -> None:
     s = Sketch().vline(2, 0, 4).vline(5, 0, 4)
     with pytest.raises(SketchError, match="creates 2"):
         s.hline(2, 0, 7, cross=1)
@@ -94,7 +101,7 @@ def test_crossing_count_must_match_exactly():
         lambda s: s.wire([(2, 8), (2, 10), (5, 10)], cross=1),  # corner on a wire
     ],
 )
-def test_unclean_crossings_are_rejected(op):
+def test_unclean_crossings_are_rejected(op: Callable[[Sketch], Sketch]) -> None:
     s = _base()
     before = snapshot(s)
     with pytest.raises(SketchError):
@@ -102,7 +109,7 @@ def test_unclean_crossings_are_rejected(op):
     assert snapshot(s) == before
 
 
-def test_existing_crossing_and_junctions_cannot_be_crossed():
+def test_existing_crossing_and_junctions_cannot_be_crossed() -> None:
     s = _base().hline(2, 8, 12, cross=1)
     before = snapshot(s)
     with pytest.raises(SketchError, match="already holds crossing"):
@@ -117,12 +124,12 @@ def test_existing_crossing_and_junctions_cannot_be_crossed():
         t.vline(2, 0, 2, cross=1)
 
 
-def test_route_crossing_itself_counts():
+def test_route_crossing_itself_counts() -> None:
     s = Sketch().wire([(0, 2), (4, 2), (4, 4), (2, 4), (2, 0)], cross=1)
     assert s.crossings == 1 and s.cells[(2, 2)] == "│"
 
 
-def test_junction_is_explicit():
+def test_junction_is_explicit() -> None:
     with pytest.raises(SketchError, match="only 0 wire"):
         Sketch().junction(0, 0)
     s = Sketch().text(0, 0, "{a}").hline(0, 3, 5).hline(0, 7, 9).text(0, 10, "{b}")
@@ -135,7 +142,7 @@ def test_junction_is_explicit():
     assert sorted(nets.values()) == [["R1.1"], ["R1.2"]]  # ports a and b are one net
 
 
-def test_crossing_keeps_two_nets():
+def test_crossing_keeps_two_nets() -> None:
     s = Sketch().text(0, 4, "{top}").vline(6, 1, 1).text(2, 6, "R1").vline(6, 3, 5)
     s.text(6, 4, "[GND]")
     s.text(4, 0, "{a}").hline(4, 3, 9, cross=1).text(4, 10, "R2").hline(4, 12, 13)
@@ -145,13 +152,13 @@ def test_crossing_keeps_two_nets():
     assert nets["GND"] == ["R1.2"] and nets["b"] == ["R2.2"]
 
 
-def test_straight_glyph_must_match_axis():
+def test_straight_glyph_must_match_axis() -> None:
     with pytest.raises(SketchError):
         Sketch().hline(0, 0, 3, ch="│")
 
 
 # --- composition adds no crossings (P1.1 clarified claim) ---------------------------------
-def _crossing_child():
+def _crossing_child() -> Block:
     s = Sketch().text(0, 4, "{top}").vline(6, 1, 1).text(2, 6, "R1").vline(6, 3, 5)
     s.text(6, 4, "[GND]")
     s.text(4, 0, "{a}").hline(4, 3, 9, cross=1).text(4, 10, "R2").hline(4, 12, 13)
@@ -159,7 +166,7 @@ def _crossing_child():
     return Block("CrossChild", s.render(), R1=R("1k"), R2=R("2k"))
 
 
-def test_composed_crossings_are_the_sum_of_drawn_ones():
+def test_composed_crossings_are_the_sum_of_drawn_ones() -> None:
     from yasdl.layout import layout, wire_crossings
 
     child = _crossing_child()
@@ -181,8 +188,10 @@ def test_composed_crossings_are_the_sum_of_drawn_ones():
     assert len(wire_crossings(layout(parent))) == 3
 
 
-@pytest.mark.parametrize("name", ["SGEN", "CROSSING_SUPPLY", "SERIES_PARALLEL", "SHUNT"])
-def test_examples_have_only_drawn_crossings(name):
+@pytest.mark.parametrize(
+    "name", ["SGEN", "CROSSING_SUPPLY", "SERIES_PARALLEL", "SHUNT"]
+)
+def test_examples_have_only_drawn_crossings(name: str) -> None:
     import docs.examples.blocks as ex
     import docs.examples.sgen as sg
     from yasdl.layout import layout, wire_crossings
@@ -191,7 +200,7 @@ def test_examples_have_only_drawn_crossings(name):
     assert len(wire_crossings(layout(block))) == block.crossing_count()
 
 
-def test_route_ends_may_anchor_on_labels_components_and_junctions():
+def test_route_ends_may_anchor_on_labels_components_and_junctions() -> None:
     s = Sketch().text(0, 4, "{b}").box(0, 7, "Q1", rows=2)
     before = dict(s.cells)
     s.wire([(0, 4), (0, 3), (3, 3), (3, 0)])  # starts on the brace label: ┌ at (0, 3)
@@ -202,14 +211,14 @@ def test_route_ends_may_anchor_on_labels_components_and_junctions():
     assert s.cells[(5, 7)] == "┘" and s.cells[(2, 7)] == "│" and s.cells[(1, 7)] == "Q"
 
 
-def test_route_anchored_on_a_junction_arm():
+def test_route_anchored_on_a_junction_arm() -> None:
     t = Sketch().text(1, 3, "┬").hline(1, 0, 2).hline(1, 4, 6)
     t.wire([(1, 3), (3, 3), (3, 6)])  # leaves the tee through its S arm
     assert t.cells[(2, 3)] == "│" and t.cells[(3, 3)] == "└"
     assert t.render().splitlines()[1:] == ["───┬───", "   │", "   └───"]
 
 
-def test_anchor_must_be_a_real_attachment():
+def test_anchor_must_be_a_real_attachment() -> None:
     u = Sketch().hline(0, 0, 4)
     with pytest.raises(SketchError):
         u.wire([(0, 2), (3, 2)])  # a straight wire is not an anchor: implied T

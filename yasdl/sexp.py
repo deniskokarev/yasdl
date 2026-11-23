@@ -14,7 +14,7 @@ def parse(text: str):
     """
     pos, n = 0, len(text)
 
-    def skip():
+    def skip() -> None:
         nonlocal pos
         while pos < n and text[pos].isspace():
             pos += 1

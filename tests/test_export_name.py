@@ -1,8 +1,10 @@
 """P1.3: render(export_name=...) chooses output file names independently of the block."""
 
+from pathlib import Path
+
 import pytest
 from docs.examples.blocks import DARLINGTON
-from yasdl import NPN, netlist, PNP
+from yasdl import netlist, NPN, PNP
 from yasdl.kicad_lib import KICAD_CLI
 
 have_kicad = KICAD_CLI.exists()
@@ -10,7 +12,7 @@ have_kicad = KICAD_CLI.exists()
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
+def test_two_bindings_of_one_template_render_side_by_side(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     upper = DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904"))
@@ -26,21 +28,25 @@ def test_two_bindings_of_one_template_render_side_by_side(tmp_path):
     assert "Q_PNP" in b["schematic"].read_text()
     # the blocks keep their identity and circuit
     assert upper.name == lower.name == "Darlington"
-    assert netlist(upper) == netlist(DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")))
+    assert netlist(upper) == netlist(
+        DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904"))
+    )
     assert not (tmp_path / "Darlington.kicad_sch").exists()
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(not have_kicad, reason="kicad-cli missing")
-def test_default_name_is_the_block_name(tmp_path):
+def test_default_name_is_the_block_name(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
-    info = render(DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")), tmp_path, svg=False)
+    info = render(
+        DARLINGTON.bind(Q1=NPN("2N3904"), Q2=NPN("2N3904")), tmp_path, svg=False
+    )
     assert info["schematic"] == tmp_path / "Darlington.kicad_sch"
 
 
 @pytest.mark.parametrize("bad", ["", "a/b", "..", "."])
-def test_export_name_must_be_a_plain_stem(tmp_path, bad):
+def test_export_name_must_be_a_plain_stem(tmp_path: Path, bad: str) -> None:
     from yasdl.kicad_export import render
 
     with pytest.raises(ValueError, match="export_name"):

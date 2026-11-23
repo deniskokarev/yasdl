@@ -3,8 +3,7 @@
 `python -m docs.examples.render` renders them with the netlist and SPICE round trips and ERC.
 """
 
-from yasdl import Atom, Block, NC, POT, R, V
-from yasdl import std
+from yasdl import Atom, Block, NC, POT, R, std, V
 from yasdl.kicad_lib import JELLYBEAN_MODEL
 from yasdl.parts import D1N4148, dual_opamp, Q2N3904, Q2N3906
 
@@ -48,8 +47,12 @@ J1J1{t}──────┐
              │
            [GND]
 """,
-    J1=Atom("Connector_Audio:AudioJack3", "IN", sim=False,
-            footprint="Connector_Audio:Jack_6.35mm_Neutrik_NJ3FD-V_Vertical"),
+    J1=Atom(
+        "Connector_Audio:AudioJack3",
+        "IN",
+        sim=False,
+        footprint="Connector_Audio:Jack_6.35mm_Neutrik_NJ3FD-V_Vertical",
+    ),
     X1=NC(),
     RV=POT("10k", rotation=0.7, taper="log"),
 )

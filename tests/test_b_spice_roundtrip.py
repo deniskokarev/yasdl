@@ -7,9 +7,23 @@ every mutation must be rejected.
 """
 
 import re
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
-from yasdl import Atom, Block, C, I, NPN, OPAMP_IDEAL, POT, R, spice_netlist, SpiceModel, V
+from yasdl import (
+    Atom,
+    Block,
+    C,
+    I,
+    NPN,
+    OPAMP_IDEAL,
+    POT,
+    R,
+    spice_netlist,
+    SpiceModel,
+    V,
+)
 from yasdl.kicad_lib import JELLYBEAN_MODEL, KICAD_CLI
 from yasdl.spice import compare_spice, parse_spice
 
@@ -29,13 +43,15 @@ B1 out 0 V=1e3*(V(inp)-V(inn))
 """
 
 
-def bench(tmp_path):
+def bench(tmp_path: Path) -> Block:
     lib = tmp_path / "atten.lib"
     lib.write_text(ATTEN_LIB)
     atten = Atom(
         "Device:R",
         "atten",
-        spice=SpiceModel("X", ("1", "2"), "atten", "1=in 2=out", str(lib), "R=2k K=0.25"),
+        spice=SpiceModel(
+            "X", ("1", "2"), "atten", "1=in 2=out", str(lib), "R=2k K=0.25"
+        ),
     )
     return Block(
         "Bench",
@@ -68,7 +84,7 @@ def bench(tmp_path):
     )
 
 
-def test_parse_reads_x_v_i_with_full_values_and_skips_subckt_bodies():
+def test_parse_reads_x_v_i_with_full_values_and_skips_subckt_bodies() -> None:
     text = """* t
 .subckt inner a b
 R9 a b 1k
@@ -90,7 +106,7 @@ R1 n1 n2 4.7k
     assert parse_spice(text, "inner") == [("R9", ["a", "b"], "1k")]
 
 
-def test_compare_spice_unit():
+def test_compare_spice_unit() -> None:
     a = "R1 a b 1k\nV1 a 0 dc 0 ac 1\nX1 a b atten R=1k\n"
     ids = lambda n: n  # noqa: E731
     assert compare_spice(a, a, ids, ids)[0]
@@ -113,11 +129,16 @@ def test_compare_spice_unit():
 
 @pytest.mark.integration
 @kicad
-def test_kicad_export_agrees_and_keeps_full_specs(tmp_path):
+def test_kicad_export_agrees_and_keeps_full_specs(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, render
 
-    info = render(bench(tmp_path), tmp_path, svg=False, spice=True,
-                  spice_libs=(str(JELLYBEAN_MODEL),))
+    info = render(
+        bench(tmp_path),
+        tmp_path,
+        svg=False,
+        spice=True,
+        spice_libs=(str(JELLYBEAN_MODEL),),
+    )
     assert info["roundtrip_ok"], (info["missing"], info["extra"])
     assert info["erc"] == []
     assert info["spice_ok"], info["spice_diff"]
@@ -126,17 +147,19 @@ def test_kicad_export_agrees_and_keeps_full_specs(tmp_path):
     values = sorted(v for _, v in elements.values())
     # the baseline exported "DC dc 0 ac 1" and "DC sin(0 1 1k)"
     assert "dc 0 ac 1" in values and "sin(0 1 1k)" in values and "1m" in values
-    assert not any(v.lower().startswith("dc dc") or "dc sin" in v.lower() for v in values)
+    assert not any(
+        v.lower().startswith("dc dc") or "dc sin" in v.lower() for v in values
+    )
     assert "yasdl_pot R=10k POS=0.3" in values
     assert "atten R=2k K=0.25" in values
     assert "yasdl_ideal_opamp" in values
 
 
-def _mutate_yasdl(block):
+def _mutate_yasdl(block: Block) -> dict[str, str]:
     base = spice_netlist(block)
     lines = base.splitlines()
 
-    def edit(prefix, old, new):
+    def edit(prefix: str, old: str, new: str) -> str:
         out = []
         for line in lines:
             if line.startswith(prefix):
@@ -145,7 +168,7 @@ def _mutate_yasdl(block):
             out.append(line)
         return "\n".join(out) + "\n"
 
-    def swap_nodes(prefix):
+    def swap_nodes(prefix: str) -> str:
         out = []
         for line in lines:
             if line.startswith(prefix):
@@ -155,10 +178,10 @@ def _mutate_yasdl(block):
             out.append(line)
         return "\n".join(out) + "\n"
 
-    def drop(prefix):
+    def drop(prefix: str) -> str:
         return "\n".join(x for x in lines if not x.startswith(prefix)) + "\n"
 
-    def rename_node(old, new):
+    def rename_node(old: str, new: str) -> str:
         return re.sub(rf"(?<=\s){re.escape(old)}(?=\s|$)", new, base)
 
     return {
@@ -181,21 +204,24 @@ def _mutate_yasdl(block):
 
 @pytest.mark.integration
 @kicad
-def test_mutated_yasdl_netlists_are_rejected(tmp_path):
+def test_mutated_yasdl_netlists_are_rejected(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, spice_roundtrip, to_kicad
 
     block = bench(tmp_path)
-    sch, refmap = to_kicad(block, tmp_path / "Bench.kicad_sch",
-                           spice_libs=(str(JELLYBEAN_MODEL),))
+    sch, refmap = to_kicad(
+        block, tmp_path / "Bench.kicad_sch", spice_libs=(str(JELLYBEAN_MODEL),)
+    )
     kicad_text = export_kicad_spice(sch)
     assert spice_roundtrip(block, sch, refmap, kicad_text=kicad_text)[0]
     for what, text in _mutate_yasdl(block).items():
-        ok, diff = spice_roundtrip(block, sch, refmap, kicad_text=kicad_text, yasdl_text=text)
+        ok, diff = spice_roundtrip(
+            block, sch, refmap, kicad_text=kicad_text, yasdl_text=text
+        )
         assert not ok, what
         assert diff, what
 
 
-def _edit_symbol(sch_text, ref, edit):
+def _edit_symbol(sch_text: str, ref: str, edit: Callable[..., bool | None]) -> str:
     """Apply `edit` to the (symbol ...) block whose Reference is `ref`."""
     from yasdl.sexp import dumps, find, find_all, parse
 
@@ -209,7 +235,7 @@ def _edit_symbol(sch_text, ref, edit):
     raise AssertionError(f"no symbol {ref}")
 
 
-def _set_prop(name, old, new):
+def _set_prop(name: str, old: str, new: str) -> Callable[..., None]:
     def edit(root, sym, props):
         assert old in props[name][2], props[name][2]
         props[name][2] = props[name][2].replace(old, new)
@@ -217,7 +243,7 @@ def _set_prop(name, old, new):
     return edit
 
 
-def _set_model(library, name):
+def _set_model(library: str, name: str) -> Callable[..., None]:
     def edit(root, sym, props):
         props["Sim.Library"][2] = library
         props["Sim.Name"][2] = name
@@ -225,8 +251,9 @@ def _set_model(library, name):
     return edit
 
 
-def _swap_pins(a, b):
+def _swap_pins(a: str, b: str) -> Callable[..., None]:
     """Swap the Sim.Pins model names of two symbol pins (a changed connection)."""
+
     def edit(root, sym, props):
         pairs = dict(x.split("=") for x in props["Sim.Pins"][2].split())
         pairs[a], pairs[b] = pairs[b], pairs[a]
@@ -237,13 +264,17 @@ def _swap_pins(a, b):
 
 @pytest.mark.integration
 @kicad
-def test_mutated_schematics_are_rejected_by_kicad_export(tmp_path):
+def test_mutated_schematics_are_rejected_by_kicad_export(tmp_path: Path) -> None:
     """The schematic is changed and re-exported by kicad-cli; yasdl's netlist is unchanged."""
     from yasdl.kicad_export import spice_roundtrip, to_kicad
 
     block = bench(tmp_path)
-    sch, refmap = to_kicad(block, tmp_path / "Bench.kicad_sch", references="names",
-                           spice_libs=(str(JELLYBEAN_MODEL),))
+    sch, refmap = to_kicad(
+        block,
+        tmp_path / "Bench.kicad_sch",
+        references="names",
+        spice_libs=(str(JELLYBEAN_MODEL),),
+    )
     original = sch.read_text()
     assert spice_roundtrip(block, sch, refmap)[0]
     mutations = {
@@ -252,7 +283,10 @@ def test_mutated_schematics_are_rejected_by_kicad_export(tmp_path):
         "X model": ("U1", _set_model(str(tmp_path / "atten.lib"), "opamp_alt")),
         "X connection": ("AT", _swap_pins("1", "2")),
         "V spec": ("V1", _set_prop("Sim.Params", "ac 1", "ac 1.5")),
-        "V transient spec": ("V2", _set_prop("Sim.Params", "sin(0 1 1k)", "sin(0 1 1k 1m)")),
+        "V transient spec": (
+            "V2",
+            _set_prop("Sim.Params", "sin(0 1 1k)", "sin(0 1 1k 1m)"),
+        ),
         "V connection": ("V1", _swap_pins("1", "2")),
         "I spec": ("I1", _set_prop("Sim.Params", '"1m"', '"1.1m"')),
         "I connection": ("I1", _swap_pins("1", "2")),
@@ -285,7 +319,7 @@ DIVIDER = Block(
 )
 
 
-def test_subckt_declares_unexported_global_supplies():
+def test_subckt_declares_unexported_global_supplies() -> None:
     text = spice_netlist(DIVIDER, subckt="div")
     assert ".global VCC" in text.splitlines()
     assert text.index(".global") < text.index(".subckt")
@@ -297,21 +331,34 @@ def test_subckt_declares_unexported_global_supplies():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(__import__("shutil").which("ngspice") is None, reason="ngspice missing")
+@pytest.mark.skipif(
+    __import__("shutil").which("ngspice") is None, reason="ngspice missing"
+)
 @pytest.mark.parametrize("declared, expected", [(True, 6.0), (False, 0.0)])
-def test_global_supply_reaches_subcircuit_in_ngspice(tmp_path, declared, expected):
+def test_global_supply_reaches_subcircuit_in_ngspice(
+    tmp_path: Path, declared: bool, expected: float
+) -> None:
     """With .global VCC the divider sees the testbench's 12 V and gives 6 V; without the card
     (the baseline export) its VCC is a floating local node and the output is 0 V."""
     import subprocess
 
     sub = spice_netlist(DIVIDER, subckt="div")
     if not declared:
-        sub = "\n".join(x for x in sub.splitlines() if not x.startswith(".global")) + "\n"
+        sub = (
+            "\n".join(x for x in sub.splitlines() if not x.startswith(".global")) + "\n"
+        )
     (tmp_path / "tb.cir").write_text(
-        "* divider\n" + sub + "VS VCC 0 12\nX1 out div\n.control\nop\nprint v(out)\n.endc\n.end\n"
+        "* divider\n"
+        + sub
+        + "VS VCC 0 12\nX1 out div\n.control\nop\nprint v(out)\n.endc\n.end\n"
     )
-    out = subprocess.run(["ngspice", "-b", "tb.cir"], cwd=tmp_path, capture_output=True,
-                         text=True, timeout=120)
+    out = subprocess.run(
+        ["ngspice", "-b", "tb.cir"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     m = re.search(r"^v\(out\)\s*=\s*([-+\d.eE]+)", out.stdout, re.M)
     assert m, out.stdout
@@ -321,14 +368,20 @@ def test_global_supply_reaches_subcircuit_in_ngspice(tmp_path, declared, expecte
 # --- MEG for mega (spec 6.2) --------------------------------------------------------------
 @pytest.mark.integration
 @kicad
-@pytest.mark.parametrize("value, agrees", [("1MEG", True), ("1Meg", True), ("1M", False)])
-def test_mega_must_be_spelled_meg(tmp_path, value, agrees):
+@pytest.mark.parametrize(
+    "value, agrees", [("1MEG", True), ("1Meg", True), ("1M", False)]
+)
+def test_mega_must_be_spelled_meg(tmp_path: Path, value: str, agrees: bool) -> None:
     """KiCad reads 1M as mega and exports 1Meg; ngspice reads yasdl's 1M as milli. The round
     trip exposes the disagreement instead of rewriting the value."""
     from yasdl.kicad_export import render
 
-    block = Block("Meg", "{a}──R1──┬──{b}\n         │\n         C1\n         │\n       [GND]\n",
-                  R1=R(value), C1=C("1n"))
+    block = Block(
+        "Meg",
+        "{a}──R1──┬──{b}\n         │\n         C1\n         │\n       [GND]\n",
+        R1=R(value),
+        C1=C("1n"),
+    )
     info = render(block, tmp_path, svg=False, spice=True)
     assert info["spice_ok"] is agrees, info["spice_diff"]
     if not agrees:
@@ -338,7 +391,7 @@ def test_mega_must_be_spelled_meg(tmp_path, value, agrees):
 # --- ground and global net identity in a real export --------------------------------------
 @pytest.mark.integration
 @kicad
-def test_named_net_identity_is_checked_against_kicad(tmp_path):
+def test_named_net_identity_is_checked_against_kicad(tmp_path: Path) -> None:
     from yasdl.kicad_export import export_kicad_spice, spice_roundtrip, to_kicad
 
     block = Block(
@@ -353,7 +406,9 @@ def test_named_net_identity_is_checked_against_kicad(tmp_path):
        │
      [GND]
 """,
-        R1=R("1k"), R2=R("2k"), R3=R("3k"),
+        R1=R("1k"),
+        R2=R("2k"),
+        R3=R("3k"),
     )
     sch, refmap = to_kicad(block, tmp_path / "Rails.kicad_sch")
     kicad_text = export_kicad_spice(sch)
@@ -361,13 +416,17 @@ def test_named_net_identity_is_checked_against_kicad(tmp_path):
     ours = spice_netlist(block)
     # swapping the two supply names keeps every terminal grouping; only names differ
     swapped = ours.replace("VCC", "TMP").replace("VEE", "VCC").replace("TMP", "VEE")
-    ok, diff = spice_roundtrip(block, sch, refmap, kicad_text=kicad_text, yasdl_text=swapped)
+    ok, diff = spice_roundtrip(
+        block, sch, refmap, kicad_text=kicad_text, yasdl_text=swapped
+    )
     assert not ok and "net VCC" in diff
     moved = re.sub(r"(?<=\s)0(?=\s|$)", "ground_lost", ours)
-    ok, diff = spice_roundtrip(block, sch, refmap, kicad_text=kicad_text, yasdl_text=moved)
+    ok, diff = spice_roundtrip(
+        block, sch, refmap, kicad_text=kicad_text, yasdl_text=moved
+    )
     assert not ok and "net 0" in diff
 
 
-def test_npn_default_mapping_unchanged():
+def test_npn_default_mapping_unchanged() -> None:
     q = Block("Q", " │\n─Q1\n Q1\n │\n", Q1=NPN("2N3904"))
     assert re.search(r"^Q_Q1 \S+ \S+ \S+ 2N3904$", spice_netlist(q), re.M)

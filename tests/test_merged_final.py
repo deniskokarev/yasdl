@@ -3,6 +3,7 @@
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from yasdl import Block, POT, Pot, R, spice_netlist
@@ -48,7 +49,7 @@ def test_shared_pot_model_reads_fraction_and_shaft_position(tmp_path, pot, expec
     )
 
 
-def test_unreadable_spice_deck_is_a_mismatch_not_a_crash():
+def test_unreadable_spice_deck_is_a_mismatch_not_a_crash() -> None:
     b = Block("One", "{a}─R1─{b}", R1=R("1k"))
     ok, why = spice_roundtrip(b, None, {"R1": "R1"}, kicad_text="R1 a\n")
     assert not ok and "unreadable" in why
@@ -56,20 +57,18 @@ def test_unreadable_spice_deck_is_a_mismatch_not_a_crash():
     assert ok, why
 
 
-def test_standard_topologies_are_literal_canvases():
+def test_standard_topologies_are_literal_canvases() -> None:
     # Every reusable topology is written as inspectable ASCII in the library source.
     from pathlib import Path
 
     import yasdl
 
-    for module in ("std.py", "circuits.py"):
-        source = (Path(yasdl.__file__).parent / module).read_text()
-        assert "Sketch" not in source, module
-
+    source = (Path(yasdl.__file__).parent / "std.py").read_text()
+    assert "Sketch" not in source
 
 
 @pytest.mark.integration
-def test_run_cli_accepts_operation_and_argument_list_forms():
+def test_run_cli_accepts_operation_and_argument_list_forms() -> None:
     from yasdl.kicad_lib import KICAD_CLI, KiCadCommandFailed, run_cli
 
     if not KICAD_CLI.exists():
@@ -78,11 +77,15 @@ def test_run_cli_accepts_operation_and_argument_list_forms():
     assert run_cli(["version"]).stdout.startswith("9.")
     with pytest.raises(KiCadCommandFailed, match="exited with"):
         run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"])
-    assert run_cli(["sch", "export", "netlist", "/nonexistent.kicad_sch"], ok=(0, 1, 2, 3)).returncode
+    assert run_cli(
+        ["sch", "export", "netlist", "/nonexistent.kicad_sch"], ok=(0, 1, 2, 3)
+    ).returncode
 
 
 @pytest.mark.integration
-def test_schematic_with_an_unloadable_model_is_a_mismatch_not_a_crash(tmp_path):
+def test_schematic_with_an_unloadable_model_is_a_mismatch_not_a_crash(
+    tmp_path: Path,
+) -> None:
     # kicad-cli exits with status 2 when a Sim.Library file is gone; the round trip reports
     # a difference instead of raising.
     from yasdl import Atom, SpiceModel
@@ -93,8 +96,11 @@ def test_schematic_with_an_unloadable_model_is_a_mismatch_not_a_crash(tmp_path):
         pytest.skip("KiCad CLI unavailable")
     lib = tmp_path / "trim.lib"
     lib.write_text(".subckt trim a b params: r=1k\nR1 a b {r}\n.ends\n")
-    trim = Atom("Device:R", "trim",
-                spice=SpiceModel("X", ("1", "2"), "trim", "1=a 2=b", str(lib), "r=2.2k"))
+    trim = Atom(
+        "Device:R",
+        "trim",
+        spice=SpiceModel("X", ("1", "2"), "trim", "1=a 2=b", str(lib), "r=2.2k"),
+    )
     b = Block("Trim", "{a}─X1─{b}", X1=trim)
     sch, refs = to_kicad(b, tmp_path / "Trim.kicad_sch", bundle_models=False)
     assert spice_roundtrip(b, sch, refs)[0]

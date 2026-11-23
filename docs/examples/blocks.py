@@ -175,9 +175,15 @@ PARALLEL_ARRAY = std.parallel(Q2N3904, 3, "1")
 # Power output stage: Darlington pairs driving paralleled-device arrays, biased by a Vbe
 # multiplier for adjustable class-AB bias.
 PUSH_PULL_ARRAYS = std.push_pull(
-    qn=std.darlington(Q2N3904, std.parallel(Q2N3904, 2, "1", name="ArrayN"), name="OutN"),
-    qp=std.darlington(Q2N3906, std.parallel(Q2N3906, 2, "1", name="ArrayP"), name="OutP"),
-    bias=std.vbe_multiplier(Q2N3904, "2.7k", "1k"), rb="2.2k", re="0.22",
+    qn=std.darlington(
+        Q2N3904, std.parallel(Q2N3904, 2, "1", name="ArrayN"), name="OutN"
+    ),
+    qp=std.darlington(
+        Q2N3906, std.parallel(Q2N3906, 2, "1", name="ArrayP"), name="OutP"
+    ),
+    bias=std.vbe_multiplier(Q2N3904, "2.7k", "1k"),
+    rb="2.2k",
+    re="0.22",
     name="PushPullArrays",
 )
 

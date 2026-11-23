@@ -15,21 +15,21 @@ DIVIDER = """
 
 
 @pytest.mark.parametrize("alias", ["GND", "gnd", "0", "VCC", "+5V"])
-def test_reserved_port_aliases_rejected(alias):
+def test_reserved_port_aliases_rejected(alias: str) -> None:
     with pytest.raises(YasdlError, match="reserved"):
         Block("B", DIVIDER.replace("{out}", "{" + alias + "}"), R1=R(), R2=R())
     with pytest.raises(YasdlError, match="reserved"):
         Block("B", DIVIDER, port_attrs={"out": {"aliases": [alias]}}, R1=R(), R2=R())
 
 
-def test_reserved_label_spelling():
+def test_reserved_label_spelling() -> None:
     with pytest.raises(YasdlError, match="reserved"):
         Block("B", DIVIDER.replace("[GND]", "[gnd]"), R1=R(), R2=R())
     with pytest.raises(YasdlError, match="reserved"):
         Block("B", DIVIDER.replace("[GND]", " [0] "), R1=R(), R2=R())
 
 
-def test_inline_reserved_label_is_global():
+def test_inline_reserved_label_is_global() -> None:
     blk = Block(
         "B", "{in}──R1──[GND]──R2──{out}", R1=R(), R2=R()
     )  # wires on both sides
@@ -38,14 +38,14 @@ def test_inline_reserved_label_is_global():
     assert " 0 " in spice_netlist(blk)
 
 
-def test_label_name_clashes():
+def test_label_name_clashes() -> None:
     with pytest.raises(YasdlError, match="default port"):
         Block("B", "{in}──R1──[N1]──R2──{out}", R1=R(), R2=R())
     with pytest.raises(YasdlError, match="clashes"):
         Block("B", "{in}──R1──[OUT]──R2──{out}", R1=R(), R2=R())
 
 
-def test_generated_names_never_collide():
+def test_generated_names_never_collide() -> None:
     # unnamed top ports N0/N1 and two unnamed internal nets: previously both named "N1"
     blk = Block(
         "B",
@@ -72,7 +72,7 @@ def test_generated_names_never_collide():
     assert nodes["R_R2"][0] not in nodes["R_R3"]  # ...and not shorted to port N1
 
 
-def test_port_alias_vs_nested_global():
+def test_port_alias_vs_nested_global() -> None:
     inner = Block("Inner", "──R1──[Sig]", R1=R())  # global net "Sig"
     with pytest.raises(YasdlError, match="two different nets"):
         netlist(
@@ -80,7 +80,7 @@ def test_port_alias_vs_nested_global():
         )  # top port alias "sig" on another net
 
 
-def test_ground_port_not_a_subckt_pin():
+def test_ground_port_not_a_subckt_pin() -> None:
     blk = Block(
         "B",
         """
@@ -95,7 +95,7 @@ def test_ground_port_not_a_subckt_pin():
         spice_netlist(blk, subckt="x")
 
 
-def test_one_net_two_subckt_pins_rejected():
+def test_one_net_two_subckt_pins_rejected() -> None:
     blk = Block(
         "Thru",
         "{input}──┬──{output}\n         │\n         R1\n         │\n       [GND]",
@@ -110,7 +110,7 @@ def test_one_net_two_subckt_pins_rejected():
         )  # ngspice silently miswires duplicate formal nodes
 
 
-def test_reserved_pin_names_not_reexported():
+def test_reserved_pin_names_not_reexported() -> None:
     # a pin named like a global net is never re-exported as a port alias
     blk = Block(
         "F",
@@ -128,7 +128,9 @@ def test_reserved_pin_names_not_reexported():
 
 @pytest.mark.parametrize("name", ["Signal", "Signal_2", "V1"])
 @pytest.mark.parametrize("inline", [False, True])
-def test_uppercase_net_is_global_independent_of_wire_count(name, inline):
+def test_uppercase_net_is_global_independent_of_wire_count(
+    name: str, inline: bool
+) -> None:
     canvas = f"──R1──[{name}]" + ("──" if inline else "")
     block = Block("Global", canvas, R1=R())
     assert block.canvas.labels[0].kind == "global"
@@ -137,20 +139,22 @@ def test_uppercase_net_is_global_independent_of_wire_count(name, inline):
 
 @pytest.mark.parametrize("name", ["signal", "signal_2", "_bias", "_2"])
 @pytest.mark.parametrize("inline", [False, True])
-def test_lowercase_or_underscore_net_is_local_independent_of_wire_count(name, inline):
+def test_lowercase_or_underscore_net_is_local_independent_of_wire_count(
+    name: str, inline: bool
+) -> None:
     canvas = f"──R1──[{name}]" + ("──" if inline else "")
     block = Block("Local", canvas, R1=R())
     assert block.canvas.labels[0].kind == "local"
     assert name in netlist(block)
 
 
-def test_inline_uppercase_global_connects_across_instances():
+def test_inline_uppercase_global_connects_across_instances() -> None:
     inner = Block("Inner", "──R1──[Shared]──", R1=R())
     top = Block("Top", "──A──\n\n──B──", A=inner, B=inner)
     assert netlist(top)["Shared"] == ["A.R1.2", "B.R1.2"]
 
 
-def test_terminal_lowercase_local_does_not_connect_across_instances():
+def test_terminal_lowercase_local_does_not_connect_across_instances() -> None:
     inner = Block("Inner", "──R1──┬────\n      │\n    [local]", R1=R())
     top = Block("Top", "──A──\n\n──B──", A=inner, B=inner)
     nets = netlist(top)
@@ -160,18 +164,18 @@ def test_terminal_lowercase_local_does_not_connect_across_instances():
 
 
 @pytest.mark.parametrize("name", ["1", "12", "1V", "2_signal"])
-def test_net_names_cannot_start_with_digits(name):
+def test_net_names_cannot_start_with_digits(name: str) -> None:
     with pytest.raises(YasdlError, match="leading digits"):
         Block("NumberedNet", f"──R1──[{name}]", R1=R())
 
 
 @pytest.mark.parametrize("name", ["+5V", "-12V"])
-def test_registered_power_names_are_global_exceptions(name):
+def test_registered_power_names_are_global_exceptions(name: str) -> None:
     block = Block("Power", f"──R1──[{name}]──", R1=R())
     assert block.canvas.labels[0].kind == "global"
 
 
-def test_case_only_names_for_different_nets_still_conflict_in_spice():
+def test_case_only_names_for_different_nets_still_conflict_in_spice() -> None:
     block = Block("Ambiguous", "──R1──[Sig]\n\n[sig]──R2──", R1=R(), R2=R())
     with pytest.raises(YasdlError, match="two different nets"):
         spice_netlist(block)

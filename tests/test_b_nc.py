@@ -6,6 +6,7 @@ exactly one otherwise unconnected device pin.
 """
 
 import re
+from pathlib import Path
 
 import pytest
 from yasdl import Atom, Block, NC, netlist, OPAMP, POT, R, spice_netlist, V, YasdlError
@@ -43,9 +44,12 @@ J1J1J1J1
 )
 
 
-def test_group_size_comes_from_the_drawing():
+def test_group_size_comes_from_the_drawing() -> None:
     cv = Canvas("X1-U1-X2\nX1-U1-X2\nX1-U1-X2\n   U1----{only_usable}\n")
-    counts = {n: {s: len(v) for s, v in c.attachments.items() if v} for n, c in cv.comps.items()}
+    counts = {
+        n: {s: len(v) for s, v in c.attachments.items() if v}
+        for n, c in cv.comps.items()
+    }
     assert counts["X1"] == {"E": 3} and counts["X2"] == {"W": 3}
     assert counts["U1"] == {"W": 3, "E": 4}
     assert len(GROUP_EW.bound["X1"].pin_map) == 3
@@ -54,9 +58,11 @@ def test_group_size_comes_from_the_drawing():
     assert SINGLE.to_dict()["components"]["X1"]["binding"] == {"nc": 1}
 
 
-def test_each_marked_pin_keeps_its_own_net():
+def test_each_marked_pin_keeps_its_own_net() -> None:
     nets = netlist(GROUP_EW)
-    singles = sorted(pins for pins in nets.values() if len(pins) == 1 and pins[0][0] == "J")
+    singles = sorted(
+        pins for pins in nets.values() if len(pins) == 1 and pins[0][0] == "J"
+    )
     assert singles == [["J1.2"], ["J1.3"], ["J1.4"]]
     assert sorted(nets["out"]) == ["R1.2"]
     assert not any("X1" in p for pins in nets.values() for p in pins)  # no marker pins
@@ -64,7 +70,7 @@ def test_each_marked_pin_keeps_its_own_net():
     assert sorted(len(v) for v in nets.values()) == [1, 1, 1, 1, 2]
 
 
-def test_marker_is_not_a_spice_element_but_the_pin_keeps_a_node():
+def test_marker_is_not_a_spice_element_but_the_pin_keeps_a_node() -> None:
     text = spice_netlist(SINGLE)
     assert re.search(r"^R_R1 a (\S+) 1k$", text, re.M)
     assert "X1" not in text
@@ -90,12 +96,24 @@ def test_marker_is_not_a_spice_element_but_the_pin_keeps_a_node():
 @pytest.mark.parametrize(
     "canvas, bindings, match",
     [
-        ("{a}──R1──┬──R2──{b}\n         │\n         X1\n", {"R2": R()}, "several device pins"),
+        (
+            "{a}──R1──┬──R2──{b}\n         │\n         X1\n",
+            {"R2": R()},
+            "several device pins",
+        ),
         ("{a}──R1──┬──[Shared]\n         │\n         X1\n", {}, "global net"),
         ("{a}──R1──┬──[local]\n         │\n         X1\n", {}, r"labelled \[local\]"),
         ("{a}──R1──┬──{b}\n         │\n         X1\n", {}, "block port"),
-        ("{a}──R1──┬──X1\n         │\n         X2\n", {"X2": NC()}, "terminate the same net"),
-        ("{a}──R1──{b}\n\nX1──CH", {"CH": Block("Stub", "{p}────[stub]")}, "no device pin"),
+        (
+            "{a}──R1──┬──X1\n         │\n         X2\n",
+            {"X2": NC()},
+            "terminate the same net",
+        ),
+        (
+            "{a}──R1──{b}\n\nX1──CH",
+            {"CH": Block("Stub", "{p}────[stub]")},
+            "no device pin",
+        ),
     ],
 )
 def test_invalid_nc_nets(canvas, bindings, match):
@@ -104,7 +122,7 @@ def test_invalid_nc_nets(canvas, bindings, match):
         netlist(block)
 
 
-def test_pin_label_on_nc_is_rejected():
+def test_pin_label_on_nc_is_rejected() -> None:
     with pytest.raises(YasdlError, match="NC markers have no pins"):
         Block("Bad", "{a}──R1──{x}X1", R1=R(), X1=NC())
 
@@ -123,22 +141,27 @@ FAN_OUT = Block(
 )
 
 
-def test_child_port_to_one_pin_may_be_nc():
+def test_child_port_to_one_pin_may_be_nc() -> None:
     top = Block("Top", "{a}──CH──X1", CH=ONE_PIN, X1=NC())
     assert sorted(len(v) for v in netlist(top).values()) == [1, 1]
 
 
-def test_child_port_fanning_out_is_reported_not_pruned():
+def test_child_port_fanning_out_is_reported_not_pruned() -> None:
     top = Block("Top", "X1──CH──{b}", CH=FAN_OUT, X1=NC())
     with pytest.raises(YasdlError, match=r"several device pins: CH\.R1\.1, CH\.R2\.1"):
         netlist(top)
 
 
-def _no_connects(sch_path):
+def _no_connects(
+    sch_path: Path,
+) -> tuple[set[tuple[float, float]], list[tuple[tuple[float, float], ...]]]:
     from yasdl.sexp import find, find_all, parse
 
     root = parse(sch_path.read_text())
-    marks = {(float(find(n, "at")[1]), float(find(n, "at")[2])) for n in find_all(root, "no_connect")}
+    marks = {
+        (float(find(n, "at")[1]), float(find(n, "at")[2]))
+        for n in find_all(root, "no_connect")
+    }
     wires = [
         tuple((float(xy[1]), float(xy[2])) for xy in find_all(find(w, "pts"), "xy"))
         for w in find_all(root, "wire")
@@ -149,7 +172,9 @@ def _no_connects(sch_path):
 @pytest.mark.integration
 @kicad
 @pytest.mark.parametrize("block", [SINGLE, GROUP_EW, GROUP_NS], ids=lambda b: b.name)
-def test_kicad_markers_at_wire_ends_pass_erc_and_round_trips(tmp_path, block):
+def test_kicad_markers_at_wire_ends_pass_erc_and_round_trips(
+    tmp_path: Path, block: Block
+) -> None:
     from yasdl.kicad_export import render
 
     info = render(block, tmp_path, svg=False, spice=True)
@@ -164,7 +189,7 @@ def test_kicad_markers_at_wire_ends_pass_erc_and_round_trips(tmp_path, block):
 
 @pytest.mark.integration
 @kicad
-def test_hierarchical_nc_renders(tmp_path):
+def test_hierarchical_nc_renders(tmp_path: Path) -> None:
     from yasdl.kicad_export import render
 
     top = Block("TopNC", "{a}──CH──X1", CH=ONE_PIN, X1=NC())
@@ -179,7 +204,9 @@ def test_hierarchical_nc_renders(tmp_path):
     [("G──{x}", (0, None)), ("{x}──G", (180, "x")), ("{x}\n │\n G", (90, None))],
     ids=["plain", "mirrored", "rotated"],  # (180, "x") is the left-right flip
 )
-def test_nc_inside_a_child_block_renders(tmp_path, canvas, orientation):
+def test_nc_inside_a_child_block_renders(
+    tmp_path: Path, canvas: str, orientation: tuple[int, str | None]
+) -> None:
     """Markers drawn inside a sub-block reach the parent schematic, at the child's wire ends
     after the child's binding-time orientation (bug found by the bass-amp exercise: the
     child's markers were dropped, so KiCad reported pin_not_connected)."""
@@ -196,7 +223,7 @@ def test_nc_inside_a_child_block_renders(tmp_path, canvas, orientation):
 
 @pytest.mark.integration
 @kicad
-def test_unused_supply_pin_gets_no_power_flag(tmp_path):
+def test_unused_supply_pin_gets_no_power_flag(tmp_path: Path) -> None:
     """A PWR_FLAG on an NC net would make KiCad report no_connect_connected."""
     from yasdl.kicad_export import render
 

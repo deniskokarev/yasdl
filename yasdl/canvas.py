@@ -103,7 +103,7 @@ class EdgePort:
 
 
 class _UF:
-    def __init__(self):
+    def __init__(self) -> None:
         self.parent = {}
 
     def find(self, x):
@@ -121,14 +121,14 @@ class Canvas:
     """Parsed canvas. Nodes: ("w", r, c) wire cell, ("h"/"v", r, c) crossing halves,
     ("l", i) label i."""
 
-    def __init__(self, text: str, name: str = "block"):
-        self.name = name
+    def __init__(self, text: str, name: str = "block") -> None:
+        self.name: str = name
         raw = text.split("\n")
         lines = textwrap.dedent(text).split("\n")
         # Source offsets for diagnostics: canvas (row, col) = source line/column minus the
         # removed leading blank lines and common indentation.
         self.src_row0 = 0
-        self.src_col0 = next(
+        self.src_col0: int = next(
             (len(a) - len(b) for a, b in zip(raw, lines) if b.strip()), 0
         )
         while lines and not lines[0].strip():
@@ -138,10 +138,10 @@ class Canvas:
             lines.pop()
         if not lines:
             raise CanvasError(f"{name}: empty canvas")
-        self.W = max(len(line) for line in lines)
-        self.H = len(lines)
-        self.g = [line.ljust(self.W) for line in lines]
-        self.uf = _UF()
+        self.W: int = max(len(line) for line in lines)
+        self.H: int = len(lines)
+        self.g: list[str] = [line.ljust(self.W) for line in lines]
+        self.uf: _UF = _UF()
         self.labels: list[Label] = []
         self.label_at: dict[tuple[int, int], int] = {}
         self.comps: dict[str, Comp] = {}
@@ -179,7 +179,12 @@ class Canvas:
             )
         raise CanvasError(f"{self.name}: {msg}{where}" + self.excerpt(r, c, rows))
 
-    def excerpt(self, r=None, c=None, rows=None) -> str:
+    def excerpt(
+        self,
+        r: int | None = None,
+        c: int | None = None,
+        rows: tuple[int, int] | None = None,
+    ) -> str:
         """A few canvas rows around (r, c) with row numbers and a caret under column c."""
         if r is None or not getattr(self, "g", None):
             return ""
@@ -195,24 +200,28 @@ class Canvas:
             if c is not None
             else ""
         )
-        return "".join(out) + where + (
-            f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
-            f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
+        return (
+            "".join(out)
+            + where
+            + (
+                f"\n  {self.src_row0} leading blank line(s) and {self.src_col0} column(s) of indentation removed"
+                f" (indentation offset: {self.src_row0} rows, {self.src_col0} columns)"
+            )
         )
 
-    def inside(self, r, c):
+    def inside(self, r: int, c: int) -> bool:
         return 0 <= r < self.H and 0 <= c < self.W
 
-    def ch(self, r, c):
+    def ch(self, r: int, c: int) -> str:
         return self.g[r][c] if self.inside(r, c) else " "
 
-    def _wire_node(self, r, c, arm):
+    def _wire_node(self, r: int, c: int, arm: str) -> tuple[str, int, int]:
         if (r, c) in self.crossings:
             return ("h", r, c) if arm in "EW" else ("v", r, c)
         return ("w", r, c)
 
     # --- passes ------------------------------------------------------------
-    def _scan(self):
+    def _scan(self) -> None:
         for r, row in enumerate(self.g):
             c = 0
             while c < self.W:
@@ -260,13 +269,21 @@ class Canvas:
                 if ch.isalnum() or ch == "_":
                     self._add_component(r, c, seen)
 
-    def _add_label(self, text, r, c0, c1, shortcut=False, brace=False):
+    def _add_label(
+        self,
+        text: str,
+        r: int,
+        c0: int,
+        c1: int,
+        shortcut: bool = False,
+        brace: bool = False,
+    ) -> None:
         i = len(self.labels)
         self.labels.append(Label(text, r, c0, c1, shortcut, brace))
         for c in range(c0, c1 + 1):
             self.label_at[(r, c)] = i
 
-    def _add_component(self, r, c, seen):
+    def _add_component(self, r: int, c: int, seen: set[tuple[int, int]]) -> None:
         stack, cells = [(r, c)], []
         seen.add((r, c))
         while stack:
@@ -328,18 +345,23 @@ class Canvas:
                     f" (the other {name} spans rows {first.r0}-{first.r1}, cols "
                     f"{first.c0}-{first.c1}; if both are one component, a row is shifted)"
                 )
-            self.err(f"duplicate component {name}{hint}", r0, c0, rows=(min(r0, first.r0), max(r1, first.r1)))
+            self.err(
+                f"duplicate component {name}{hint}",
+                r0,
+                c0,
+                rows=(min(r0, first.r0), max(r1, first.r1)),
+            )
         self.comps[name] = Comp(name, r0, c0, r1, c1)
         for cell in cells:
             self.comp_at[cell] = name
 
-    def _points_into(self, r, c, from_side):
+    def _points_into(self, r: int, c: int, from_side: str) -> bool:
         """Does the wire cell on `from_side` of (r, c) have an arm pointing at (r, c)?"""
         dr, dc = STEP[from_side]
         arms = self.wires.get((r + dr, c + dc), "")
         return OPPOSITE[from_side] in arms
 
-    def _crossings(self):
+    def _crossings(self) -> None:
         for r, c in list(self.wires):
             ch = self.g[r][c]
             if ch in STRAIGHT_H:
@@ -359,7 +381,7 @@ class Canvas:
                     c,
                 )
 
-    def _connect(self):
+    def _connect(self) -> None:
         for (r, c), arms in self.wires.items():
             for arm in arms:
                 node = self._wire_node(r, c, arm)
@@ -527,7 +549,7 @@ class Canvas:
                 EdgePort(side, pos, (lab.row, lab.c0), ("l", i), tuple(aliases))
             )
 
-    def _classify_labels(self):
+    def _classify_labels(self) -> None:
         for lab in self.labels:
             if lab.kind:
                 continue
@@ -565,13 +587,13 @@ class Canvas:
                     lab.c0,
                 )
 
-    def _label_has_wire(self, i):
+    def _label_has_wire(self, i: int) -> bool:
         root = self.uf.find(("l", i))
         return any(
             self.uf.find(n) == root for n in list(self.uf.parent) if n[0] in "whv"
         )
 
-    def _merge_named_nets(self):
+    def _merge_named_nets(self) -> None:
         """Net labels with the same text are one net (implicit wires); pin labels are excluded."""
         by_text: dict[str, tuple] = {}
         for i, lab in enumerate(self.labels):
@@ -581,4 +603,6 @@ class Canvas:
                     self.uf.union(node, by_text[lab.text])
                 else:
                     by_text[lab.text] = node
-        self.net_names = {self.uf.find(n): t for t, n in by_text.items()}
+        self.net_names: dict[tuple[str, int] | tuple[str, int, int], str] = {
+            self.uf.find(n): t for t, n in by_text.items()
+        }

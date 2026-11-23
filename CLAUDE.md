@@ -24,30 +24,33 @@ changes.
 ## Code
 
 - Python 3.12, stdlib only (no runtime dependencies).
+- Format with ruff (config in `pyproject.toml`): `ruff check --fix . && ruff format .`
+  before committing.
 - Modules: `canvas.py` (parsing), `block.py` (binding, netlist, NC markers), `layout.py`
   (grid-bag), `kicad_lib.py` (library symbols, derived definitions, orientation, KiCad
   discovery and CLI), `kicad_sch.py` (file writer, kicad-cli), `kicad_export.py` (block →
   schematic, ERC helpers, round trips), `spice.py` (SPICE export, comparison parser),
   `sketch.py` (atomic canvas construction), `atoms.py` (atom factories, pots), `parts.py`
   (generic part factories, standard parts, packages), `resources.py` (portable model copies),
-  `std.py` (standard blocks), `circuits.py` (reusable circuits), `standard.py` (positional
-  entry points to them) and `analysis.py` (MNA transfer functions; sympy optional). Bundled
-  symbols/models: `yasdl/lib/`.
+  `std.py` (standard blocks, the one library of reusable topologies) and `analysis.py` (MNA
+  transfer functions; sympy optional). Bundled symbols/models: `yasdl/lib/`.
 - Standard topologies are literal ASCII canvases in the source; parameterized families repeat
   small literal cells or strips. Don't generate them with `Sketch`.
 - Standard-part pin maps are checked against an independent reference (the exact KiCad
   symbol or the datasheet), never against the factory that produced them.
 - Pin positions and sides come from the KiCad `.kicad_sym` files, never hard-coded.
 - `docs/examples/blocks.py` (and `sgen.py`) are the fixtures for tests; `features.py` and
-  `standard.py` render the parts, packages and reusable circuits. Each new feature gets an
+  `standard.py` render the parts, packages and standard blocks. Each new feature gets an
   example and a test.
 - `skills/yasdl-circuit-design/SKILL.md` is the agent-facing guide (symlinked into
   ~/.claude/skills). Keep it in sync with the API and spec.
 - Sine-generator tests use the bundled `yasdl/lib/jellybean.lib` models and
   `tests/test_sine_generator.lib` netlist. KiCad and ngspice tests skip only when their tools
   are unavailable.
-- Tests: `python -m pytest -q tests` (pytest in `~/venv`). Render: `python -m docs.examples.render`,
-  output in `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
+- Tests: `python -m pytest -q tests` (pytest in `~/venv`) runs the full suite;
+  `-m "not integration"` runs the unit tests only and `-m integration` the KiCad/ngspice tests
+  (`YASDL_KICAD`, ngspice on `PATH`). Render: `python -m docs.examples.render`, output in
+  `out/` (ignored); copy the PNGs to `docs/examples/generated/` when they change.
 
 ## KiCad
 

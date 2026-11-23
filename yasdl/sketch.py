@@ -18,7 +18,7 @@ an empty cell and let the wires meet it. A failed operation leaves the canvas un
 
 from __future__ import annotations
 
-from .canvas import ARMS, STEP, OPPOSITE
+from .canvas import ARMS, OPPOSITE, STEP
 
 _GLYPH: dict[frozenset[str], str] = {
     frozenset("EW"): "─",
@@ -42,6 +42,7 @@ class SketchError(ValueError):
 
 class CrossingSet(frozenset):
     """Immutable crossing coordinates; equality with an integer compares the count."""
+
     def __eq__(self, other):
         return len(self) == other if isinstance(other, int) else super().__eq__(other)
 
@@ -94,11 +95,15 @@ class Sketch:
                 f"Sketch.box: a nonempty component name and a positive integer row count are "
                 f"required, not {name!r}, rows={rows!r}"
             )
-        plan = {(row + r, col + i): ch for r in range(rows) for i, ch in enumerate(name)}
+        plan = {
+            (row + r, col + i): ch for r in range(rows) for i, ch in enumerate(name)
+        }
         self._commit(f"box({row}, {col}, {name!r}, rows={rows})", plan, set(), 0)
         return self
 
-    def hline(self, row: int, c0: int, c1: int, ch: str = "─", cross: int = 0) -> Sketch:
+    def hline(
+        self, row: int, c0: int, c1: int, ch: str = "─", cross: int = 0
+    ) -> Sketch:
         """A straight horizontal wire over columns c0..c1 (inclusive)."""
         _point((row, c0)), _point((row, c1))
         cells = [(row, c) for c in range(min(c0, c1), max(c0, c1) + 1)]
@@ -106,7 +111,9 @@ class Sketch:
         self._straight(what, cells, "EW", ch, cross)
         return self
 
-    def vline(self, col: int, r0: int, r1: int, ch: str = "│", cross: int = 0) -> Sketch:
+    def vline(
+        self, col: int, r0: int, r1: int, ch: str = "│", cross: int = 0
+    ) -> Sketch:
         """A straight vertical wire over rows r0..r1 (inclusive)."""
         _point((r0, col)), _point((r1, col))
         cells = [(r, col) for r in range(min(r0, r1), max(r0, r1) + 1)]
@@ -146,8 +153,11 @@ class Sketch:
             if old is None:
                 continue
             arms = ARMS.get(old)
-            if arms is None or (_direction(end, nxt) in arms and end not in self.crossing_cells
-                                and old not in _STRAIGHT):
+            if arms is None or (
+                _direction(end, nxt) in arms
+                and end not in self.crossing_cells
+                and old not in _STRAIGHT
+            ):
                 anchors.add(end)
         plan, crossing = {}, set()
         for i, cell in enumerate(path):
@@ -163,7 +173,9 @@ class Sketch:
             glyph = _GLYPH[frozenset(arms)]
             if cell in plan:  # the route crosses itself
                 if i in (0, len(path) - 1) or cell == path[0]:
-                    raise SketchError(f"Sketch.{what}: the route visits {cell} twice at an endpoint")
+                    raise SketchError(
+                        f"Sketch.{what}: the route visits {cell} twice at an endpoint"
+                    )
                 if {plan[cell], glyph} != {"─", "│"} or cell in crossing:
                     raise SketchError(
                         f"{what}: the route overlaps itself at row {cell[0]}, col {cell[1]}"
@@ -188,8 +200,14 @@ class Sketch:
         what = f"junction({row}, {col})"
         if arms is not None:
             selected = set(arms.upper())
-            if len(selected) != len(arms) or len(selected) not in (3, 4) or selected - set('NESW'):
-                raise SketchError(f"{what}: a junction joins three or four distinct sides")
+            if (
+                len(selected) != len(arms)
+                or len(selected) not in (3, 4)
+                or selected - set("NESW")
+            ):
+                raise SketchError(
+                    f"{what}: a junction joins three or four distinct sides"
+                )
             self.text(row, col, _GLYPH[frozenset(selected)])
             return self
         joined = inferred
@@ -214,7 +232,9 @@ class Sketch:
         route = ends is not None
         ends = ends or set()
         if type(cross) is not int or cross < 0:
-            raise SketchError(f"{what}: cross must be a nonnegative integer, not {cross!r}")
+            raise SketchError(
+                f"{what}: cross must be a nonnegative integer, not {cross!r}"
+            )
         for cell in plan:
             if any(type(v) is not int for v in cell):
                 raise SketchError(f"{what}: coordinates must be integers, not {cell}")
@@ -241,16 +261,24 @@ class Sketch:
                     if route and old_arms is not None and new_arms != old_arms
                     else "drawing may not overwrite existing content"
                 )
-                detail = ('existing crossing already uses both axes' if cell in self.crossing_cells else
-                          'text never overwrites; a component never overwrites' if not route else
-                          'wires overlap along the same axis' if old_arms == new_arms and old_arms else
-                          'continues on both sides' if old_arms else
-                          'an elbow, tee or junction is never crossed' if old in ARMS else
-                          'components, labels or text are never overwritten')
+                detail = (
+                    "existing crossing already uses both axes"
+                    if cell in self.crossing_cells
+                    else "text never overwrites; a component never overwrites"
+                    if not route
+                    else "wires overlap along the same axis"
+                    if old_arms == new_arms and old_arms
+                    else "continues on both sides"
+                    if old_arms
+                    else "an elbow, tee or junction is never crossed"
+                    if old in ARMS
+                    else "components, labels or text are never overwritten"
+                )
                 raise SketchError(
                     f"Sketch.{what}: collision at row {cell[0]}, col {cell[1]}: "
                     f"row {cell[0]}, col {cell[1]} already holds {kind}; {reason}; {detail}. "
-                    + ('text never overwrites. ' if not route else '') + "Nothing was drawn.\n"
+                    + ("text never overwrites. " if not route else "")
+                    + "Nothing was drawn.\n"
                     f"cell (row {cell[0]}, col {cell[1]}) already holds {kind} from {self.origin.get(cell)}"
                     + (
                         " (cross only straight wires, at 90 degrees, both continuing)"
@@ -324,9 +352,17 @@ class Sketch:
                     i += 1
                     continue
                 j = i
-                while j < len(cols) and cols[j] == cols[i] + (j - i) and rows[r][cols[j]] != "}":
+                while (
+                    j < len(cols)
+                    and cols[j] == cols[i] + (j - i)
+                    and rows[r][cols[j]] != "}"
+                ):
                     j += 1
-                if j >= len(cols) or cols[j] != cols[i] + (j - i) or rows[r][cols[j]] != "}":
+                if (
+                    j >= len(cols)
+                    or cols[j] != cols[i] + (j - i)
+                    or rows[r][cols[j]] != "}"
+                ):
                     i += 1
                     continue
                 start, end = cols[i], cols[j]
@@ -358,11 +394,15 @@ class Sketch:
                     if r == r1:
                         continue
                     edge, dist = "south", r1 - r
-                elif wire == "S":  # wire below the label: port belongs on the north edge
+                elif (
+                    wire == "S"
+                ):  # wire below the label: port belongs on the north edge
                     if r == r0:
                         continue
                     edge, dist = "north", r - r0
-                elif wire == "W":  # wire west of the label: port belongs on the east edge
+                elif (
+                    wire == "W"
+                ):  # wire west of the label: port belongs on the east edge
                     if end == c1:
                         continue
                     edge, dist = "east", c1 - end
@@ -393,9 +433,13 @@ def _point(p) -> tuple[int, int]:
     """A (row, col) of nonnegative integers."""
     p = tuple(p)
     if len(p) != 2 or any(type(v) is not int or v < 0 for v in p):
-        raise SketchError(f"Sketch: expected a nonnegative integer (row, col), got {p!r}")
+        raise SketchError(
+            f"Sketch: expected a nonnegative integer (row, col), got {p!r}"
+        )
     return p
 
 
 def _direction(a, b) -> str:
-    return {(-1, 0): "N", (1, 0): "S", (0, 1): "E", (0, -1): "W"}[(b[0] - a[0], b[1] - a[1])]
+    return {(-1, 0): "N", (1, 0): "S", (0, 1): "E", (0, -1): "W"}[
+        (b[0] - a[0], b[1] - a[1])
+    ]

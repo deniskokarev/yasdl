@@ -3,7 +3,7 @@ from docs.examples import blocks as ex
 from yasdl import Block, GND, netlist, NPN, R, YasdlError
 
 
-def net_of(nets, pin):
+def net_of(nets: dict[str, list[str]], pin: str) -> set[str]:
     return next(set(p) for p in nets.values() if pin in p)
 
 
@@ -16,14 +16,14 @@ FOLLOWER = """
 """
 
 
-def test_brace_label_names_a_port():
+def test_brace_label_names_a_port() -> None:
     blk = Block("F", FOLLOWER, Q1=NPN())
     assert blk.port("input").side == "W"
     assert blk.port("input").aliases[0] == "input"
     assert netlist(blk)["input"] == ["Q1.B"]
 
 
-def test_reexported_pin_names():
+def test_reexported_pin_names() -> None:
     blk = Block("F", FOLLOWER, Q1=NPN())
     assert (
         blk.port("C").side == "N" and blk.port("E").side == "S"
@@ -32,7 +32,7 @@ def test_reexported_pin_names():
     assert d == {"B", "C", "E"}
 
 
-def test_reexport_conflict_keeps_defaults():
+def test_reexport_conflict_keeps_defaults() -> None:
     blk = Block(
         "TwoQ",
         """
@@ -51,7 +51,7 @@ def test_reexport_conflict_keeps_defaults():
     assert blk.port("N0") and blk.port("N1")
 
 
-def test_dip_numbering():
+def test_dip_numbering() -> None:
     blk = Block(
         "Cross",
         """
@@ -64,7 +64,7 @@ def test_dip_numbering():
     assert blk.port("D3").side == "N"
 
 
-def test_brace_label_rules():
+def test_brace_label_rules() -> None:
     with pytest.raises(YasdlError, match="edge"):
         Block(
             "Inner", "──R2──────\n\n {x}──R1──", R1=R(), R2=R()
@@ -79,7 +79,7 @@ def test_brace_label_rules():
         Block("Reserved", "{W1}──R1──", R1=R())
 
 
-def test_programmatic_aliases():
+def test_programmatic_aliases() -> None:
     blk = Block(
         "S",
         "──R1──R2──",
@@ -98,7 +98,7 @@ def test_programmatic_aliases():
         Block("S", "──R1──", port_attrs={"W0": {"aliases": ["D7"]}}, R1=R())
 
 
-def test_global_nets_cross_blocks():
+def test_global_nets_cross_blocks() -> None:
     pull = Block(
         "Pull",
         """
@@ -122,7 +122,7 @@ def test_global_nets_cross_blocks():
     )
 
 
-def test_local_label_stays_in_block():
+def test_local_label_stays_in_block() -> None:
     inner = Block(
         "Inner",
         """
@@ -135,7 +135,7 @@ def test_local_label_stays_in_block():
     assert "x" not in nets  # local names don't leak (and don't merge the two instances)
 
 
-def test_pin_labels_match_subblock_port_names():
+def test_pin_labels_match_subblock_port_names() -> None:
     host = Block(
         "Host",
         """
@@ -156,7 +156,7 @@ def test_pin_labels_match_subblock_port_names():
     }
 
 
-def test_power_net_labels_draw_power_symbols():
+def test_power_net_labels_draw_power_symbols() -> None:
     from yasdl.layout import layout
 
     blk = Block(
@@ -174,7 +174,7 @@ def test_power_net_labels_draw_power_symbols():
     assert "R1.2" in netlist(blk)["GND"] or "R1.1" in netlist(blk)["GND"]
 
 
-def test_label_orientation_prefers_mirror_over_rotation():
+def test_label_orientation_prefers_mirror_over_rotation() -> None:
     from docs.examples.sgen import PHASE_SHIFT
 
     host = Block(
@@ -185,7 +185,7 @@ def test_label_orientation_prefers_mirror_over_rotation():
     assert host.to_dict()["components"]["PS"]["binding"]["mirror"] == "y"
 
 
-def test_explicit_orientation_checked_against_labels():
+def test_explicit_orientation_checked_against_labels() -> None:
     from docs.examples.sgen import OSCILLATOR, PHASE_SHIFT
 
     assert (OSCILLATOR.bound["PS"].rot, OSCILLATOR.bound["PS"].mirror) == (
@@ -212,7 +212,7 @@ def test_rotated_mirrored_api():
     } == {"W": "out", "E": "in"}
 
 
-def test_sketch_builds_canvases():
+def test_sketch_builds_canvases() -> None:
     from yasdl import Sketch
 
     s = (

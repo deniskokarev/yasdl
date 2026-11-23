@@ -97,41 +97,33 @@ and model; a linear setting is emitted as the fraction `P`. Both share the bundl
 
 ## Standard circuits
 
-Prefer lowercase construction functions for fully bound circuits; uppercase templates
-such as `INVERTING`, `NONINVERTING`, `FOLLOWER`, `OPAMP_UNUSED`, `SALLEN_KEY`,
-`RC_LOWPASS/HIGHPASS`, `DARLINGTON/SZIKLAI` support `.bind(...)`.
+`yasdl.std` is the one library of standard blocks. Prefer lowercase construction functions
+for fully bound circuits; uppercase templates such as `INVERTING`, `NONINVERTING`,
+`FOLLOWER`, `OPAMP_UNUSED`, `SALLEN_KEY`, `RC_LOWPASS/HIGHPASS`, `DARLINGTON/SZIKLAI`
+support `.bind(...)`.
 
 | Function | Parameters and interface |
 |---|---|
-| `powered(opamp,name=None)` / `powered_opamp` | Three signal ports; supplies internally on VCC/VEE |
+| `powered(opamp,name=None,positive="VCC",negative="VEE")` | Three signal ports; supplies internally on the global nets |
 | `follower(U=None)`, `noninverting(rf,rg,U=None)`, `inverting(ri,rf,U=None)` | Ideal opamp by default; in/out ports |
-| `rc_lowpass(r,c)`, `rc_highpass(c,r)` | Grounded first-order filters |
+| `integrator(ri,cf,U=None)`, `differentiator(ci,rf,U=None)` | `INVERTING` with a capacitor as RF or RI |
+| `rc_lowpass(r,c)`, `rc_highpass(c,r)`, `rc_bandpass(c1,r1,r2,c2)` | Grounded first-order filters; band-pass = high-pass into low-pass |
 | `sallen_key_lowpass(r1,r2,c_shunt,c_feedback,u=None,name=None)` | Ground shunt before output feedback |
 | `sallen_key_highpass(c1,c2,r_shunt,r_feedback,u=None,name=None)` | Ground shunt before output feedback |
-| `darlington(q1,q2=None,rx="1k",name=None)`, `sziklai(driver,output,rx="1k",name=None)` | c/base/e compound roles; shunt resistor |
+| `darlington(q1,q2=None,rx="1k",name=None)`, `sziklai(driver,output,rx="1k",name=None)` | c/base/e compound roles; turn-off resistor, `rx=None` for the plain pair |
 | `parallel(device,n,re="1",name=None)` | 2–9 devices with emitter ballast; n−1 declared crossings |
 | `diode_string(n,diode=None,name=None)`, `vbe_multiplier(q=None,r1="2.7k",r2="1k",name="VbeMultiplier")` | a/k bias interfaces |
-| `mirror(q,kind=None,re="100",name=None)`, `wilson(q,name="Wilson")`, `wilson_mirror(q,kind="npn",name=None)` | Plain or explicitly polarized mirrors |
-| `diff_pair(q,rc,tail)` / `diff_pair(q,kind="npn",rc="10k",re="100",rt="10k",name=None)` | General tail or polarized resistor-tail pair |
-| `diff_active(q,load,tail,name="DiffActive")`, `diff_pair_mirror(q,load,kind="npn",re="100",rt="10k",name=None)` | External or internal mirror load |
+| `current_sink(q=None,re="150",rb="10k",diode=None,name=None)` | c/e two-terminal sink, e.g. a `diff_pair` tail |
+| `mirror(q,kind="npn",re=None,name=None)`, `wilson(q,kind="npn",name=None)` | in/out ports; rail vn (npn) or vp (pnp); optional degeneration |
+| `diff_pair(q,kind="npn",rc="10k",re=None,rt="10k",name=None)` | Resistor-loaded pair; `rt` a value or any two-terminal part/block |
+| `diff_pair_mirror(q,load,kind="npn",re="100",rt="10k",name=None)` | Internal complementary mirror load, single-ended out |
+| `push_pull_core(kind="bjt",npn=None,pnp=None,diode=None,re="1",n=1,name=None)` | Driven at both string ends hi/lo; n output devices per half |
 | `push_pull_buffer(variant,upper,lower,diode=None,rt=None,rb=None,rq=None,re="0.22",name=None)` | Input at bias-string center; supplied compound halves |
 | `push_pull_vas(kind="bjt",npn=None,pnp=None,diode=None,rb="2.2k",re="1",qn=None,qp=None,bias=None,name=None)` | Input at string bottom; automatic or explicit halves |
 
 `push_pull` selects the VAS form when given qn/qp/bias or rb without rt/rq; otherwise
-it selects the buffer form.
-
-`yasdl.circuits` provides keyword constructors over literal canvases: `Darlington`,
-`Sziklai`, `BallastedDevice`, `ParallelDevices`, `DiodeString`, `PushPull`, `BiasString`,
-`FollowerPushPull`, `CurrentMirror`, `CurrentSink`, `DifferentialPair`, `LongTailedPair`,
-`LowPass`, `HighPass`, `BandPass`, `SallenKey`, `PoweredOpamp`, `Follower`, `NonInverting`,
-`Inverting`, `Integrator`, `Differentiator` (parameters in [SPEC.md](SPEC.md) 6.5).
-`yasdl.standard` has positional shortcuts: `darlington(pnp)`, `sziklai(pnp)`,
-`diode_string(count)`, `bias_string(count,resistance)`, `push_pull(variant,ballast,bias_resistance)`,
-`powered_opamp(atom)`, `follower(opamp)`, `inverting(ri,rf,opamp)`, `noninverting(rg,rf,opamp)`,
-`integrator(ri,cf,opamp)`, `rc_filter(kind,r,c)`, `sallen_key(r,c,opamp)`,
-`current_mirror(degeneration)`, `differential_pair(degeneration,tail,collector)`. These are a
-separate family from `yasdl.std`: argument orders and the push-pull topology differ. These drive points need different external bias arrangements.
-Use the explicit functions to choose deliberately. Models and default bias values are
+it selects the buffer form. These drive points need different external bias arrangements:
+use the explicit functions to choose deliberately. Models and default bias values are
 starting points; transistor current, dissipation and thermal coupling need circuit-specific checks.
 
 ## SPICE and KiCad exports
@@ -181,4 +173,4 @@ an error. `analysis.Circuit(block)` builds the MNA system: `solve(s,source=None,
 returns node voltages, `transfer(source,out,ref="0",s=1j,values=None)` returns
 `(V(out)-V(ref))/source`, and `transfer_symbolic(source,out,ref="0",numeric=False,simplify=True)`
 returns an exact sympy H(s) (sympy is an optional dependency; numeric solving is stdlib only).
-A circuit without a unique solution is an error. See SPEC 6.7.
+A circuit without a unique solution is an error. See SPEC 6.6.

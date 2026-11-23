@@ -52,8 +52,8 @@ them in a tiny top-level block where each stage is just a short name:
 `$YASDL_PATH/docs/examples/sgen.py` is the reference: PHASE_SHIFT (RC ladder) inside
 OSCILLATOR (gain stage), then OUTPUT_AMP (from the coupling capacitor on), composed by SGEN.
 More examples in `$YASDL_PATH/docs/examples/blocks.py`; ready-made stages are in `yasdl.std`
-and `yasdl.circuits` (Darlington and Sziklai pairs, push-pull outputs, mirrors, differential
-pairs, filters, op-amp circuits; `$YASDL_PATH/docs/examples/standard.py`). The full spec is
+(Darlington and Sziklai pairs, push-pull outputs, mirrors, differential pairs, filters,
+op-amp circuits; `$YASDL_PATH/docs/examples/standard.py`). The full spec is
 `$YASDL_PATH/docs/SPEC.md` (overview: `$YASDL_PATH/README.md`); read the parts you need.
 
 ## Setup
@@ -155,13 +155,11 @@ labels; the labels choose the orientation.
   bottom**. A `+` on its lower input flips it so − is on top, as in inverting stages, **and
   the flip moves the supply pins too**: `[VCC]` drawn above then reaches V−. Either wrap it,
   `std.powered(opamp)` (a three-port block with V+ on `[VCC]` and V− on `[VEE]` inside; any
-  rotation carries the supplies along; fits every op-amp hole; `circuits.PoweredOpamp(atom)`
-  is the same idea), or label `{V+}` above and `{V-}` below so a wrong flip fails at binding.
+  rotation carries the supplies along; fits every op-amp hole), or label `{V+}` above and `{V-}` below so a wrong flip fails at binding.
   `[VCC]` names a net; `{V+}` asserts a pin.
 - Mirroring a stage moves its parts but doesn't redesign it: an NPN stage mirrored into a
   PNP one keeps its diode bias the wrong way round. Use the complementary standard stages
-  (`std.push_pull_*`, `circuits.PushPull`, `circuits.FollowerPushPull`) whose halves and bias
-  are designed together.
+  (`std.push_pull_*`) whose halves and bias are designed together.
 - Give directional sub-block inputs an arrow alias (`{in, >}`); `PS<` puts that input on
   the right. Named ports also accept brace labels: `PS{in}` names the `in` port on that
   side.
@@ -202,30 +200,70 @@ labels; the labels choose the orientation.
 ## API
 
 ```python
-from yasdl import (Block, Sketch, R, C, L, D, NPN, PNP, OPAMP, OPAMP_IDEAL, V, I, GND, VCC, VEE, C_POL,
-                   POT, NC, Atom, netlist, spice_netlist, register_power_net, SpiceModel)
-from yasdl import std                                   # standard reusable blocks
-from yasdl.parts import Q2N3904, Q2N3906, BD139, BD140, D1N4148, AtomNPN, Package, dual_opamp
+from yasdl import (
+    Block,
+    Sketch,
+    R,
+    C,
+    L,
+    D,
+    NPN,
+    PNP,
+    OPAMP,
+    OPAMP_IDEAL,
+    V,
+    I,
+    GND,
+    VCC,
+    VEE,
+    C_POL,
+    POT,
+    NC,
+    Atom,
+    netlist,
+    spice_netlist,
+    register_power_net,
+    SpiceModel,
+)
+from yasdl import std  # standard reusable blocks
+from yasdl.parts import (
+    Q2N3904,
+    Q2N3906,
+    BD139,
+    BD140,
+    D1N4148,
+    AtomNPN,
+    Package,
+    dual_opamp,
+)
 from yasdl.kicad_export import render
-from yasdl.kicad_lib import JELLYBEAN_MODEL             # 2N3904, 2N3906, 1N4148 models
+from yasdl.kicad_lib import JELLYBEAN_MODEL  # 2N3904, 2N3906, 1N4148 models
 
 STAGE = Block("Stage", canvas_text, R1=R("10k"), Q1=NPN("2N3904"), SUB=OTHER)
-STAGE.unbound                     # components without a binding = open interface
-TOP = TEMPLATE.bind(IN=R("1k"))   # bind later
-STAGE.ports                       # Port(side, index, name, dip, aliases)
-STAGE.port("vp")                  # lookup by alias, "W0" or "D2"
-netlist(STAGE)                    # {net: ["path.pin", ...]}
-spice_netlist(STAGE, subckt="name", port_order=["vp", "vm", "out"], includes=("models.lib",))
-render(STAGE, "out", spice_libs=("models.lib",), spice=True)  # .kicad_sch + .svg + checks
-render(STAGE, "out", references="names", values=False)  # refs = yasdl names, values hidden
-render(HALF.bind(Q1=NPN("2N3904")), "out", export_name="HalfN")  # file stem != block name
-STAGE.to_dict()                   # JSON view for debugging
+STAGE.unbound  # components without a binding = open interface
+TOP = TEMPLATE.bind(IN=R("1k"))  # bind later
+STAGE.ports  # Port(side, index, name, dip, aliases)
+STAGE.port("vp")  # lookup by alias, "W0" or "D2"
+netlist(STAGE)  # {net: ["path.pin", ...]}
+spice_netlist(
+    STAGE, subckt="name", port_order=["vp", "vm", "out"], includes=("models.lib",)
+)
+render(
+    STAGE, "out", spice_libs=("models.lib",), spice=True
+)  # .kicad_sch + .svg + checks
+render(
+    STAGE, "out", references="names", values=False
+)  # refs = yasdl names, values hidden
+render(
+    HALF.bind(Q1=NPN("2N3904")), "out", export_name="HalfN"
+)  # file stem != block name
+STAGE.to_dict()  # JSON view for debugging
 Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 ```
 
 - Atom values are SPICE values (`"4.7k"`, `"100n"`). **USE MEG FOR MEGA; USE lowercase m FOR
   MILLI**: `R("1Meg")`, never `R("1M")` (KiCad reads mega, ngspice milli); write `4.7k`, not
-  `4k7`. Direct SPICE generation rejects ambiguous passive values; rendering reports the actual export mismatch. Transistors and
+  `4k7`, and no space inside a value (`1.5kOhm`, not `1.5 kOhms`). Direct SPICE generation rejects ambiguous passive values; rendering reports the actual export mismatch. Transistors and
   diodes take the model name as their value (`NPN("2N3904")`, `D("1N4148")`). Models come
   from `includes`/`spice_libs`.
 - **Real parts**: prefer the verified descriptors in `yasdl.parts` (`Q2N3904`, `Q2N3906`,
@@ -270,18 +308,15 @@ Block(..., port_attrs={"W0": {"aliases": ["input"]}})
 | Need | Block |
 |---|---|
 | five-pin op-amp in any op-amp hole | `std.powered(opamp)` |
-| buffer / gain stages | `std.follower(U)`, `std.noninverting(rf, rg, U)`, `std.inverting(ri, rf, U)` |
-| filters | `std.rc_lowpass`, `std.rc_highpass`, `std.sallen_key_lowpass`, `std.sallen_key_highpass` |
-| compound transistors (`{c}` N, `{b}` W, `{e}` S) | `std.darlington`, `std.sziklai`, `std.parallel(q, n, re)` |
-| mirrors, differential pairs | `std.mirror`, `std.wilson`, `std.diff_pair`, `std.diff_active` |
-| keyword-configured stages | `circuits.Darlington(pnp=, output=, turnoff=)`, `Sziklai`, `PushPull(variant=, parallel=, ballast=)` (driven at `{hi}`/`{lo}`), `FollowerPushPull`, `CurrentMirror(degeneration=, rail=)`, `CurrentSink`, `DifferentialPair`, `LongTailedPair`, `LowPass`/`HighPass`/`BandPass`, `SallenKey`, `NonInverting`, `Inverting`, `Integrator`; positional shortcuts in `yasdl.standard` |
-| class-AB output stage | `std.push_pull_buffer(kind, upper, lower)` or `std.push_pull_vas(kind, npn, pnp, rb=)`, kind `bjt`/`darlington`/`sziklai` (bias string sized for the kind) |
+| buffer / gain stages | `std.follower(U)`, `std.noninverting(rf, rg, U)`, `std.inverting(ri, rf, U)`, `std.integrator(ri, cf, U)`, `std.differentiator(ci, rf, U)` |
+| filters | `std.rc_lowpass(r, c)`, `std.rc_highpass(c, r)`, `std.rc_bandpass(c1, r1, r2, c2)`, `std.sallen_key_lowpass`, `std.sallen_key_highpass` |
+| compound transistors (`{c}` N, `{b}` W, `{e}` S) | `std.darlington(q1, q2, rx)`, `std.sziklai(driver, output, rx)` (`rx=None`: plain pair), `std.parallel(q, n, re)` |
+| mirrors, current sink, differential pairs | `std.mirror(q, kind, re)`, `std.wilson(q, kind)` (rail `{vn}` for `"npn"`, `{vp}` for `"pnp"`), `std.current_sink`, `std.diff_pair(q, kind, rc, re, rt)` (`rt` may be `std.current_sink()`), `std.diff_pair_mirror` |
+| class-AB output stage | `std.push_pull_buffer(kind, upper, lower)` (driven at the string center), `std.push_pull_vas(kind, npn, pnp, rb=)` (bottom), `std.push_pull_core(kind, npn, pnp, n=)` (both ends `{hi}`/`{lo}`), kind `bjt`/`darlington`/`sziklai` (bias string sized for the kind) |
 | adjustable output bias | `std.push_pull(qn=..., qp=..., bias=std.vbe_multiplier(q, r1, r2))`: V = Vbe (1 + r1/r2), for when no whole number of diodes gives the wanted quiescent current |
 
 They are literal ASCII canvases in the library source (read them to see the topology) and
-verified (KiCad round trips and ngspice characterisation). `yasdl.std` and
-`yasdl.standard` are different families: check argument order (`std.noninverting(rf, rg)`
-vs `standard.noninverting(rg, rf)`). Bind your own parts into
+verified (KiCad round trips and ngspice characterisation). Bind your own parts into
 them; for a PNP-equivalent compound, bind PNPs and let the host's `{e}` label orient it.
 
 Sallen-Key arguments put the shunt-to-ground component before feedback: low-pass
@@ -297,9 +332,10 @@ returns electrical track position. `Sketch.crossing_count` counts deliberate cro
 
 ```python
 from yasdl.analysis import Circuit
-ckt = Circuit(top)                                  # R, C, L, V, I, OPAMP_IDEAL
-ckt.transfer("V1", "out", s=2j * math.pi * f)       # numeric H(jw), stdlib only
-ckt.transfer_symbolic("V1", "out")                  # sympy H(s) in element names
+
+ckt = Circuit(top)  # R, C, L, V, I, OPAMP_IDEAL
+ckt.transfer("V1", "out", s=2j * math.pi * f)  # numeric H(jw), stdlib only
+ckt.transfer_symbolic("V1", "out")  # sympy H(s) in element names
 ```
 Use it to check a design against its target in milliseconds; confirm the final one in ngspice.
 
@@ -313,9 +349,9 @@ s = Sketch()
 s.text(0, 0, "{in}").hline(0, 4, 7).text(0, 8, "R1").hline(0, 10, 13)
 s.hline(0, 15, 18).text(0, 19, "{out}")
 s.vline(14, 1, 1).text(2, 14, "C1")
-s.junction(0, 14)                          # ┬: explicit, in the empty cell the wires meet
-s.wire([(3, 14), (4, 14), (4, 8)])         # a route; the elbow ┘ is generated
-s.text(4, 3, "[GND]")                      # (ports must stay on the canvas edge)
+s.junction(0, 14)  # ┬: explicit, in the empty cell the wires meet
+s.wire([(3, 14), (4, 14), (4, 8)])  # a route; the elbow ┘ is generated
+s.text(4, 3, "[GND]")  # (ports must stay on the canvas edge)
 LPF = Block("LPF", s.render(), R1=R("1k"), C1=C("100n"))
 # s.hline(r, c0, c1, cross=1) would declare one deliberate crossing
 ```
@@ -347,6 +383,7 @@ repeated parts. Print `s.render()` and read it before binding.
 | `port ... is on the global ground` (SPICE) | ground is implicit in SPICE; don't give the block a ground port |
 | `... is meant to be the same component, a row is shifted` / `ragged` rows listed | a row is off by one column; the caret marks it; use `Sketch` |
 | `value '1M' means 1e+06 to KiCad but 0.001 to ngspice` | write `1Meg` (or `1m`), `4.7k` instead of `4k7` |
+| `value '1.5 kOhms' is not the same number to KiCad and ngspice` | drop the spaces: `1.5k` or `1.5kOhm` |
 | `does not fit its drawing` with an orientation list | each listed orientation names the label it contradicts; fix the label or the wires |
 | `NC ... must end a net with exactly one device pin` | the NC wire reaches several pins (or a global/port); NC marks one unused pin |
 | `package U1: units [...] are not bound` | bind every unit once, power unit included |

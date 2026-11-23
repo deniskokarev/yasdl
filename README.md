@@ -33,17 +33,29 @@ properly. yasdl keeps the 2D arrangement in the source.)*
 ```python
 from yasdl import Block, C, OPAMP, R
 
-SERIES = Block("Series", """
+SERIES = Block(
+    "Series",
+    """
     ──R1──R2──
-""", R1=R("1k"), R2=R("2k"))
+""",
+    R1=R("1k"),
+    R2=R("2k"),
+)
 
-PARALLEL = Block("Parallel", """
+PARALLEL = Block(
+    "Parallel",
+    """
     ──┬──R1──┬──
       │      │
       └──R2──┘
-""", R1=R("10k"), R2=R("10k"))
+""",
+    R1=R("10k"),
+    R2=R("10k"),
+)
 
-INV_AMP = Block("InvAmp", """
+INV_AMP = Block(
+    "InvAmp",
+    """
               ┌──────FB───────┐
               │               │
               │    [VEE]      │
@@ -53,9 +65,13 @@ INV_AMP = Block("InvAmp", """
               ┌─────+U1U1U1
               │      │
             [GND]  [VCC]
-""", U1=OPAMP())
+""",
+    U1=OPAMP(),
+)
 
-amp = INV_AMP.bind(IN=SERIES, FB=PARALLEL)   # sub-circuits plugged into the IN and FB holes
+amp = INV_AMP.bind(
+    IN=SERIES, FB=PARALLEL
+)  # sub-circuits plugged into the IN and FB holes
 ```
 
 ![inverting amplifier](docs/examples/generated/InvAmp.png)
@@ -144,7 +160,7 @@ a single KiCad sheet; hierarchical sheets will come later.
 from yasdl import spice_netlist
 from yasdl.kicad_export import render
 
-render(amp, "out")                                   # out/InvAmp.kicad_sch + .svg, with checks
+render(amp, "out")  # out/InvAmp.kicad_sch + .svg, with checks
 print(spice_netlist(PARALLEL, subckt="parallel"))
 ```
 
@@ -153,7 +169,7 @@ Conventions worth knowing:
   ngspice disagree about `1M`; direct SPICE generation rejects such values and rendering
   reports the mismatch. yasdl never rewrites values.
 - Mirroring a five-pin op-amp moves its supply pins too. Label `{V+}`/`{V-}`, or use a
-  three-port wrapper with the supplies wired inside (`std.powered`, `circuits.PoweredOpamp`).
+  three-port wrapper with the supplies wired inside (`std.powered`).
 - **NGSPICE EXIT CODE 0 DOES NOT GUARANTEE SUCCESSFUL ANALYSES OR MEASUREMENTS.** Check
   the log and every required measurement. Testbenches belong with the design.
 
@@ -162,13 +178,16 @@ Full callable interfaces and parameter conventions: [docs/API.md](docs/API.md).
 ### Parts, packages and standard blocks
 
 ```python
-from yasdl import AtomNPN, Block, NC, Package, Pot, Q2N3904, R
-from yasdl.circuits import NonInverting, SallenKey
+from yasdl import AtomNPN, Block, NC, Package, Pot, Q2N3904, R, std
 
-q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, "models.lib")   # verify maps yourself
+q = AtomNPN("BD139", {"E": 1, "B": 3, "C": 2}, "models.lib")  # verify maps yourself
 chip = Package("TL072", library="tl072_dual.lib", model_name="TL072_DUAL")
-pre = NonInverting(opamp=chip.unit("A"))       # one chip, units in different blocks;
-flt = SallenKey(opamp=chip.unit("B"))          # its power unit chip.unit("C") is bound once
+pre = std.noninverting(
+    "47k", "1k", chip.unit("A")
+)  # one chip, units in different blocks;
+flt = std.sallen_key_lowpass(
+    "10k", "10k", "10n", "20n", chip.unit("B")
+)  # power unit once
 unused = Block("Unused", "NC1─R1─{out}", NC1=NC(), R1=R("10k"))
 ```
 
@@ -179,13 +198,11 @@ unused = Block("Unused", "NC1─R1─{out}", NC1=NC(), R1=R("10k"))
   `chip.unit("A")`, `chip.power()`): one reference, footprint and SPICE element per chip.
   Pin maps of new parts are yours to verify against the datasheet: round trips and
   simulation can't detect a wrong lead number.
-- Two families of reusable blocks, all written as literal ASCII canvases: `yasdl.std`
-  (construction functions and templates: powered op-amp wrapper, op-amp stages, RC and
-  Sallen-Key filters, Darlington/Sziklai/parallel compound transistors, mirrors,
-  differential pairs, class-AB push-pull stages driven at the string center or bottom) and
-  `yasdl.circuits` with its positional shortcuts `yasdl.standard` (compound devices,
-  push-pull output stages and self-biased followers, mirrors, sinks, differential pairs,
-  filters, op-amp circuits).
+- One library of reusable blocks, all written as literal ASCII canvases: `yasdl.std`
+  (construction functions and templates: powered op-amp wrapper, op-amp stages,
+  integrator/differentiator, RC and Sallen-Key filters, Darlington/Sziklai/parallel
+  compound transistors, diode strings, Vbe multiplier, current sink, mirrors, differential
+  pairs, class-AB push-pull stages driven at the string ends, center or bottom).
 - `NC()` no-connect markers, one per drawn wire end, without removing wires;
   `Atom(..., sim=False)` for connectors; `POT()`/`Pot()` potentiometers (pin 1 ccw, 2 wiper,
   3 cw) with linear and log tapers.
@@ -207,7 +224,7 @@ guide and common errors.
 | LM386 with no-connect marker groups on unused pins | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/LM386NC.png) |
 | Dual op-amp package, units in two standard blocks | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/DualOpamp.png) |
 | Class-AB push-pull stage from `yasdl.std` | [docs/examples/blocks.py](docs/examples/blocks.py) | ![](docs/examples/generated/PushPull_bjt.png) |
-| Every reusable circuit of `yasdl.circuits`, NC markers, a shared package | [docs/examples/standard.py](docs/examples/standard.py) | `python -m docs.examples.standard out/standard` |
+| Every standard block of `yasdl.std`, NC markers, a shared package | [docs/examples/standard.py](docs/examples/standard.py) | `python -m docs.examples.standard out/standard` |
 
 ## 8. Tests
 
